@@ -27,6 +27,10 @@ const serverEnvSchema = z.object({
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1).optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().min(1).optional(),
 
+  // DEC-012 — 32-byte key (64 hex or base64) for the TOTP secret box. When set,
+  // MFA is ENFORCED for every panel login; absent (dev), MFA is skipped.
+  MFA_ENCRYPTION_KEY: z.string().min(1).optional(),
+
   // Mailtrap (Sending API in production; sandbox in dev/staging)
   MAILTRAP_API_TOKEN: z.string().min(1).optional(),
   MAILTRAP_SENDER_EMAIL: z.string().email().optional(),

@@ -54,4 +54,7 @@ export interface UserRecord {
   name: string;
   status: "ACTIVE" | "SUSPENDED";
   passwordHash: string | null;
+  mfaEnabled: boolean;
+  mfaSecretEnc: string | null;
+  mfaBackupCodes: string[];
 }

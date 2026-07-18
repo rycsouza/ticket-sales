@@ -39,8 +39,8 @@ Superfícies: UI pública do comprador (mobile-first), login de staff, console d
 
 Estes **não devem ser inventados** — exigem decisão de negócio ou trabalho de infraestrutura dedicado e testado:
 
-- **DEC-010 Retenção/anonimização de dados/logs (LGPD):** política a definir → job de retenção/anonimização. *Decisão do usuário.*
-- **DEC-012 MFA por papel:** exigir MFA para papéis sensíveis (proprietário/financeiro)? *Decisão do usuário.*
+- ✅ **DEC-010 Retenção/anonimização (LGPD) — RESOLVIDA e implementada.** Janela de 24 meses; job `POST /api/jobs/retention` (QStash) anonimiza PII de compradores inativos (ledger intacto); erasure sob pedido. Confirmar o prazo fiscal (~5 anos) com contador.
+- ✅ **DEC-012 MFA — RESOLVIDA e implementada.** TOTP obrigatório para todo usuário do painel quando `MFA_ENCRYPTION_KEY` está configurada; device-trust 30d + códigos de backup. **Ação de produção:** definir `MFA_ENCRYPTION_KEY` (32 bytes) no ambiente — sem ela, o MFA fica desativado.
 - **RLS (defesa em profundidade):** políticas Postgres por `organizationId` + GUC de sessão. Hoje o isolamento é garantido na aplicação (repos escopados + testes). RLS é camada extra; requer implementação e teste dedicados antes de produção (ARQUITETURA §20).
 - **Conciliação de PSP (FR-FIN-005/006):** custo real do PSP e liquidação → hoje PSP cost = 0 no ledger; reconciliar quando houver dados reais do MP.
 - **PWA de portaria — câmera + offline:** leitura por câmera e service worker/IndexedDB sobre o pacote offline (o domínio `pack`/`sync` já suporta). Validação online já operável.

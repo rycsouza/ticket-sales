@@ -8,9 +8,17 @@ import {
   InMemorySessionRepository,
   InMemoryUserRepository,
 } from "../../../testing/fakes";
-import { AuthService, RateLimitExceededError } from "../service";
+import { AuthService, RateLimitExceededError, type LoginResult } from "../service";
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** These tests run without MFA enforced, so login is always authenticated. */
+function authed(result: LoginResult) {
+  if (result.status !== "authenticated") {
+    throw new Error(`expected authenticated login, got ${result.status}`);
+  }
+  return result;
+}
 
 function setup() {
   const clock = new FakeClock();
@@ -64,7 +72,7 @@ describe("login", () => {
   it("returns a session token on valid credentials", async () => {
     const { service, audit } = await withUser();
 
-    const result = await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta);
+    const result = authed(await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta));
 
     expect(result.rawToken).toHaveLength(43);
     expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
@@ -112,7 +120,7 @@ describe("login", () => {
     }
     clock.advance(16 * 60 * 1000);
 
-    const result = await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta);
+    const result = authed(await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta));
     expect(result.rawToken).toBeDefined();
   });
 });
@@ -124,9 +132,8 @@ describe("sessions", () => {
       { name: "Ana", email: "ana@x.com", password: "senha-forte-10" },
       meta,
     );
-    const login = await env.service.login(
-      { email: "ana@x.com", password: "senha-forte-10" },
-      meta,
+    const login = authed(
+      await env.service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta),
     );
     return { ...env, login };
   }
@@ -164,7 +171,9 @@ describe("sessions", () => {
 
   it("revokeAllSessions ends every session of the user", async () => {
     const { service, login } = await withSession();
-    const second = await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta);
+    const second = authed(
+      await service.login({ email: "ana@x.com", password: "senha-forte-10" }, meta),
+    );
 
     const count = await service.revokeAllSessions(login.userId, {
       ...meta,

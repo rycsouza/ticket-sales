@@ -22,6 +22,45 @@ export interface SessionRepository {
   revokeAllForUser(userId: string, revokedAt: Date): Promise<number>;
 }
 
+export interface TrustedDeviceRepository {
+  create(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    label?: string | undefined;
+  }): Promise<void>;
+  /** Valid = matches user, not expired. */
+  isValid(userId: string, tokenHash: string, now: Date): Promise<boolean>;
+}
+
+export class PrismaTrustedDeviceRepository implements TrustedDeviceRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async create(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    label?: string | undefined;
+  }) {
+    await this.prisma.trustedDevice.create({
+      data: {
+        userId: data.userId,
+        tokenHash: data.tokenHash,
+        expiresAt: data.expiresAt,
+        label: data.label ?? null,
+      },
+    });
+  }
+
+  async isValid(userId: string, tokenHash: string, now: Date): Promise<boolean> {
+    const device = await this.prisma.trustedDevice.findUnique({
+      where: { tokenHash },
+      select: { userId: true, expiresAt: true },
+    });
+    return !!device && device.userId === userId && device.expiresAt.getTime() > now.getTime();
+  }
+}
+
 const sessionSelect = {
   id: true,
   userId: true,

@@ -1,16 +1,28 @@
+import { createHash, randomBytes } from "node:crypto";
 import { ConflictError, DomainError, UnauthenticatedError } from "../../shared/errors";
 import { generateToken, hashToken } from "../../shared/tokens";
+import { decryptSecret, encryptSecret } from "../../shared/secret-box";
+import { generateTotpSecret, totpAuthUri, verifyTotp } from "../../shared/totp";
 import type { CachePort } from "../../ports/cache";
 import type { ClockPort } from "../../ports/clock";
 import type { PasswordHasherPort } from "../../ports/password-hasher";
 import type { AuditRepository } from "../audit/repository";
 import type { UserRepository } from "../identity/repository";
-import type { SessionRepository } from "./repository";
+import type { UserRecord } from "../identity/types";
+import type { SessionRepository, TrustedDeviceRepository } from "./repository";
 import type { LoginInput, RegisterInput } from "./schemas";
 
 const SESSION_TTL_HOURS = 24 * 7; // 7 days, revocable (FR-AUTH-003)
 const LOGIN_MAX_ATTEMPTS = 10; // per identifier per window (FR-AUTH-006)
 const LOGIN_WINDOW_SECONDS = 15 * 60;
+const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
+const MFA_VERIFY_MAX_ATTEMPTS = 8;
+const TRUSTED_DEVICE_DAYS = 30;
+const BACKUP_CODE_COUNT = 10;
+
+function hashCode(code: string): string {
+  return createHash("sha256").update(code.replace(/\s/g, "").toUpperCase(), "utf8").digest("hex");
+}
 
 // Any Argon2id hash of an arbitrary string. Verified against when the user
 // does not exist so the request timing does not reveal account existence
@@ -25,6 +37,27 @@ export interface AuthServiceDeps {
   cache: CachePort;
   clock: ClockPort;
   passwordHasher: PasswordHasherPort;
+  /** DEC-012 — present iff MFA is enforced (encryption key configured). */
+  mfa?:
+    | { key: Buffer; issuer: string; trustedDevices: TrustedDeviceRepository }
+    | undefined;
+}
+
+/** Discriminated login outcome (DEC-012). Without MFA it is always authenticated. */
+export type LoginResult =
+  | { status: "authenticated"; rawToken: string; expiresAt: Date; userId: string }
+  | { status: "mfa_setup_required"; challengeToken: string }
+  | { status: "mfa_required"; challengeToken: string };
+
+export interface MfaCompletion {
+  status: "authenticated";
+  rawToken: string;
+  expiresAt: Date;
+  userId: string;
+  /** Present on setup confirmation — shown once for the user to store. */
+  backupCodes?: string[];
+  /** Present when the device was trusted — set as an httpOnly cookie. */
+  trustedDeviceToken?: string;
 }
 
 export interface RequestMeta {
@@ -68,7 +101,11 @@ export class AuthService {
    * FR-AUTH-001/006 — rate-limited login with a single generic failure error
    * (no user-exists oracle) and audit for success and failure (§14 rules).
    */
-  async login(input: LoginInput, meta: RequestMeta) {
+  async login(
+    input: LoginInput,
+    meta: RequestMeta,
+    opts?: { trustedDeviceToken?: string | undefined },
+  ): Promise<LoginResult> {
     await this.enforceRateLimit(`auth:login:email:${input.email}`);
     if (meta.ip) await this.enforceRateLimit(`auth:login:ip:${meta.ip}`);
 
@@ -92,27 +129,103 @@ export class AuthService {
       throw new UnauthenticatedError("Invalid credentials");
     }
 
-    const rawToken = generateToken();
-    const now = this.deps.clock.now();
-    const session = await this.deps.sessions.create({
-      userId: user.id,
-      tokenHash: hashToken(rawToken),
-      expiresAt: new Date(now.getTime() + SESSION_TTL_HOURS * 60 * 60 * 1000),
-      ip: meta.ip,
-      userAgent: meta.userAgent,
-    });
+    // MFA (DEC-012). When not enforced (no key), behave exactly as before.
+    if (this.deps.mfa) {
+      const now = this.deps.clock.now();
+      if (!user.mfaEnabled) {
+        return { status: "mfa_setup_required", challengeToken: await this.issueChallenge(user.id, "setup") };
+      }
+      const trusted =
+        opts?.trustedDeviceToken !== undefined &&
+        (await this.deps.mfa.trustedDevices.isValid(
+          user.id,
+          hashToken(opts.trustedDeviceToken),
+          now,
+        ));
+      if (!trusted) {
+        return { status: "mfa_required", challengeToken: await this.issueChallenge(user.id, "verify") };
+      }
+    }
 
+    const session = await this.issueSession(user, meta);
+    return {
+      status: "authenticated",
+      rawToken: session.rawToken,
+      expiresAt: session.expiresAt,
+      userId: user.id,
+    };
+  }
+
+  // --- MFA (DEC-012) --------------------------------------------------------
+
+  /** Begins enrollment: returns the secret + otpauth URI for the QR code. */
+  async setupMfa(challengeToken: string): Promise<{ secret: string; otpauthUri: string }> {
+    const mfa = this.requireMfa();
+    const userId = await this.peekChallenge(challengeToken, "setup");
+    const user = await this.mustFindUser(userId);
+
+    const secret = generateTotpSecret();
+    await this.deps.users.setMfaPendingSecret(user.id, encryptSecret(secret, mfa.key));
+    return { secret, otpauthUri: totpAuthUri(secret, user.email, mfa.issuer) };
+  }
+
+  /** Confirms enrollment with the first code; enables MFA and returns backup codes. */
+  async confirmMfaSetup(
+    challengeToken: string,
+    code: string,
+    meta: RequestMeta,
+    opts?: { trustDevice?: boolean | undefined },
+  ): Promise<MfaCompletion> {
+    const mfa = this.requireMfa();
+    const userId = await this.consumeChallenge(challengeToken, "setup");
+    await this.enforceMfaRateLimit(userId);
+    const user = await this.mustFindUser(userId);
+    if (!user.mfaSecretEnc) throw new UnauthenticatedError();
+
+    const secret = decryptSecret(user.mfaSecretEnc, mfa.key);
+    if (!verifyTotp(secret, code, this.deps.clock.now())) {
+      throw new UnauthenticatedError("Invalid code");
+    }
+
+    const backupCodes = Array.from({ length: BACKUP_CODE_COUNT }, () =>
+      base32Code(),
+    );
+    await this.deps.users.enableMfa(user.id, backupCodes.map(hashCode));
     await this.deps.audit.append({
       actorUserId: user.id,
-      action: "auth.login_succeeded",
-      resourceType: "session",
-      resourceId: session.id,
+      action: "auth.mfa_enabled",
+      resourceType: "user",
+      resourceId: user.id,
       correlationId: meta.correlationId,
       ip: meta.ip,
     });
 
-    // rawToken goes into an httpOnly cookie at the boundary — never logged.
-    return { rawToken, expiresAt: session.expiresAt, userId: user.id };
+    const completion = await this.completeMfa(user, meta, opts);
+    return { ...completion, backupCodes };
+  }
+
+  /** Verifies a TOTP code (or a backup code) for an enrolled user. */
+  async verifyMfa(
+    challengeToken: string,
+    code: string,
+    meta: RequestMeta,
+    opts?: { trustDevice?: boolean | undefined },
+  ): Promise<MfaCompletion> {
+    const mfa = this.requireMfa();
+    const userId = await this.consumeChallenge(challengeToken, "verify");
+    await this.enforceMfaRateLimit(userId);
+    const user = await this.mustFindUser(userId);
+    if (!user.mfaEnabled || !user.mfaSecretEnc) throw new UnauthenticatedError();
+
+    const secret = decryptSecret(user.mfaSecretEnc, mfa.key);
+    let ok = verifyTotp(secret, code, this.deps.clock.now());
+    if (!ok) {
+      // Fall back to a single-use backup code.
+      ok = await this.deps.users.consumeBackupCode(user.id, hashCode(code));
+    }
+    if (!ok) throw new UnauthenticatedError("Invalid code");
+
+    return this.completeMfa(user, meta, opts);
   }
 
   /** Boundary calls this on every authenticated request. */
@@ -158,6 +271,100 @@ export class AuthService {
 
   // -------------------------------------------------------------------------
 
+  private async issueSession(
+    user: UserRecord,
+    meta: RequestMeta,
+  ): Promise<{ rawToken: string; expiresAt: Date }> {
+    const rawToken = generateToken();
+    const now = this.deps.clock.now();
+    const session = await this.deps.sessions.create({
+      userId: user.id,
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(now.getTime() + SESSION_TTL_HOURS * 60 * 60 * 1000),
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+    await this.deps.audit.append({
+      actorUserId: user.id,
+      action: "auth.login_succeeded",
+      resourceType: "session",
+      resourceId: session.id,
+      correlationId: meta.correlationId,
+      ip: meta.ip,
+    });
+    return { rawToken, expiresAt: session.expiresAt };
+  }
+
+  private async completeMfa(
+    user: UserRecord,
+    meta: RequestMeta,
+    opts?: { trustDevice?: boolean | undefined },
+  ): Promise<MfaCompletion> {
+    const mfa = this.requireMfa();
+    const session = await this.issueSession(user, meta);
+    const result: MfaCompletion = {
+      status: "authenticated",
+      rawToken: session.rawToken,
+      expiresAt: session.expiresAt,
+      userId: user.id,
+    };
+    if (opts?.trustDevice) {
+      const deviceToken = generateToken();
+      const now = this.deps.clock.now();
+      await mfa.trustedDevices.create({
+        userId: user.id,
+        tokenHash: hashToken(deviceToken),
+        expiresAt: new Date(now.getTime() + TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000),
+        label: meta.userAgent,
+      });
+      result.trustedDeviceToken = deviceToken;
+    }
+    return result;
+  }
+
+  private requireMfa(): NonNullable<AuthServiceDeps["mfa"]> {
+    if (!this.deps.mfa) throw new UnauthenticatedError();
+    return this.deps.mfa;
+  }
+
+  private async mustFindUser(userId: string): Promise<UserRecord> {
+    const user = await this.deps.users.findById(userId);
+    if (!user || user.status !== "ACTIVE") throw new UnauthenticatedError();
+    return user;
+  }
+
+  private async issueChallenge(userId: string, purpose: "setup" | "verify"): Promise<string> {
+    const token = generateToken();
+    await this.deps.cache.set(
+      `mfa:challenge:${token}`,
+      JSON.stringify({ userId, purpose }),
+      MFA_CHALLENGE_TTL_SECONDS,
+    );
+    return token;
+  }
+
+  private async peekChallenge(token: string, purpose: "setup" | "verify"): Promise<string> {
+    const raw = await this.deps.cache.get(`mfa:challenge:${token}`);
+    if (!raw) throw new UnauthenticatedError("Challenge expired");
+    const data = JSON.parse(raw) as { userId: string; purpose: string };
+    if (data.purpose !== purpose) throw new UnauthenticatedError();
+    return data.userId;
+  }
+
+  private async consumeChallenge(token: string, purpose: "setup" | "verify"): Promise<string> {
+    const userId = await this.peekChallenge(token, purpose);
+    await this.deps.cache.delete(`mfa:challenge:${token}`);
+    return userId;
+  }
+
+  private async enforceMfaRateLimit(userId: string): Promise<void> {
+    const attempts = await this.deps.cache.increment(
+      `mfa:verify:${userId}`,
+      LOGIN_WINDOW_SECONDS,
+    );
+    if (attempts > MFA_VERIFY_MAX_ATTEMPTS) throw new RateLimitExceededError();
+  }
+
   private async enforceRateLimit(key: string): Promise<void> {
     const attempts = await this.deps.cache.increment(key, LOGIN_WINDOW_SECONDS);
     if (attempts > LOGIN_MAX_ATTEMPTS) {
@@ -166,6 +373,15 @@ export class AuthService {
       throw new RateLimitExceededError();
     }
   }
+}
+
+const BACKUP_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/** 10-char human-typable backup code (no ambiguous chars). */
+function base32Code(): string {
+  const bytes = randomBytes(10);
+  let code = "";
+  for (let i = 0; i < 10; i++) code += BACKUP_ALPHABET[bytes[i]! % BACKUP_ALPHABET.length];
+  return code;
 }
 
 export class RateLimitExceededError extends DomainError {

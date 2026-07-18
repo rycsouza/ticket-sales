@@ -74,13 +74,37 @@ model User {
   passwordHash    String?
   emailVerifiedAt DateTime?
 
+  // DEC-012 MFA (TOTP). Secret is AES-GCM encrypted at rest (never plaintext);
+  // backup codes stored as SHA-256 hashes. Enabled only after the first code
+  // is confirmed.
+  mfaEnabled     Boolean  @default(false)
+  mfaSecretEnc   String?
+  mfaBackupCodes String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   memberships     Membership[]
   sessions        Session[]
+  trustedDevices  TrustedDevice[]
   sentInvites     Invite[]     @relation("InviteInvitedBy")
   acceptedInvites Invite[]     @relation("InviteAcceptedBy")
+}
+
+// DEC-012 — a device the user chose to trust, skipping the TOTP step until it
+// expires. Only the SHA-256 hash of the device token is stored (raw token lives
+// in an httpOnly cookie).
+model TrustedDevice {
+  id        String   @id @default(uuid(7))
+  userId    String
+  tokenHash String   @unique
+  label     String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
 }
 
 // PRD §8.1 — papéis por organização

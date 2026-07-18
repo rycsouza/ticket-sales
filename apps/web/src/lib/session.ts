@@ -5,7 +5,29 @@ import { UnauthenticatedError, type RequestContext } from "@ingressos/core";
 import { getServices } from "./services";
 
 export const SESSION_COOKIE = "session";
+export const TRUSTED_DEVICE_COOKIE = "mfa_device";
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // mirrors AuthService TTL
+const TRUSTED_DEVICE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // mirrors DEC-012 window
+
+export function setTrustedDeviceCookie(response: NextResponse, rawToken: string): void {
+  response.cookies.set(TRUSTED_DEVICE_COOKIE, rawToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: TRUSTED_DEVICE_MAX_AGE_SECONDS,
+  });
+}
+
+export function readTrustedDeviceToken(request: Request): string | undefined {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === TRUSTED_DEVICE_COOKIE) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
+}
 
 /**
  * httpOnly + secure + sameSite=lax (CLAUDE_SECURITY_RULES §21). The raw token

@@ -21,3 +21,19 @@ export const loginSchema = z
   .strict();
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+// DEC-012 — MFA challenge steps. The challenge token comes from a prior login.
+const challengeToken = z.string().trim().min(20).max(200);
+
+export const mfaSetupSchema = z.object({ challengeToken }).strict();
+export type MfaSetupInput = z.infer<typeof mfaSetupSchema>;
+
+export const mfaVerifySchema = z
+  .object({
+    challengeToken,
+    // 6-digit TOTP or a backup code.
+    code: z.string().trim().min(6).max(20),
+    trustDevice: z.boolean().optional(),
+  })
+  .strict();
+export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;

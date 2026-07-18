@@ -176,9 +176,54 @@ export class InMemoryUserRepository implements UserRepository {
       name: data.name,
       status: "ACTIVE",
       passwordHash: data.passwordHash,
+      mfaEnabled: false,
+      mfaSecretEnc: null,
+      mfaBackupCodes: [],
     };
     this.users.push(user);
     return user;
+  }
+
+  async setMfaPendingSecret(userId: string, secretEnc: string): Promise<void> {
+    const user = this.users.find((u) => u.id === userId);
+    if (user) {
+      user.mfaSecretEnc = secretEnc;
+      user.mfaEnabled = false;
+    }
+  }
+
+  async enableMfa(userId: string, backupCodeHashes: string[]): Promise<void> {
+    const user = this.users.find((u) => u.id === userId);
+    if (user) {
+      user.mfaEnabled = true;
+      user.mfaBackupCodes = backupCodeHashes;
+    }
+  }
+
+  async consumeBackupCode(userId: string, codeHash: string): Promise<boolean> {
+    const user = this.users.find((u) => u.id === userId);
+    if (!user || !user.mfaBackupCodes.includes(codeHash)) return false;
+    user.mfaBackupCodes = user.mfaBackupCodes.filter((h) => h !== codeHash);
+    return true;
+  }
+}
+
+export class InMemoryTrustedDeviceRepository {
+  readonly devices: { userId: string; tokenHash: string; expiresAt: Date }[] = [];
+
+  async create(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    label?: string | undefined;
+  }): Promise<void> {
+    this.devices.push({ userId: data.userId, tokenHash: data.tokenHash, expiresAt: data.expiresAt });
+  }
+
+  async isValid(userId: string, tokenHash: string, now: Date): Promise<boolean> {
+    return this.devices.some(
+      (d) => d.userId === userId && d.tokenHash === tokenHash && d.expiresAt.getTime() > now.getTime(),
+    );
   }
 }
 

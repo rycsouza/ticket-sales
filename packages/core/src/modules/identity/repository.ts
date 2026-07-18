@@ -72,6 +72,12 @@ export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(userId: string): Promise<UserRecord | null>;
   create(data: { email: string; name: string; passwordHash: string }): Promise<UserRecord>;
+  /** Store the pending (not-yet-enabled) TOTP secret during enrollment. */
+  setMfaPendingSecret(userId: string, secretEnc: string): Promise<void>;
+  /** Enable MFA once the first code is confirmed, storing backup code hashes. */
+  enableMfa(userId: string, backupCodeHashes: string[]): Promise<void>;
+  /** Consume one backup code (removes it) — returns false if not present. */
+  consumeBackupCode(userId: string, codeHash: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +118,9 @@ const userSelect = {
   name: true,
   status: true,
   passwordHash: true,
+  mfaEnabled: true,
+  mfaSecretEnc: true,
+  mfaBackupCodes: true,
 } as const;
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
@@ -275,5 +284,33 @@ export class PrismaUserRepository implements UserRepository {
 
   async create(data: { email: string; name: string; passwordHash: string }) {
     return this.prisma.user.create({ data, select: userSelect });
+  }
+
+  async setMfaPendingSecret(userId: string, secretEnc: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecretEnc: secretEnc, mfaEnabled: false },
+    });
+  }
+
+  async enableMfa(userId: string, backupCodeHashes: string[]) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true, mfaBackupCodes: backupCodeHashes },
+    });
+  }
+
+  async consumeBackupCode(userId: string, codeHash: string): Promise<boolean> {
+    // Atomic-ish: read, check membership, write the filtered set back.
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { mfaBackupCodes: true },
+    });
+    if (!user || !user.mfaBackupCodes.includes(codeHash)) return false;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaBackupCodes: user.mfaBackupCodes.filter((h) => h !== codeHash) },
+    });
+    return true;
   }
 }

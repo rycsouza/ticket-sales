@@ -40,10 +40,12 @@ import {
   PrismaSectorRepository,
   PrismaSessionRepository,
   PrismaTicketRepository,
+  PrismaTrustedDeviceRepository,
   PrismaTicketTypeRepository,
   PrismaUserRepository,
   TicketsService,
   ValidationFailedError,
+  loadKey,
   systemClock,
   type CachePort,
   type MailerPort,
@@ -317,6 +319,16 @@ function buildServices() {
       cache,
       clock: systemClock,
       passwordHasher,
+      // DEC-012: MFA is enforced only when the encryption key is configured.
+      ...(env.MFA_ENCRYPTION_KEY
+        ? {
+            mfa: {
+              key: loadKey(env.MFA_ENCRYPTION_KEY),
+              issuer: "Ingressos",
+              trustedDevices: new PrismaTrustedDeviceRepository(prisma),
+            },
+          }
+        : {}),
     }),
     events: new EventsService({
       events,
