@@ -3,3 +3,5 @@ export * from "./ports/index";
 export * from "./modules/audit/index";
 export * from "./modules/identity/index";
 export * from "./modules/auth/index";
+export * from "./modules/events/index";
+export * from "./modules/inventory/index";
