@@ -34,6 +34,8 @@ export interface EventRepository {
   create(data: CreateEventData): Promise<EventRecord>;
   findByIdScoped(organizationId: string, eventId: string): Promise<EventRecord | null>;
   findBySlug(organizationId: string, slug: string): Promise<EventRecord | null>;
+  /** Global (cross-org) slug lookup — slugs are globally unique for the public URL. */
+  findAnyBySlug(slug: string): Promise<EventRecord | null>;
   listByOrganization(organizationId: string): Promise<EventRecord[]>;
   updateDetails(
     organizationId: string,
@@ -161,6 +163,10 @@ export class PrismaEventRepository implements EventRepository {
     });
   }
 
+  async findAnyBySlug(slug: string) {
+    return this.prisma.event.findUnique({ where: { slug }, select: eventSelect });
+  }
+
   async listByOrganization(organizationId: string) {
     return this.prisma.event.findMany({
       where: { organizationId },
@@ -219,6 +225,13 @@ export class PrismaPublicEventReader {
   async findPublishedById(eventId: string): Promise<EventRecord | null> {
     return this.prisma.event.findFirst({
       where: { id: eventId, status: "PUBLISHED" },
+      select: eventSelect,
+    });
+  }
+
+  async findPublishedBySlug(slug: string): Promise<EventRecord | null> {
+    return this.prisma.event.findFirst({
+      where: { slug, status: "PUBLISHED" },
       select: eventSelect,
     });
   }

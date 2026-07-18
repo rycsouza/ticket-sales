@@ -67,6 +67,10 @@ export class InMemoryEventRepository implements EventRepository, EventReader {
     );
   }
 
+  async findAnyBySlug(slug: string) {
+    return this.events.find((e) => e.slug === slug) ?? null;
+  }
+
   async listByOrganization(organizationId: string) {
     return this.events.filter((e) => e.organizationId === organizationId);
   }

@@ -46,10 +46,14 @@ export class EventsService {
   async createEvent(ctx: RequestContext, input: CreateEventInput): Promise<EventRecord> {
     await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
 
-    const existing = await this.deps.events.findBySlug(ctx.organizationId, input.slug);
-    if (existing) throw new ConflictError("An event with this slug already exists");
-
-    const event = await this.deps.events.create({ organizationId: ctx.organizationId, ...input });
+    // Public URL is /evento/<slug> — slug is globally unique. Keep the client's
+    // slug when free; otherwise append a numeric suffix (never fail on it).
+    const slug = await this.resolveUniqueSlug(input.slug);
+    const event = await this.deps.events.create({
+      organizationId: ctx.organizationId,
+      ...input,
+      slug,
+    });
 
     await this.deps.audit.append({
       organizationId: ctx.organizationId,
@@ -62,6 +66,16 @@ export class EventsService {
     });
 
     return event;
+  }
+
+  /** Ensure a globally-unique slug, appending -2, -3… when the base is taken. */
+  private async resolveUniqueSlug(base: string): Promise<string> {
+    if (!(await this.deps.events.findAnyBySlug(base))) return base;
+    for (let n = 2; n <= 100; n++) {
+      const candidate = `${base}-${n}`;
+      if (!(await this.deps.events.findAnyBySlug(candidate))) return candidate;
+    }
+    return `${base}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   async getEvent(ctx: RequestContext, eventId: string): Promise<EventRecord> {

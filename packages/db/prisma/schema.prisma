@@ -225,7 +225,9 @@ model Event {
   status         EventStatus @default(DRAFT)
 
   title       String
-  slug        String
+  // Globally unique: the public URL is /evento/<slug> (single segment across
+  // all producers). Generated uniquely on creation with a numeric suffix.
+  slug        String  @unique
   description String?
   coverImageUrl String? // Cloudinary — public event images only
 
@@ -271,7 +273,6 @@ model Event {
   ticketTypes  TicketType[]
   salesBatches SalesBatch[]
 
-  @@unique([organizationId, slug])
   @@index([organizationId, status])
 }
 

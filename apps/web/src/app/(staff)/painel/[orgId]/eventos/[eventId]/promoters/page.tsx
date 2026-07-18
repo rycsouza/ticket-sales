@@ -29,14 +29,17 @@ export default async function PromotersPage({
   const ctx = dashboardCtx(orgId, userId);
   const s = getServices();
 
-  const [assignments, links, coupons, rules, ranking, members] = await Promise.all([
+  const [assignments, links, coupons, rules, ranking, members, event] = await Promise.all([
     s.promoters.listPromoters(ctx, eventId).then((r) => r.map(toPromoterAssignmentResponse)),
     s.promoters.listLinks(ctx, eventId).then((r) => r.map(toPromoterLinkResponse)),
     s.promoters.listCoupons(ctx, eventId).then((r) => r.map(toCouponResponse)),
     s.promoters.listCommissionRules(ctx, eventId).then((r) => r.map(toCommissionRuleResponse)),
     s.promoters.eventRanking(ctx, eventId).then((r) => r.map(toPromoterSummaryResponse)),
     s.identity.listMembers(ctx),
+    s.events.getEvent(ctx, eventId).catch(() => null),
   ]);
+  // Prefer the pretty /evento/<slug> link; fall back to the legacy id permalink.
+  const eventPath = event ? `/evento/${event.slug}` : `/e/${eventId}`;
   const promoterMembers = members.filter((m) => m.role === "PROMOTER" && m.status === "ACTIVE");
   const linkByMember = new Map(links.map((l) => [l.membershipId, l]));
   const api = `/api/orgs/${orgId}/events/${eventId}`;
@@ -86,7 +89,7 @@ export default async function PromotersPage({
                       )}
                     </span>
                     {link ? (
-                      <CopyButton text={`/e/${eventId}?p=${link.code}`} label="Copiar link" />
+                      <CopyButton text={`${eventPath}?p=${link.code}`} label="Copiar link" />
                     ) : (
                       <ActionButton
                         url={`${api}/promoters/links`}

@@ -123,15 +123,15 @@ export default async function EventWorkspace({
             <div className="min-w-0">
               <p className="text-small font-medium text-ink">Link público de vendas</p>
               <Link
-                href={`/e/${eventId}`}
+                href={`/evento/${event.slug}`}
                 target="_blank"
                 className="inline-flex items-center gap-1 truncate text-small text-brand hover:underline"
               >
-                /e/{eventId}
+                /evento/{event.slug}
                 <ExternalLink className="size-3.5" />
               </Link>
             </div>
-            <CopyButton text={`/e/${eventId}`} label="Copiar link" />
+            <CopyButton text={`/evento/${event.slug}`} label="Copiar link" />
           </CardBody>
         </Card>
       )}

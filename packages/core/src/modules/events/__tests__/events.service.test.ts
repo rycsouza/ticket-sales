@@ -77,12 +77,14 @@ describe("createEvent", () => {
     );
   });
 
-  it("rejects duplicate slug within the organization", async () => {
+  it("auto-suffixes a taken slug so the public URL stays globally unique", async () => {
     const env = setup();
     await withManager(env);
 
-    await env.service.createEvent(ctx(), baseEvent);
-    await expect(env.service.createEvent(ctx(), baseEvent)).rejects.toThrow(ConflictError);
+    const first = await env.service.createEvent(ctx(), baseEvent);
+    const second = await env.service.createEvent(ctx(), baseEvent);
+    expect(first.slug).toBe("festa-junina");
+    expect(second.slug).toBe("festa-junina-2");
   });
 });
 

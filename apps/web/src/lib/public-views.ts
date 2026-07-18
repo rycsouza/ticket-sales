@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { EventRecord } from "@ingressos/core";
 import { getServices } from "./services";
 
 export interface PublicBatchView {
@@ -39,11 +40,18 @@ export interface PublicEventView {
  * internal counters and organization data never leave the server.
  */
 export async function getPublicEventView(eventId: string): Promise<PublicEventView | null> {
+  const event = await getServices().publicEvents.findPublishedById(eventId);
+  return event ? buildPublicEventView(event) : null;
+}
+
+/** Resolve a published event by its globally-unique public slug (/evento/<slug>). */
+export async function getPublicEventViewBySlug(slug: string): Promise<PublicEventView | null> {
+  const event = await getServices().publicEvents.findPublishedBySlug(slug);
+  return event ? buildPublicEventView(event) : null;
+}
+
+async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
-
-  const event = await services.publicEvents.findPublishedById(eventId);
-  if (!event) return null;
-
   const now = new Date();
   const [batches, ticketTypes] = await Promise.all([
     services.batchesRepo.listByEvent(event.organizationId, event.id),
