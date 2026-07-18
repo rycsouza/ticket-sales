@@ -21,6 +21,18 @@ export interface PaidOrderFulfiller {
   fulfill(organizationId: string, orderId: string, correlationId: string): Promise<void>;
 }
 
+/**
+ * Commission reversal on refund/chargeback (FR-PRM-011) — implemented by the
+ * promoters module. Optional so payments works in environments without it.
+ */
+export interface CommissionReversalCoordinator {
+  reverseForOrder(
+    organizationId: string,
+    orderId: string,
+    meta: { correlationId: string },
+  ): Promise<void>;
+}
+
 export interface PaymentsServiceDeps {
   payments: PaymentRepository;
   paymentEvents: PaymentEventRepository;
@@ -30,6 +42,7 @@ export interface PaymentsServiceDeps {
   psp: PspPort;
   audit: AuditRepository;
   clock: ClockPort;
+  commissionCoordinator?: CommissionReversalCoordinator | undefined;
 }
 
 export type WebhookOutcome =
@@ -231,6 +244,13 @@ export class PaymentsService {
           resourceId: payment.id,
           correlationId: meta.correlationId,
         });
+        // FR-PRM-011: reverse any commission accrued for this order. Idempotent
+        // and best-effort — a reversal hiccup must not fail the webhook.
+        if (this.deps.commissionCoordinator) {
+          await this.deps.commissionCoordinator
+            .reverseForOrder(payment.organizationId, payment.orderId, meta)
+            .catch(() => undefined);
+        }
         return;
       }
     }

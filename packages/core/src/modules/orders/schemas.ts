@@ -35,6 +35,20 @@ export const createOrderSchema = z
         phone: z.string().trim().min(8).max(20).optional(),
       })
       .strict(),
+    // Attribution (FR-CHK-008/009/010) — opaque strings, length-capped. The
+    // discount and promoter credit are resolved SERVER-SIDE from these refs.
+    coupon: z.string().trim().min(1).max(40).optional(),
+    ref: z.string().trim().min(1).max(64).optional(),
+    utm: z
+      .object({
+        source: z.string().trim().max(120).optional(),
+        medium: z.string().trim().max(120).optional(),
+        campaign: z.string().trim().max(120).optional(),
+        content: z.string().trim().max(120).optional(),
+        term: z.string().trim().max(120).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

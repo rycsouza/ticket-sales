@@ -626,3 +626,171 @@ model IdempotencyKey {
 
   @@index([scope, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Promoters, coupons & commissions — Fase 3 (EP-06)
+// ---------------------------------------------------------------------------
+
+// PERCENT stores basis points (1% = 100); FIXED stores integer cents.
+enum CommissionType {
+  PERCENT
+  FIXED
+}
+
+// Base amount the commission is computed from (BR-PRM-005).
+enum CommissionBase {
+  NOMINAL // gross unit price
+  AFTER_DISCOUNT // unit price after its share of the order discount
+}
+
+enum CouponType {
+  PERCENT // basis points
+  FIXED // integer cents, applied to the whole order
+}
+
+// How a sale was attributed to a promoter (FR-PRM-007, BR-PRM-002).
+enum AttributionMechanism {
+  NONE
+  LINK
+  COUPON
+}
+
+// CommissionEntry is append-only: money moves via ACCRUAL / REVERSAL rows with
+// signed amounts. A reversal is a compensating entry, never an UPDATE/DELETE.
+enum CommissionEntryType {
+  ACCRUAL
+  REVERSAL
+}
+
+// FR-PRM-003 — a promoter (Membership with role PROMOTER) is bound to specific
+// events; only assigned events attribute sales to them.
+model PromoterAssignment {
+  id             String  @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  membershipId   String
+  active         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, membershipId])
+  @@index([organizationId, eventId])
+  @@index([membershipId])
+}
+
+// FR-PRM-004 — one trackable link per promoter per event. `code` is a short,
+// non-guessable public ref carried in the landing URL (?p=CODE).
+model PromoterLink {
+  id             String  @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  membershipId   String
+  code           String  @unique
+  active         Boolean @default(true)
+  clickCount     Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, membershipId])
+  @@index([organizationId, eventId])
+  @@index([membershipId])
+}
+
+// FR-PRM-005 / FR-CHK-008 — individual (membershipId set) or shared coupon.
+// `code` is stored uppercased; unique within the event.
+model Coupon {
+  id             String     @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  code           String
+  type           CouponType
+  value          Int
+  active         Boolean    @default(true)
+
+  membershipId String? // owning promoter, if individual
+
+  startsAt       DateTime?
+  endsAt         DateTime?
+  maxRedemptions Int?
+  redemptions    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, code])
+  @@index([organizationId, eventId])
+}
+
+// FR-PRM-008/009/015, BR-PRM-006 — versioned commission rule. A change creates
+// a NEW row and supersedes the previous one; past accruals snapshot their rule
+// so they never recompute retroactively. Resolution picks the most specific
+// active rule (membership+ticketType > membership > ticketType > event).
+model CommissionRule {
+  id             String         @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  membershipId   String? // narrows to one promoter
+  ticketTypeId   String? // narrows to one ticket type
+  type           CommissionType
+  value          Int
+  base           CommissionBase @default(NOMINAL)
+  active         Boolean        @default(true)
+
+  supersededAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([organizationId, eventId, active])
+  @@index([eventId, membershipId, active])
+}
+
+// FR-CHK-009/010, FR-PRM-007, BR-PRM-001 — attribution captured at checkout and
+// persisted with its origin. One row per order.
+model OrderAttribution {
+  id             String               @id @default(uuid(7))
+  organizationId String
+  orderId        String               @unique
+  eventId        String
+  mechanism      AttributionMechanism @default(NONE)
+  membershipId   String? // attributed promoter
+  couponId       String?
+  linkId         String?
+
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
+
+  capturedAt DateTime @default(now())
+
+  @@index([organizationId, eventId])
+  @@index([membershipId])
+}
+
+// FR-PRM-010/011, BR-PRM-004 — append-only commission ledger. Commission is
+// due only on paid, non-refunded, eligible items; refund/chargeback posts a
+// REVERSAL. `ruleSnapshot` keeps each entry reproducible.
+model CommissionEntry {
+  id             String              @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  membershipId   String
+  orderId        String
+  type           CommissionEntryType
+
+  quantity    Int
+  baseCents   Int
+  amountCents Int // signed: +accrual, -reversal
+
+  ruleSnapshot Json
+
+  correlationId String
+  createdAt     DateTime @default(now())
+
+  // Exactly one ACCRUAL and one REVERSAL per order → idempotent hooks.
+  @@unique([orderId, type])
+  @@index([organizationId, eventId, membershipId])
+  @@index([membershipId, createdAt])
+}

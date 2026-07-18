@@ -320,3 +320,50 @@ describe("processWebhook — approval flow", () => {
     expect(env.paymentEvents.events).toHaveLength(0);
   });
 });
+
+describe("processWebhook — refund reverses commission (FR-PRM-011)", () => {
+  it("invokes the commission coordinator on a refund event", async () => {
+    const env = await setup();
+
+    const reversed: string[] = [];
+    const serviceWithCommission = new PaymentsService({
+      payments: env.payments,
+      paymentEvents: env.paymentEvents,
+      orders: env.orders,
+      orderCoordinator: env.ordersService,
+      fulfiller: { fulfill: async () => undefined },
+      psp: env.psp,
+      audit: env.audit,
+      clock: env.clock,
+      commissionCoordinator: {
+        reverseForOrder: async (_org, orderId) => {
+          reversed.push(orderId);
+        },
+      },
+    });
+
+    const payment = await serviceWithCommission.createPixChargeForOrder(
+      env.order.code,
+      "maria@teste.com",
+      meta,
+    );
+    env.psp.nextWebhookEvent = {
+      providerEventId: "evt_appr",
+      providerTransactionId: payment.providerTransactionId as string,
+      type: "payment.approved",
+      occurredAt: env.clock.now(),
+    };
+    await serviceWithCommission.processWebhook({ headers: {}, rawBody: "{}" }, meta);
+
+    env.psp.nextWebhookEvent = {
+      providerEventId: "evt_refund",
+      providerTransactionId: payment.providerTransactionId as string,
+      type: "payment.refunded",
+      occurredAt: env.clock.now(),
+    };
+    await serviceWithCommission.processWebhook({ headers: {}, rawBody: "{}" }, meta);
+
+    expect(env.payments.payments[0]?.status).toBe("REFUNDED");
+    expect(reversed).toEqual([env.order.id]);
+  });
+});

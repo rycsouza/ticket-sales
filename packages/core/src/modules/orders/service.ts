@@ -22,6 +22,39 @@ export interface PublicBatchReader {
   findByIdScoped(organizationId: string, batchId: string): Promise<SalesBatchRecord | null>;
 }
 
+/**
+ * Checkout resolver (implemented by the promoters module, injected at the
+ * composition root). Orders never imports promoters — it depends only on this
+ * narrow interface. Money is resolved server-side; attribution is best-effort.
+ */
+export interface CheckoutResolver {
+  /** Throws ValidationFailedError when an explicitly supplied coupon is invalid. */
+  resolveDiscount(input: {
+    organizationId: string;
+    eventId: string;
+    couponCode: string;
+    subtotalCents: number;
+    now: Date;
+  }): Promise<{ couponId: string; discountCents: number }>;
+  recordAttribution(input: {
+    organizationId: string;
+    eventId: string;
+    orderId: string;
+    couponCode?: string | undefined;
+    linkRef?: string | undefined;
+    utm?:
+      | {
+          source?: string | undefined;
+          medium?: string | undefined;
+          campaign?: string | undefined;
+          content?: string | undefined;
+          term?: string | undefined;
+        }
+      | undefined;
+    now: Date;
+  }): Promise<void>;
+}
+
 export interface OrdersServiceDeps {
   orders: OrderRepository;
   reservations: ReservationStore;
@@ -29,6 +62,8 @@ export interface OrdersServiceDeps {
   batches: PublicBatchReader;
   audit: AuditRepository;
   clock: ClockPort;
+  /** Optional: absent in environments without the promoters module. */
+  checkout?: CheckoutResolver | undefined;
 }
 
 // Crockford-like base32 (no 0/O/1/I) — public order codes are unguessable
@@ -103,6 +138,20 @@ export class OrdersService {
     const subtotalCents = units.reduce((sum, unit) => sum + unit.unitPriceCents, 0);
     const expiresAt = new Date(now.getTime() + RESERVATION_TTL_MINUTES * 60 * 1000);
 
+    // Coupon discount resolved server-side (FR-CHK-008). An invalid explicit
+    // coupon rejects the whole checkout so the buyer never pays a surprise price.
+    let discountCents = 0;
+    if (input.coupon && this.deps.checkout) {
+      const resolved = await this.deps.checkout.resolveDiscount({
+        organizationId: event.organizationId,
+        eventId: event.id,
+        couponCode: input.coupon,
+        subtotalCents,
+        now,
+      });
+      discountCents = Math.max(0, Math.min(resolved.discountCents, subtotalCents));
+    }
+
     const order = await this.deps.orders.createPendingOrder({
       organizationId: event.organizationId,
       eventId: event.id,
@@ -112,12 +161,38 @@ export class OrdersService {
       buyerDocument: input.buyer.document,
       buyerPhone: input.buyer.phone,
       subtotalCents,
-      discountCents: 0, // coupons arrive with Fase 3
-      totalCents: subtotalCents,
+      discountCents,
+      totalCents: subtotalCents - discountCents,
       expiresAt,
       correlationId: meta.correlationId,
       units,
     });
+
+    // Attribution is best-effort: a failure here must never fail the purchase
+    // (mirrors notifications). The commission path degrades to "no promoter".
+    if (this.deps.checkout && (input.coupon || input.ref || input.utm)) {
+      try {
+        await this.deps.checkout.recordAttribution({
+          organizationId: event.organizationId,
+          eventId: event.id,
+          orderId: order.id,
+          couponCode: input.coupon,
+          linkRef: input.ref,
+          utm: input.utm,
+          now,
+        });
+      } catch (error) {
+        await this.deps.audit.append({
+          organizationId: event.organizationId,
+          actorType: "system",
+          action: "order.attribution_failed",
+          resourceType: "order",
+          resourceId: order.id,
+          after: { message: error instanceof Error ? error.message : "unknown" },
+          correlationId: meta.correlationId,
+        });
+      }
+    }
 
     return { order, expiresAt };
   }

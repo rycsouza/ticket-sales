@@ -9,7 +9,14 @@ import {
   NotificationsService,
   OrdersService,
   PaymentsService,
+  PromotersService,
   PrismaAuditRepository,
+  PrismaCommissionEntryRepository,
+  PrismaCommissionRuleRepository,
+  PrismaCouponRepository,
+  PrismaOrderAttributionRepository,
+  PrismaPromoterAssignmentRepository,
+  PrismaPromoterLinkRepository,
   PrismaEventRepository,
   PrismaInviteRepository,
   PrismaMembershipRepository,
@@ -112,11 +119,33 @@ function buildServices() {
   const paymentRepo = new PrismaPaymentRepository(prisma);
   const paymentEventRepo = new PrismaPaymentEventRepository(prisma);
   const notificationRepo = new PrismaNotificationRepository(prisma);
+  const promoterAssignments = new PrismaPromoterAssignmentRepository(prisma);
+  const promoterLinks = new PrismaPromoterLinkRepository(prisma);
+  const couponRepo = new PrismaCouponRepository(prisma);
+  const commissionRules = new PrismaCommissionRuleRepository(prisma);
+  const orderAttributions = new PrismaOrderAttributionRepository(prisma);
+  const commissionEntries = new PrismaCommissionEntryRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
   const psp = buildPsp(env);
   const mailer = buildMailer(env);
+
+  // Built before OrdersService so it can be injected as the checkout resolver
+  // (coupon discount + attribution). It depends on repositories, not services.
+  const promotersService = new PromotersService({
+    assignments: promoterAssignments,
+    links: promoterLinks,
+    coupons: couponRepo,
+    rules: commissionRules,
+    attributions: orderAttributions,
+    entries: commissionEntries,
+    memberships,
+    events,
+    orders: orderRepo,
+    audit,
+    clock: systemClock,
+  });
 
   const ordersService = new OrdersService({
     orders: orderRepo,
@@ -125,6 +154,7 @@ function buildServices() {
     batches,
     audit,
     clock: systemClock,
+    checkout: promotersService,
   });
   const ticketsService = new TicketsService({
     tickets: ticketRepo,
@@ -141,6 +171,12 @@ function buildServices() {
   // end to end, so webhook retries and crash-healing are safe.
   const fulfiller = {
     fulfill: async (organizationId: string, orderId: string, correlationId: string) => {
+      // Commission accrual first — idempotent on its own (unique orderId+ACCRUAL),
+      // so it heals even if a prior fulfillment crashed after issuing tickets.
+      await promotersService
+        .accrueForPaidOrder(organizationId, orderId, { correlationId })
+        .catch(() => undefined);
+
       const issued = await ticketsService.issueForOrder(organizationId, orderId, {
         correlationId,
       });
@@ -164,6 +200,7 @@ function buildServices() {
     psp,
     audit,
     clock: systemClock,
+    commissionCoordinator: promotersService,
   });
 
   return {
@@ -175,6 +212,7 @@ function buildServices() {
     ticketsService,
     notifications: notificationsService,
     payments: paymentsService,
+    promoters: promotersService,
     identity: new IdentityService({
       organizations,
       memberships,

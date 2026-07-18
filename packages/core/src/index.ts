@@ -9,3 +9,4 @@ export * from "./modules/orders/index";
 export * from "./modules/tickets/index";
 export * from "./modules/payments/index";
 export * from "./modules/notifications/index";
+export * from "./modules/promoters/index";
