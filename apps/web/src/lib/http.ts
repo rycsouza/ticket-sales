@@ -42,6 +42,22 @@ const GENERIC_MESSAGES: Record<number, string> = {
   500: "Não foi possível processar a solicitação.",
 };
 
+/**
+ * instanceof PLUS structural check: bundlers (Turbopack HMR in particular)
+ * can duplicate the core module, breaking instanceof across copies. A typed
+ * `code` present in our map is authoritative either way.
+ */
+function asDomainError(error: unknown): { code: string; message: string } | null {
+  if (error instanceof DomainError) return error;
+  if (error instanceof Error) {
+    const code = (error as unknown as { code?: unknown }).code;
+    if (typeof code === "string" && code in DOMAIN_ERROR_STATUS) {
+      return { code, message: error.message };
+    }
+  }
+  return null;
+}
+
 export function errorResponse(error: unknown, correlationId: string): NextResponse {
   if (error instanceof ZodError) {
     return NextResponse.json(
@@ -57,10 +73,14 @@ export function errorResponse(error: unknown, correlationId: string): NextRespon
     );
   }
 
-  if (error instanceof DomainError) {
-    const mapping = DOMAIN_ERROR_STATUS[error.code] ?? { status: 500, exposeMessage: false };
+  const domainError = asDomainError(error);
+  if (domainError) {
+    const mapping = DOMAIN_ERROR_STATUS[domainError.code] ?? {
+      status: 500,
+      exposeMessage: false,
+    };
     const message = mapping.exposeMessage
-      ? error.message
+      ? domainError.message
       : (GENERIC_MESSAGES[mapping.status] ?? GENERIC_MESSAGES[500]);
     return NextResponse.json(
       { error: message, correlationId },

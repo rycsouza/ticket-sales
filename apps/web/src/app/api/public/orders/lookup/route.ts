@@ -9,7 +9,8 @@ import { getServices } from "@/lib/services";
  * credentials and must never live in a URL (CLAUDE_SECURITY_RULES §Privacy).
  */
 export const POST = route(async (request, { correlationId }) => {
-  await enforceRateLimit("order-lookup", clientIpFrom(request), 30, 5 * 60);
+  // Generous: the order page polls every 10s while awaiting payment
+  await enforceRateLimit("order-lookup", clientIpFrom(request), 120, 5 * 60);
 
   const input = orderLookupSchema.parse(await readJsonBody(request));
   const services = getServices();

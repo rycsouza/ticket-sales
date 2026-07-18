@@ -14,11 +14,15 @@
     "@ingressos/config": "workspace:*",
     "@ingressos/core": "workspace:*",
     "@ingressos/db": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.3",
     "@upstash/qstash": "^2.11.2",
     "next": "^16.2.10",
+    "postcss": "^8.5.19",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-qr-code": "^2.2.0",
     "server-only": "^0.0.1",
+    "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
