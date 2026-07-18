@@ -1,0 +1,15 @@
+// Prisma schema — models arrive with Fase 1 (identity, auth, events,
+// inventory, audit). Conventions (docs/ARQUITETURA.md §6):
+// - every producer-owned business table carries organizationId + index
+// - money as Int/BigInt cents, never Float/Decimal for currency
+// - timestamps as timestamptz (Prisma DateTime maps to timestamptz on PG)
+// - ledger/audit tables are append-only (no destructive updates)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URLs live in prisma.config.ts (Prisma 7)
+}

@@ -1,0 +1,23 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# env & secrets — NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# db
+*.sqlite
+
+# misc
+.DS_Store
+coverage/
+.vercel/
