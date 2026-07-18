@@ -48,6 +48,8 @@ export default async function PublicEventPage({
         eventId={event.id}
         batches={event.batches}
         maxTicketsPerOrder={event.maxTicketsPerOrder}
+        platformFeeBps={event.platformFeeBps}
+        feeMode={event.feeMode}
         eventTerms={event.eventTerms}
         cancellationPolicy={event.cancellationPolicy}
       />

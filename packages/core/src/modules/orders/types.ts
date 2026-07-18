@@ -9,6 +9,9 @@ export type OrderStatus =
   | "CANCELLED"
   | "CHARGEBACK";
 
+/** DEC-003 — who absorbs the platform fee (snapshot on the order). */
+export type OrderFeeMode = "BUYER" | "PRODUCER";
+
 export interface OrderRecord {
   id: string;
   organizationId: string;
@@ -21,6 +24,8 @@ export interface OrderRecord {
   buyerPhone: string | null;
   subtotalCents: number;
   discountCents: number;
+  feeCents: number;
+  feeMode: OrderFeeMode;
   totalCents: number;
   expiresAt: Date | null;
   paidAt: Date | null;

@@ -12,6 +12,8 @@ export interface CreatePendingOrderData {
   buyerPhone?: string | undefined;
   subtotalCents: number;
   discountCents: number;
+  feeCents: number;
+  feeMode: "BUYER" | "PRODUCER";
   totalCents: number;
   expiresAt: Date;
   correlationId: string;
@@ -55,6 +57,8 @@ const orderSelect = {
   buyerPhone: true,
   subtotalCents: true,
   discountCents: true,
+  feeCents: true,
+  feeMode: true,
   totalCents: true,
   expiresAt: true,
   paidAt: true,
@@ -94,6 +98,8 @@ export class PrismaOrderRepository implements OrderRepository {
           buyerPhone: data.buyerPhone ?? null,
           subtotalCents: data.subtotalCents,
           discountCents: data.discountCents,
+          feeCents: data.feeCents,
+          feeMode: data.feeMode,
           totalCents: data.totalCents,
           expiresAt: data.expiresAt,
           correlationId: data.correlationId,

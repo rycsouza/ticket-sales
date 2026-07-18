@@ -4,6 +4,7 @@ import { loadServerEnv } from "@ingressos/config";
 import {
   AuthService,
   EventsService,
+  FinanceService,
   IdentityService,
   InventoryService,
   NotificationsService,
@@ -21,6 +22,7 @@ import {
   SupportService,
   PrismaEventRepository,
   PrismaInviteRepository,
+  PrismaLedgerRepository,
   PrismaMembershipRepository,
   PrismaNotificationRepository,
   PrismaOrderRepository,
@@ -128,6 +130,7 @@ function buildServices() {
   const orderAttributions = new PrismaOrderAttributionRepository(prisma);
   const commissionEntries = new PrismaCommissionEntryRepository(prisma);
   const orderNotes = new PrismaOrderNoteRepository(prisma);
+  const ledgerRepo = new PrismaLedgerRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
@@ -173,6 +176,26 @@ function buildServices() {
     baseUrl: env.APP_BASE_URL,
   });
 
+  // Finance ledger (append-only). PSP cost is reconciled later (FR-FIN-005/006);
+  // in the MVP it is 0 at posting time, so platform net = fee until reconciled.
+  const financeService = new FinanceService({
+    ledger: ledgerRepo,
+    orders: orderRepo,
+    events,
+    commission: {
+      getAccruedCommission: async (organizationId: string, orderId: string) => {
+        const entry = await commissionEntries.findByOrderAndType(
+          organizationId,
+          orderId,
+          "ACCRUAL",
+        );
+        return entry ? { membershipId: entry.membershipId, amountCents: entry.amountCents } : null;
+      },
+    },
+    pspCost: { getOrderPspCostCents: async () => 0 },
+    memberships,
+  });
+
   // Post-approval orchestration: tickets + confirmation e-mail. Idempotent
   // end to end, so webhook retries and crash-healing are safe.
   const fulfiller = {
@@ -181,6 +204,10 @@ function buildServices() {
       // so it heals even if a prior fulfillment crashed after issuing tickets.
       await promotersService
         .accrueForPaidOrder(organizationId, orderId, { correlationId })
+        .catch(() => undefined);
+      // Ledger posting reads the accrued commission — must run after it.
+      await financeService
+        .postForPaidOrder(organizationId, orderId, { correlationId })
         .catch(() => undefined);
 
       const issued = await ticketsService.issueForOrder(organizationId, orderId, {
@@ -208,6 +235,7 @@ function buildServices() {
     ) => {
       await ordersService.settleRefund(organizationId, orderId, kind, meta);
       await ticketsService.refundTicketsForOrder(organizationId, orderId, meta);
+      await financeService.reverseForOrder(organizationId, orderId, meta);
     },
   };
 
@@ -234,6 +262,7 @@ function buildServices() {
     notifications: notificationsService,
     payments: paymentsService,
     promoters: promotersService,
+    finance: financeService,
     support: new SupportService({
       notes: orderNotes,
       orders: orderRepo,

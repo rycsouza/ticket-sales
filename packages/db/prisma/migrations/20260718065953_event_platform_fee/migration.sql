@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "FeeMode" AS ENUM ('BUYER', 'PRODUCER');
+
+-- AlterTable
+ALTER TABLE "Event" ADD COLUMN     "feeMode" "FeeMode" NOT NULL DEFAULT 'PRODUCER',
+ADD COLUMN     "platformFeeBps" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "feeCents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "feeMode" "FeeMode" NOT NULL DEFAULT 'PRODUCER';

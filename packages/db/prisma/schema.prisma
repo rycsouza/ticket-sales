@@ -189,6 +189,12 @@ enum EventStatus {
   ARCHIVED
 }
 
+// DEC-003 — who absorbs the platform fee for the event.
+enum FeeMode {
+  BUYER // added on top of the buyer's total (service fee)
+  PRODUCER // deducted from the producer payout
+}
+
 model Event {
   id             String      @id @default(uuid(7))
   organizationId String
@@ -224,6 +230,11 @@ model Event {
 
   // FR-EVT-012: limites por pedido/comprador (regra detalhada no serviço)
   maxTicketsPerOrder Int?
+
+  // DEC-003: platform fee, configurable per event. Basis points over the
+  // ticket value (after discount). feeMode decides who absorbs it.
+  platformFeeBps Int     @default(0)
+  feeMode        FeeMode @default(PRODUCER)
 
   publishedAt DateTime?
   cancelledAt DateTime?
@@ -425,6 +436,10 @@ model Order {
   // BR-FIN-001: integer cents; totals computed SERVER-SIDE only
   subtotalCents Int
   discountCents Int @default(0)
+  // Platform fee snapshot (DEC-003). In BUYER mode it is included in
+  // totalCents; in PRODUCER mode it is recorded but not charged to the buyer.
+  feeCents      Int     @default(0)
+  feeMode       FeeMode @default(PRODUCER)
   totalCents    Int
 
   // Payment deadline — mirrors the inventory reservation expiry
@@ -766,6 +781,54 @@ model OrderAttribution {
   capturedAt DateTime @default(now())
 
   @@index([organizationId, eventId])
+  @@index([membershipId])
+}
+
+// FR-FIN-001/002/007 — append-only financial ledger. Never UPDATE/DELETE;
+// corrections are compensating entries. Three accounts let reports be
+// reproduced from the entries (NFR-REL-006):
+//   PRODUCER  — what the platform owes the producer (payout base)
+//   PLATFORM  — the platform's own revenue net of PSP cost
+//   PROMOTER  — commission owed to promoters
+enum LedgerAccount {
+  PRODUCER
+  PLATFORM
+  PROMOTER
+}
+
+enum LedgerEntryType {
+  SALE // gross ticket value before discount (producer credit)
+  DISCOUNT // coupon discount (producer debit)
+  FEE // platform fee (platform credit; producer debit in PRODUCER mode)
+  PSP_COST // payment provider cost (platform debit)
+  COMMISSION // promoter commission (promoter credit; producer debit)
+  REFUND // reversal on refund/chargeback (compensating)
+  PAYOUT // externally executed payout registered (FR-FIN-013)
+  ADJUSTMENT // manual compensating correction
+}
+
+model LedgerEntry {
+  id             String          @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  orderId        String?
+  account        LedgerAccount
+  type           LedgerEntryType
+  // Signed integer cents: credits positive, debits negative. Account balance
+  // is the plain SUM of amountCents.
+  amountCents    Int
+  // Owning promoter for PROMOTER/COMMISSION entries.
+  membershipId   String?
+  memo           String?
+
+  correlationId String
+  createdAt     DateTime @default(now())
+
+  // Idempotency for automatic postings: one (orderId, account, type) row.
+  // PAYOUT/ADJUSTMENT have no orderId and are inserted explicitly (not guarded).
+  @@unique([orderId, account, type])
+  @@index([organizationId, eventId])
+  @@index([organizationId, account])
   @@index([membershipId])
 }
 

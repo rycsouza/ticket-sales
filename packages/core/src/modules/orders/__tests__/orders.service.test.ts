@@ -305,6 +305,38 @@ describe("getOrderForBuyer", () => {
   });
 });
 
+describe("platform fee (DEC-003)", () => {
+  it("BUYER mode adds the fee to the buyer total", async () => {
+    const env = await setup();
+    env.event.platformFeeBps = 1000; // 10%
+    env.event.feeMode = "BUYER";
+
+    const { order } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+
+    expect(order.subtotalCents).toBe(10_000);
+    expect(order.feeCents).toBe(1_000);
+    expect(order.totalCents).toBe(11_000); // buyer pays ticket + fee
+    expect(order.feeMode).toBe("BUYER");
+  });
+
+  it("PRODUCER mode records the fee but does not charge the buyer", async () => {
+    const env = await setup();
+    env.event.platformFeeBps = 1000; // 10%
+    env.event.feeMode = "PRODUCER";
+
+    const { order } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+
+    expect(order.feeCents).toBe(1_000);
+    expect(order.totalCents).toBe(10_000); // buyer pays only the ticket
+  });
+});
+
 describe("settleRefund (FR-PAY-011/013)", () => {
   it("transitions a PAID order to REFUNDED once (idempotent)", async () => {
     const env = await setup();

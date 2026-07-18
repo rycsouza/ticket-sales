@@ -2,7 +2,9 @@ import type {
   AuditReadRecord,
   CommissionRuleRecord,
   CouponRecord,
+  EventFinancialSummary,
   EventRecord,
+  LedgerEntryRecord,
   OrderNoteRecord,
   OrderTimeline,
   PaymentRecord,
@@ -36,6 +38,8 @@ export function toEventResponse(event: EventRecord) {
     salesEndAt: event.salesEndAt,
     ageRating: event.ageRating,
     maxTicketsPerOrder: event.maxTicketsPerOrder,
+    platformFeeBps: event.platformFeeBps,
+    feeMode: event.feeMode,
     publishedAt: event.publishedAt,
   };
 }
@@ -180,6 +184,23 @@ export function toOrderNoteResponse(note: OrderNoteRecord) {
     body: note.body,
     createdAt: note.createdAt,
   };
+}
+
+export function toLedgerEntryResponse(entry: LedgerEntryRecord) {
+  return {
+    id: entry.id,
+    orderId: entry.orderId,
+    account: entry.account,
+    type: entry.type,
+    amountCents: entry.amountCents,
+    membershipId: entry.membershipId,
+    memo: entry.memo,
+    createdAt: entry.createdAt,
+  };
+}
+
+export function toFinancialSummaryResponse(summary: EventFinancialSummary) {
+  return { ...summary };
 }
 
 export function toOrderTimelineResponse(timeline: OrderTimeline) {

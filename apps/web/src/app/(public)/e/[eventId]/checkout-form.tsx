@@ -12,6 +12,8 @@ interface Props {
   eventId: string;
   batches: PublicBatchView[];
   maxTicketsPerOrder: number | null;
+  platformFeeBps: number;
+  feeMode: "BUYER" | "PRODUCER";
   eventTerms: string | null;
   cancellationPolicy: string | null;
 }
@@ -34,6 +36,8 @@ export function CheckoutForm({
   eventId,
   batches,
   maxTicketsPerOrder,
+  platformFeeBps,
+  feeMode,
   eventTerms,
   cancellationPolicy,
 }: Props) {
@@ -89,7 +93,16 @@ export function CheckoutForm({
         : applied.value;
     return Math.max(0, Math.min(raw, subtotalCents));
   }, [applied, subtotalCents]);
-  const totalCents = subtotalCents - discountCents;
+  const netCents = subtotalCents - discountCents;
+  // DEC-003: BUYER-mode events add a service fee on top (mirrors the server).
+  const feeCents = useMemo(
+    () =>
+      feeMode === "BUYER"
+        ? Math.round((netCents * Math.min(platformFeeBps, 10_000)) / 10_000)
+        : 0,
+    [feeMode, platformFeeBps, netCents],
+  );
+  const totalCents = netCents + feeCents;
 
   function setQuantity(batch: PublicBatchView, next: number) {
     const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
@@ -343,16 +356,24 @@ export function CheckoutForm({
         </p>
       )}
 
-      {totalQuantity > 0 && discountCents > 0 && (
+      {totalQuantity > 0 && (discountCents > 0 || feeCents > 0) && (
         <div className="rounded-xl bg-white p-4 text-sm shadow-sm">
           <div className="flex justify-between text-ink-600">
             <span>Subtotal</span>
             <span>{formatBRL(subtotalCents)}</span>
           </div>
-          <div className="flex justify-between text-green-700">
-            <span>Desconto</span>
-            <span>−{formatBRL(discountCents)}</span>
-          </div>
+          {discountCents > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Desconto</span>
+              <span>−{formatBRL(discountCents)}</span>
+            </div>
+          )}
+          {feeCents > 0 && (
+            <div className="flex justify-between text-ink-600">
+              <span>Taxa de serviço</span>
+              <span>{formatBRL(feeCents)}</span>
+            </div>
+          )}
           <div className="mt-1 flex justify-between border-t border-slate-100 pt-1 font-semibold">
             <span>Total</span>
             <span>{formatBRL(totalCents)}</span>

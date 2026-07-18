@@ -4,6 +4,7 @@ import {
   NotFoundOrForbiddenError,
   ValidationFailedError,
 } from "../../shared/errors";
+import { cents, percentageOf } from "../../shared/money";
 import type { ClockPort } from "../../ports/clock";
 import type { AuditRepository } from "../audit/repository";
 import type { EventRecord } from "../events/types";
@@ -152,6 +153,14 @@ export class OrdersService {
       discountCents = Math.max(0, Math.min(resolved.discountCents, subtotalCents));
     }
 
+    // Platform fee (DEC-003): percentage over the ticket value AFTER discount.
+    // BUYER mode adds it to the buyer's total; PRODUCER mode only records it
+    // (it is deducted from the payout later, in the ledger).
+    const netCents = subtotalCents - discountCents;
+    const feeCents = percentageOf(cents(netCents), event.platformFeeBps);
+    const feeMode = event.feeMode;
+    const totalCents = netCents + (feeMode === "BUYER" ? feeCents : 0);
+
     const order = await this.deps.orders.createPendingOrder({
       organizationId: event.organizationId,
       eventId: event.id,
@@ -162,7 +171,9 @@ export class OrdersService {
       buyerPhone: input.buyer.phone,
       subtotalCents,
       discountCents,
-      totalCents: subtotalCents - discountCents,
+      feeCents,
+      feeMode,
+      totalCents,
       expiresAt,
       correlationId: meta.correlationId,
       units,

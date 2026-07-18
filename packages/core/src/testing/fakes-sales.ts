@@ -162,6 +162,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       buyerPhone: data.buyerPhone ?? null,
       subtotalCents: data.subtotalCents,
       discountCents: data.discountCents,
+      feeCents: data.feeCents,
+      feeMode: data.feeMode,
       totalCents: data.totalCents,
       expiresAt: data.expiresAt,
       paidAt: null,

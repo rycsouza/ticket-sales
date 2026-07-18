@@ -16,6 +16,8 @@ const order: OrderRecord = {
   buyerPhone: null,
   subtotalCents: 20_000,
   discountCents: 0,
+  feeCents: 0,
+  feeMode: "PRODUCER",
   totalCents: 20_000,
   expiresAt: null,
   paidAt: new Date(),

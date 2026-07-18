@@ -29,6 +29,9 @@ export const createEventSchema = z
     cancellationPolicy: z.string().trim().max(5000).optional(),
     eventTerms: z.string().trim().max(20000).optional(),
     maxTicketsPerOrder: z.number().int().min(1).max(50).optional(),
+    // DEC-003: platform fee (basis points, max 100%) and who absorbs it.
+    platformFeeBps: z.number().int().min(0).max(10_000).optional(),
+    feeMode: z.enum(["BUYER", "PRODUCER"]).optional(),
   })
   .strict()
   .refine((data) => !data.startsAt || !data.endsAt || data.endsAt > data.startsAt, {
@@ -61,6 +64,8 @@ export const updateEventSchema = z
     cancellationPolicy: z.string().trim().max(5000).optional(),
     eventTerms: z.string().trim().max(20000).optional(),
     maxTicketsPerOrder: z.number().int().min(1).max(50).optional(),
+    platformFeeBps: z.number().int().min(0).max(10_000).optional(),
+    feeMode: z.enum(["BUYER", "PRODUCER"]).optional(),
   })
   .strict();
 

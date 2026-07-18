@@ -26,6 +26,10 @@ export interface PublicEventView {
   cancellationPolicy: string | null;
   eventTerms: string | null;
   maxTicketsPerOrder: number | null;
+  // DEC-003: when feeMode is BUYER, the checkout adds this fee on top of the
+  // ticket value and must show it before payment (FR-CHK-004).
+  platformFeeBps: number;
+  feeMode: "BUYER" | "PRODUCER";
   batches: PublicBatchView[];
 }
 
@@ -80,6 +84,8 @@ export async function getPublicEventView(eventId: string): Promise<PublicEventVi
     cancellationPolicy: event.cancellationPolicy,
     eventTerms: event.eventTerms,
     maxTicketsPerOrder: event.maxTicketsPerOrder,
+    platformFeeBps: event.platformFeeBps,
+    feeMode: event.feeMode,
     batches: visibleBatches,
   };
 }

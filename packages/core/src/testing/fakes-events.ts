@@ -47,6 +47,8 @@ export class InMemoryEventRepository implements EventRepository, EventReader {
       cancellationPolicy: data.cancellationPolicy ?? null,
       eventTerms: data.eventTerms ?? null,
       maxTicketsPerOrder: data.maxTicketsPerOrder ?? null,
+      platformFeeBps: data.platformFeeBps ?? 0,
+      feeMode: data.feeMode ?? "PRODUCER",
       publishedAt: null,
     };
     this.events.push(event);

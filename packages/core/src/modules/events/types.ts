@@ -18,6 +18,9 @@ export const EVENT_MANAGER_ROLES: readonly MembershipRole[] = [
   "EVENT_MANAGER",
 ];
 
+/** DEC-003 — who absorbs the platform fee for the event. */
+export type FeeMode = "BUYER" | "PRODUCER";
+
 export interface EventRecord {
   id: string;
   organizationId: string;
@@ -39,6 +42,8 @@ export interface EventRecord {
   cancellationPolicy: string | null;
   eventTerms: string | null;
   maxTicketsPerOrder: number | null;
+  platformFeeBps: number;
+  feeMode: FeeMode;
   publishedAt: Date | null;
 }
 

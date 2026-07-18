@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@ingressos/db";
-import type { EventRecord, EventStatus, SectorRecord } from "./types";
+import type { EventRecord, EventStatus, FeeMode, SectorRecord } from "./types";
 
 export interface CreateEventData {
   organizationId: string;
@@ -20,6 +20,8 @@ export interface CreateEventData {
   cancellationPolicy?: string | undefined;
   eventTerms?: string | undefined;
   maxTicketsPerOrder?: number | undefined;
+  platformFeeBps?: number | undefined;
+  feeMode?: FeeMode | undefined;
 }
 
 export type UpdateEventData = {
@@ -91,6 +93,8 @@ const eventSelect = {
   cancellationPolicy: true,
   eventTerms: true,
   maxTicketsPerOrder: true,
+  platformFeeBps: true,
+  feeMode: true,
   publishedAt: true,
 } as const;
 
@@ -135,6 +139,8 @@ export class PrismaEventRepository implements EventRepository {
           cancellationPolicy: data.cancellationPolicy,
           eventTerms: data.eventTerms,
           maxTicketsPerOrder: data.maxTicketsPerOrder,
+          platformFeeBps: data.platformFeeBps,
+          feeMode: data.feeMode,
         }),
       },
       select: eventSelect,
