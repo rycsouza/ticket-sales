@@ -78,4 +78,39 @@ export class TicketsService {
     if (!ticket) throw new NotFoundOrForbiddenError();
     return ticket;
   }
+
+  /**
+   * Regenerates the token of every VALID ticket of the order and returns the
+   * new raw tokens (FR-TKT-006 resend + BR-TKT-002). Old links and QR codes
+   * become invalid immediately — that is the point: recovery never multiplies
+   * live credentials.
+   */
+  async rotateTokensForOrder(
+    organizationId: string,
+    orderId: string,
+    meta: { correlationId: string },
+  ): Promise<IssuedTicket[]> {
+    const tickets = await this.deps.tickets.listByOrder(organizationId, orderId);
+    const rotated: IssuedTicket[] = [];
+
+    for (const ticket of tickets) {
+      if (ticket.status !== "VALID") continue;
+      const rawToken = generateToken();
+      await this.deps.tickets.updateTokenHash(organizationId, ticket.id, hashToken(rawToken));
+      rotated.push({ ticket: { ...ticket, tokenHash: hashToken(rawToken) }, rawToken });
+    }
+
+    if (rotated.length > 0) {
+      await this.deps.audit.append({
+        organizationId,
+        actorType: "system",
+        action: "tickets.tokens_rotated",
+        resourceType: "order",
+        resourceId: orderId,
+        after: { count: rotated.length },
+        correlationId: meta.correlationId,
+      });
+    }
+    return rotated;
+  }
 }

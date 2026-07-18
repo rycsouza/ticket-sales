@@ -42,6 +42,9 @@ const serverEnvSchema = z.object({
 
   // Observability
   SENTRY_DSN: z.string().url().optional(),
+
+  // Public base URL for buyer-facing links (ticket pages, e-mails)
+  APP_BASE_URL: z.string().url().default("http://localhost:3000"),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

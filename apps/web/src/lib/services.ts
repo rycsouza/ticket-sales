@@ -6,20 +6,40 @@ import {
   EventsService,
   IdentityService,
   InventoryService,
+  NotificationsService,
+  OrdersService,
+  PaymentsService,
   PrismaAuditRepository,
   PrismaEventRepository,
   PrismaInviteRepository,
   PrismaMembershipRepository,
+  PrismaNotificationRepository,
+  PrismaOrderRepository,
   PrismaOrganizationRepository,
+  PrismaPaymentEventRepository,
+  PrismaPaymentRepository,
+  PrismaPublicEventReader,
+  PrismaReservationStore,
   PrismaSalesBatchRepository,
   PrismaSectorRepository,
   PrismaSessionRepository,
+  PrismaTicketRepository,
   PrismaTicketTypeRepository,
   PrismaUserRepository,
+  TicketsService,
+  ValidationFailedError,
   systemClock,
   type CachePort,
+  type MailerPort,
+  type PspPort,
 } from "@ingressos/core";
-import { Argon2PasswordHasher, MemoryCache, UpstashRedisCache } from "@ingressos/adapters";
+import {
+  Argon2PasswordHasher,
+  MailtrapAdapter,
+  MemoryCache,
+  MercadoPagoAdapter,
+  UpstashRedisCache,
+} from "@ingressos/adapters";
 import { getPrisma } from "@ingressos/db";
 
 /**
@@ -40,6 +60,36 @@ function buildCache(): CachePort {
   return new MemoryCache();
 }
 
+/** PSP not configured yet — fail with a clean, mappable domain error. */
+function buildPsp(env: ReturnType<typeof loadServerEnv>): PspPort {
+  if (env.MERCADOPAGO_ACCESS_TOKEN && env.MERCADOPAGO_WEBHOOK_SECRET) {
+    return new MercadoPagoAdapter(env.MERCADOPAGO_ACCESS_TOKEN, env.MERCADOPAGO_WEBHOOK_SECRET);
+  }
+  const unavailable = async (): Promise<never> => {
+    throw new ValidationFailedError("Pagamentos ainda não configurados neste ambiente");
+  };
+  return {
+    createPixCharge: unavailable,
+    createCardCharge: unavailable,
+    refund: unavailable,
+    getTransaction: unavailable,
+    verifyAndParseWebhook: async () => null,
+  };
+}
+
+function buildMailer(env: ReturnType<typeof loadServerEnv>): MailerPort {
+  if (env.MAILTRAP_API_TOKEN && env.MAILTRAP_SENDER_EMAIL) {
+    return new MailtrapAdapter(env.MAILTRAP_API_TOKEN, env.MAILTRAP_SENDER_EMAIL);
+  }
+  return {
+    // Purchases must survive a missing mail provider (NFR-AVL-006): the
+    // notification row is recorded as FAILED and retried once configured.
+    send: async () => {
+      throw new Error("Mail provider not configured");
+    },
+  };
+}
+
 function buildServices() {
   // Fail fast on invalid configuration (NFR boot validation)
   const env = loadServerEnv();
@@ -55,11 +105,76 @@ function buildServices() {
   const sectors = new PrismaSectorRepository(prisma);
   const ticketTypes = new PrismaTicketTypeRepository(prisma);
   const batches = new PrismaSalesBatchRepository(prisma);
+  const publicEvents = new PrismaPublicEventReader(prisma);
+  const reservations = new PrismaReservationStore(prisma);
+  const orderRepo = new PrismaOrderRepository(prisma);
+  const ticketRepo = new PrismaTicketRepository(prisma);
+  const paymentRepo = new PrismaPaymentRepository(prisma);
+  const paymentEventRepo = new PrismaPaymentEventRepository(prisma);
+  const notificationRepo = new PrismaNotificationRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
+  const psp = buildPsp(env);
+  const mailer = buildMailer(env);
+
+  const ordersService = new OrdersService({
+    orders: orderRepo,
+    reservations,
+    publicEvents,
+    batches,
+    audit,
+    clock: systemClock,
+  });
+  const ticketsService = new TicketsService({
+    tickets: ticketRepo,
+    orders: orderRepo,
+    audit,
+  });
+  const notificationsService = new NotificationsService({
+    notifications: notificationRepo,
+    mailer,
+    baseUrl: env.APP_BASE_URL,
+  });
+
+  // Post-approval orchestration: tickets + confirmation e-mail. Idempotent
+  // end to end, so webhook retries and crash-healing are safe.
+  const fulfiller = {
+    fulfill: async (organizationId: string, orderId: string, correlationId: string) => {
+      const issued = await ticketsService.issueForOrder(organizationId, orderId, {
+        correlationId,
+      });
+      if (issued.length === 0) return; // retry path — tickets already exist
+      const order = await orderRepo.findByIdScoped(organizationId, orderId);
+      if (!order) return;
+      const event = await events.findByIdScoped(organizationId, order.eventId);
+      await notificationsService.sendOrderConfirmation(order, issued, {
+        correlationId,
+        eventTitle: event?.title,
+      });
+    },
+  };
+
+  const paymentsService = new PaymentsService({
+    payments: paymentRepo,
+    paymentEvents: paymentEventRepo,
+    orders: orderRepo,
+    orderCoordinator: ordersService,
+    fulfiller,
+    psp,
+    audit,
+    clock: systemClock,
+  });
 
   return {
+    cache,
+    publicEvents,
+    batchesRepo: batches,
+    ticketTypesRepo: ticketTypes,
+    orders: ordersService,
+    ticketsService,
+    notifications: notificationsService,
+    payments: paymentsService,
     identity: new IdentityService({
       organizations,
       memberships,

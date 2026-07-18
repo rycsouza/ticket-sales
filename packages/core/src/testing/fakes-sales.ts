@@ -268,4 +268,251 @@ export class InMemoryTicketRepository implements TicketRepository {
   async findByTokenHash(tokenHash: string) {
     return this.tickets.find((ticket) => ticket.tokenHash === tokenHash) ?? null;
   }
+
+  async updateTokenHash(organizationId: string, ticketId: string, tokenHash: string) {
+    const ticket = this.tickets.find(
+      (entry) => entry.id === ticketId && entry.organizationId === organizationId,
+    );
+    if (!ticket) throw new Error("Ticket not found in organization scope");
+    ticket.tokenHash = tokenHash;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Payments / notifications fakes
+// ---------------------------------------------------------------------------
+
+import type {
+  PaymentEventRepository,
+  PaymentRepository,
+} from "../modules/payments/repository";
+import type {
+  PaymentEventRecord,
+  PaymentMethod,
+  PaymentRecord,
+  PaymentStatus,
+} from "../modules/payments/types";
+import type {
+  NotificationRecord,
+  NotificationRepository,
+} from "../modules/notifications/repository";
+import type { MailerPort, SendMailInput, SendMailResult } from "../ports/mailer";
+import type {
+  CreatePixChargeInput,
+  NormalizedPspEvent,
+  PixCharge,
+  PspPort,
+  PspTransaction,
+  WebhookInput,
+} from "../ports/psp";
+
+export class InMemoryPaymentRepository implements PaymentRepository {
+  readonly payments: (PaymentRecord & { approvedAt?: Date })[] = [];
+
+  async create(data: {
+    organizationId: string;
+    orderId: string;
+    provider: string;
+    method: PaymentMethod;
+    amountCents: number;
+    idempotencyKey: string;
+    providerTransactionId?: string | undefined;
+    pixQrCode?: string | undefined;
+    pixQrCodeText?: string | undefined;
+    expiresAt?: Date | undefined;
+    correlationId: string;
+  }): Promise<PaymentRecord> {
+    if (this.payments.some((p) => p.idempotencyKey === data.idempotencyKey)) {
+      throw new Error("unique constraint: idempotencyKey");
+    }
+    const payment: PaymentRecord = {
+      id: nextId("pay"),
+      organizationId: data.organizationId,
+      orderId: data.orderId,
+      provider: data.provider,
+      method: data.method,
+      status: "CREATED",
+      amountCents: data.amountCents,
+      providerTransactionId: data.providerTransactionId ?? null,
+      idempotencyKey: data.idempotencyKey,
+      pixQrCode: data.pixQrCode ?? null,
+      pixQrCodeText: data.pixQrCodeText ?? null,
+      expiresAt: data.expiresAt ?? null,
+      correlationId: data.correlationId,
+    };
+    this.payments.push(payment);
+    return payment;
+  }
+
+  async findByProviderTransactionId(providerTransactionId: string) {
+    return (
+      this.payments.find((p) => p.providerTransactionId === providerTransactionId) ?? null
+    );
+  }
+
+  async findReusablePixForOrder(organizationId: string, orderId: string, now: Date) {
+    return (
+      this.payments.find(
+        (p) =>
+          p.organizationId === organizationId &&
+          p.orderId === orderId &&
+          p.method === "PIX" &&
+          (p.status === "CREATED" || p.status === "PROCESSING") &&
+          (p.expiresAt === null || p.expiresAt.getTime() > now.getTime()),
+      ) ?? null
+    );
+  }
+
+  async countByOrder(organizationId: string, orderId: string) {
+    return this.payments.filter(
+      (p) => p.organizationId === organizationId && p.orderId === orderId,
+    ).length;
+  }
+
+  async transitionStatus(
+    paymentId: string,
+    from: PaymentStatus[],
+    to: PaymentStatus,
+  ): Promise<boolean> {
+    const payment = this.payments.find((p) => p.id === paymentId);
+    if (!payment || !from.includes(payment.status)) return false;
+    payment.status = to;
+    return true;
+  }
+}
+
+export class InMemoryPaymentEventRepository implements PaymentEventRepository {
+  readonly events: (PaymentEventRecord & { error?: string })[] = [];
+
+  async claim(data: {
+    provider: string;
+    providerEventId: string;
+    providerTransactionId?: string | undefined;
+    type: string;
+    payload: unknown;
+    correlationId: string;
+  }): Promise<PaymentEventRecord | null> {
+    const existing = this.events.find((e) => e.providerEventId === data.providerEventId);
+    if (existing) {
+      return existing.status === "FAILED" || existing.status === "RECEIVED" ? existing : null;
+    }
+    const record: PaymentEventRecord = {
+      id: nextId("pev"),
+      provider: data.provider,
+      providerEventId: data.providerEventId,
+      providerTransactionId: data.providerTransactionId ?? null,
+      type: data.type,
+      status: "RECEIVED",
+    };
+    this.events.push(record);
+    return record;
+  }
+
+  async markOutcome(
+    id: string,
+    status: "PROCESSED" | "IGNORED" | "FAILED",
+    error?: string,
+  ): Promise<void> {
+    const event = this.events.find((e) => e.id === id);
+    if (event) {
+      event.status = status;
+      if (error !== undefined) event.error = error;
+    }
+  }
+}
+
+export class FakePsp implements PspPort {
+  readonly pixCalls: CreatePixChargeInput[] = [];
+  nextWebhookEvent: NormalizedPspEvent | null = null;
+  private counter = 0;
+
+  async createPixCharge(input: CreatePixChargeInput): Promise<PixCharge> {
+    this.pixCalls.push(input);
+    this.counter += 1;
+    return {
+      providerTransactionId: `mp_${this.counter}`,
+      qrCode: "base64-qr-image",
+      qrCodeText: "00020126pix-copia-e-cola",
+      expiresAt: input.expiresAt,
+    };
+  }
+
+  async createCardCharge(): Promise<never> {
+    throw new Error("not implemented in fake");
+  }
+
+  async refund(): Promise<never> {
+    throw new Error("not implemented in fake");
+  }
+
+  async getTransaction(providerTransactionId: string): Promise<PspTransaction> {
+    return { providerTransactionId, status: "pending", amount: 0 as never };
+  }
+
+  async verifyAndParseWebhook(_input: WebhookInput): Promise<NormalizedPspEvent | null> {
+    return this.nextWebhookEvent;
+  }
+}
+
+export class InMemoryNotificationRepository implements NotificationRepository {
+  readonly notifications: (NotificationRecord & { lastError?: string })[] = [];
+
+  async create(data: {
+    organizationId?: string | undefined;
+    type: string;
+    recipient: string;
+    subject?: string | undefined;
+    orderId?: string | undefined;
+    ticketId?: string | undefined;
+    correlationId: string;
+  }): Promise<NotificationRecord> {
+    const record: NotificationRecord = {
+      id: nextId("not"),
+      organizationId: data.organizationId ?? null,
+      status: "PENDING",
+      type: data.type,
+      recipient: data.recipient,
+      attempts: 0,
+      orderId: data.orderId ?? null,
+    };
+    this.notifications.push(record);
+    return record;
+  }
+
+  async markSent(id: string): Promise<void> {
+    const record = this.notifications.find((n) => n.id === id);
+    if (record) {
+      record.status = "SENT";
+      record.attempts += 1;
+    }
+  }
+
+  async markFailed(id: string, error: string): Promise<void> {
+    const record = this.notifications.find((n) => n.id === id);
+    if (record) {
+      record.status = "FAILED";
+      record.attempts += 1;
+      record.lastError = error;
+    }
+  }
+
+  async listRetryable(maxAttempts: number, limit: number) {
+    return this.notifications
+      .filter((n) => n.status === "FAILED" && n.attempts < maxAttempts)
+      .slice(0, limit);
+  }
+}
+
+export class FakeMailer implements MailerPort {
+  readonly sent: SendMailInput[] = [];
+  failNext = false;
+
+  async send(input: SendMailInput): Promise<SendMailResult> {
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error("smtp unavailable");
+    }
+    this.sent.push(input);
+    return { providerMessageId: `msg_${this.sent.length}` };
+  }
 }

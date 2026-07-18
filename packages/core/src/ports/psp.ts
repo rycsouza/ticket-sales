@@ -30,6 +30,8 @@ export interface CreatePixChargeInput {
   orderId: string;
   amount: Cents;
   description: string;
+  /** Required by PSPs for Pix payer identification. */
+  payerEmail: string;
   /** Charge expiration; must match the inventory reservation TTL. */
   expiresAt: Date;
   idempotencyKey: string;

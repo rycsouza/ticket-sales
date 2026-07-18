@@ -7,3 +7,5 @@ export * from "./modules/events/index";
 export * from "./modules/inventory/index";
 export * from "./modules/orders/index";
 export * from "./modules/tickets/index";
+export * from "./modules/payments/index";
+export * from "./modules/notifications/index";

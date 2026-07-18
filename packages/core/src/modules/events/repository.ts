@@ -202,6 +202,22 @@ export class PrismaEventRepository implements EventRepository {
   }
 }
 
+/**
+ * Cross-org PUBLIC event access — deliberately outside the org-scoped
+ * repository: only PUBLISHED events are ever visible through here, and the
+ * event row itself is the tenant anchor for the public sales flow.
+ */
+export class PrismaPublicEventReader {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async findPublishedById(eventId: string): Promise<EventRecord | null> {
+    return this.prisma.event.findFirst({
+      where: { id: eventId, status: "PUBLISHED" },
+      select: eventSelect,
+    });
+  }
+}
+
 export class PrismaSectorRepository implements SectorRepository {
   constructor(private readonly prisma: PrismaClient) {}
 

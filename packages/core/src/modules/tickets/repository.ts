@@ -19,6 +19,8 @@ export interface TicketRepository {
   }): Promise<TicketRecord | null>;
   listByOrder(organizationId: string, orderId: string): Promise<TicketRecord[]>;
   findByTokenHash(tokenHash: string): Promise<TicketRecord | null>;
+  /** BR-TKT-002: rotating the token invalidates every previous link/QR. */
+  updateTokenHash(organizationId: string, ticketId: string, tokenHash: string): Promise<void>;
 }
 
 const ticketSelect = {
@@ -89,5 +91,13 @@ export class PrismaTicketRepository implements TicketRepository {
       where: { tokenHash },
       select: ticketSelect,
     });
+  }
+
+  async updateTokenHash(organizationId: string, ticketId: string, tokenHash: string) {
+    const result = await this.prisma.ticket.updateMany({
+      where: { id: ticketId, organizationId },
+      data: { tokenHash },
+    });
+    if (result.count === 0) throw new Error("Ticket not found in organization scope");
   }
 }
