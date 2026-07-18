@@ -56,6 +56,18 @@ export interface CheckoutResolver {
   }): Promise<void>;
 }
 
+/**
+ * Server-side reuse of a known buyer identity from a phone (implemented by the
+ * customers module). Lets a returning buyer skip retyping name/e-mail; the real
+ * values never travel to the client (public path only sees a masked preview).
+ */
+export interface CustomerLookupResolver {
+  resolveByPhone(
+    organizationId: string,
+    phone: string,
+  ): Promise<{ name: string; email: string } | null>;
+}
+
 export interface OrdersServiceDeps {
   orders: OrderRepository;
   reservations: ReservationStore;
@@ -65,6 +77,8 @@ export interface OrdersServiceDeps {
   clock: ClockPort;
   /** Optional: absent in environments without the promoters module. */
   checkout?: CheckoutResolver | undefined;
+  /** Optional: absent in environments without the customers module. */
+  customerLookup?: CustomerLookupResolver | undefined;
 }
 
 // Crockford-like base32 (no 0/O/1/I) — public order codes are unguessable
@@ -161,12 +175,32 @@ export class OrdersService {
     const feeMode = event.feeMode;
     const totalCents = netCents + (feeMode === "BUYER" ? feeCents : 0);
 
+    // Resolve the buyer identity. A returning buyer may send only a phone; we
+    // fill name/e-mail from their existing customer record SERVER-SIDE (the
+    // client never receives the real values). Falls back to an error if we
+    // still lack a contact after resolution.
+    let buyerName = input.buyer.name;
+    let buyerEmail = input.buyer.email;
+    if ((!buyerName || !buyerEmail) && input.buyer.phone && this.deps.customerLookup) {
+      const found = await this.deps.customerLookup.resolveByPhone(
+        event.organizationId,
+        input.buyer.phone,
+      );
+      if (found) {
+        buyerName = buyerName ?? found.name;
+        buyerEmail = buyerEmail ?? found.email;
+      }
+    }
+    if (!buyerName || !buyerEmail) {
+      throw new ValidationFailedError("Informe nome e e-mail para concluir a compra.");
+    }
+
     const order = await this.deps.orders.createPendingOrder({
       organizationId: event.organizationId,
       eventId: event.id,
       code: generateOrderCode(),
-      buyerName: input.buyer.name,
-      buyerEmail: input.buyer.email,
+      buyerName,
+      buyerEmail,
       buyerDocument: input.buyer.document,
       buyerPhone: input.buyer.phone,
       subtotalCents,

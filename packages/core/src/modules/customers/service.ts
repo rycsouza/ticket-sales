@@ -23,6 +23,31 @@ export interface CrmOrderReader {
 
 const ANON_NAME = "Comprador anonimizado";
 
+/** Public masked preview of an existing customer (never exposes full PII). */
+export interface CustomerLookupResult {
+  found: boolean;
+  maskedName: string | null;
+  maskedEmail: string | null;
+}
+
+/** Digits only — the stable key for matching a buyer's phone across formats. */
+export function normalizePhone(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+function maskName(name: string | null): string {
+  if (!name) return "Cliente";
+  const first = name.trim().split(/\s+/)[0] ?? "Cliente";
+  return `${first} ***`;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  const head = local.length <= 3 ? local.slice(0, 1) : local.slice(0, 4);
+  return `${head}***@${domain}`;
+}
+
 /** Stable, non-reversible pseudonym so re-runs stay consistent + idempotent. */
 function pseudonymFor(email: string): { name: string; email: string } {
   const digest = createHash("sha256").update(email.toLowerCase(), "utf8").digest("hex");
@@ -56,17 +81,52 @@ export class CustomersService {
     buyerDocument: string | null;
     paidAt: Date | null;
   }): Promise<void> {
+    const phone = order.buyerPhone ? normalizePhone(order.buyerPhone) : "";
     await this.deps.customers.upsert({
       organizationId: order.organizationId,
       email: order.buyerEmail,
       name: order.buyerName,
-      phone: order.buyerPhone ?? undefined,
+      phone: phone.length >= 8 ? phone : undefined,
       document: order.buyerDocument ?? undefined,
       consentVersion: CHECKOUT_CONSENT_VERSION,
       consentAt: order.paidAt ?? this.deps.clock.now(),
       consentOrigin: "checkout",
       lastPurchaseAt: order.paidAt ?? this.deps.clock.now(),
     });
+  }
+
+  /**
+   * Public checkout lookup by phone — returns ONLY a masked preview so an
+   * unauthenticated caller can't harvest full contact data. The endpoint that
+   * exposes this must be rate-limited (anti-enumeration).
+   */
+  async lookupByPhone(organizationId: string, phoneRaw: string): Promise<CustomerLookupResult> {
+    const empty: CustomerLookupResult = { found: false, maskedName: null, maskedEmail: null };
+    const phone = normalizePhone(phoneRaw);
+    if (phone.length < 8) return empty;
+    const customer = await this.deps.customers.findByPhone(organizationId, phone);
+    if (!customer) return empty;
+    return {
+      found: true,
+      maskedName: maskName(customer.name),
+      maskedEmail: maskEmail(customer.email),
+    };
+  }
+
+  /**
+   * Server-only resolution of the real buyer identity from a phone, for reusing
+   * a known customer at checkout. NEVER exposed to the client (the public path
+   * only ever sees the masked preview above).
+   */
+  async resolveByPhone(
+    organizationId: string,
+    phoneRaw: string,
+  ): Promise<{ name: string; email: string } | null> {
+    const phone = normalizePhone(phoneRaw);
+    if (phone.length < 8) return null;
+    const customer = await this.deps.customers.findByPhone(organizationId, phone);
+    if (!customer || !customer.name) return null;
+    return { name: customer.name, email: customer.email };
   }
 
   /**

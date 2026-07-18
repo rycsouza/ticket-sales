@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Minus, Plus } from "lucide-react";
+import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
 import { Button, Field, Input } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { PublicBatchView } from "@/lib/public-views";
@@ -35,6 +35,10 @@ interface AppliedCoupon {
   value: number;
 }
 
+type Lookup =
+  | { status: "idle" | "checking" | "none" }
+  | { status: "found"; maskedName: string | null; maskedEmail: string | null };
+
 const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
 const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão"];
@@ -51,11 +55,16 @@ export function CheckoutForm({
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Returning-buyer lookup by phone (masked preview only).
+  const [lookup, setLookup] = useState<Lookup>({ status: "idle" });
+  const [useOther, setUseOther] = useState(false);
 
   const [couponInput, setCouponInput] = useState("");
   const [applied, setApplied] = useState<AppliedCoupon | null>(null);
@@ -82,6 +91,53 @@ export function CheckoutForm({
     setUtm(captured);
   }, []);
 
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 13;
+
+  // Debounced lookup: when the phone looks complete, check for an existing
+  // cadastro so a returning buyer can skip retyping name + e-mail.
+  useEffect(() => {
+    if (!phoneValid) {
+      setLookup({ status: "idle" });
+      return;
+    }
+    let cancelled = false;
+    setLookup({ status: "checking" });
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/public/events/${eventId}/customer-lookup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phoneDigits }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          found?: boolean;
+          maskedName?: string | null;
+          maskedEmail?: string | null;
+        };
+        if (cancelled) return;
+        if (res.ok && data.found) {
+          setLookup({
+            status: "found",
+            maskedName: data.maskedName ?? null,
+            maskedEmail: data.maskedEmail ?? null,
+          });
+          setUseOther(false);
+        } else {
+          setLookup({ status: "none" });
+        }
+      } catch {
+        if (!cancelled) setLookup({ status: "none" });
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [phoneDigits, phoneValid, eventId]);
+
+  const reuseActive = lookup.status === "found" && !useOther;
+
   const totalQuantity = useMemo(
     () => Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0),
     [quantities],
@@ -106,8 +162,9 @@ export function CheckoutForm({
   );
   const totalCents = netCents + feeCents;
 
-  const emailValid = email.includes("@") && email.trim().length >= 5;
   const nameValid = name.trim().length >= 2;
+  const emailValid = email.includes("@") && email.trim().length >= 5;
+  const dataStepValid = phoneValid && (reuseActive || (nameValid && emailValid));
 
   function setQuantity(batch: PublicBatchView, next: number) {
     const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
@@ -162,8 +219,8 @@ export function CheckoutForm({
   }
 
   function goToReview() {
-    if (!nameValid || !emailValid) {
-      setError("Preencha nome e e-mail para continuar.");
+    if (!dataStepValid) {
+      setError("Informe seu WhatsApp e seus dados para continuar.");
       return;
     }
     setError(null);
@@ -184,6 +241,11 @@ export function CheckoutForm({
 
       const hasUtm = Object.keys(utm).length > 0;
       const couponToSend = applied?.code ?? (couponInput.trim() || undefined);
+      // Reuse path sends only the phone; the server fills name/e-mail from the
+      // existing customer (the real values are never exposed to the client).
+      const buyer = reuseActive
+        ? { phone: phoneDigits }
+        : { phone: phoneDigits, name: name.trim(), email: email.trim().toLowerCase() };
 
       const response = await fetch("/api/public/orders", {
         method: "POST",
@@ -191,7 +253,7 @@ export function CheckoutForm({
         body: JSON.stringify({
           eventId,
           items,
-          buyer: { name: name.trim(), email: email.trim().toLowerCase() },
+          buyer,
           ...(couponToSend ? { coupon: couponToSend } : {}),
           ...(linkRef ? { ref: linkRef } : {}),
           ...(hasUtm ? { utm } : {}),
@@ -204,10 +266,13 @@ export function CheckoutForm({
         return;
       }
 
-      sessionStorage.setItem(
-        "ingressos:last-order",
-        JSON.stringify({ code: data.code, email: email.trim().toLowerCase() }),
-      );
+      // Store the e-mail for auto-tracking only when we actually have it
+      // (the reuse path never receives it client-side; the buyer types it once
+      // on the order page if needed).
+      const stored = reuseActive
+        ? { code: data.code }
+        : { code: data.code, email: email.trim().toLowerCase() };
+      sessionStorage.setItem("ingressos:last-order", JSON.stringify(stored));
       router.push("/pedido");
     } catch {
       setError("Falha de conexão. Verifique sua internet e tente novamente.");
@@ -235,7 +300,6 @@ export function CheckoutForm({
 
   return (
     <section className="space-y-4">
-      {/* Step progress */}
       <div>
         <div className="flex items-center gap-2">
           {STEP_LABELS.map((label, i) => (
@@ -309,9 +373,77 @@ export function CheckoutForm({
         </>
       )}
 
-      {/* Step 2 — Seus dados */}
+      {/* Step 2 — Seus dados (phone-first) */}
       {step === 2 && (
         <>
+          <div className={sectionClass}>
+            <h2 className={sectionTitle}>Seus dados</h2>
+            <div className="space-y-3">
+              <Field
+                label="WhatsApp"
+                htmlFor="ck-phone"
+                hint="Usamos para agilizar sua compra e enviar atualizações do pedido."
+              >
+                <Input
+                  id="ck-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                />
+              </Field>
+
+              {lookup.status === "checking" && (
+                <p className="text-small text-ink-muted">Verificando cadastro…</p>
+              )}
+
+              {reuseActive && lookup.status === "found" && (
+                <div className="rounded-lg border border-success-border bg-success-bg p-3">
+                  <p className="flex items-center gap-1.5 text-small font-semibold text-success-text">
+                    <Check className="size-4" /> Cadastro encontrado
+                  </p>
+                  <p className="mt-1 text-body text-ink">{lookup.maskedName}</p>
+                  <p className="text-small text-ink-muted">{lookup.maskedEmail}</p>
+                  <button
+                    type="button"
+                    onClick={() => setUseOther(true)}
+                    className="mt-2 text-small font-medium text-success-text underline"
+                  >
+                    Usar outros dados
+                  </button>
+                </div>
+              )}
+
+              {!reuseActive && (
+                <>
+                  <Field label="Nome completo" htmlFor="ck-name">
+                    <Input
+                      id="ck-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                      placeholder="Como no seu documento"
+                    />
+                  </Field>
+                  <Field label="E-mail" htmlFor="ck-email">
+                    <Input
+                      id="ck-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="Seus ingressos chegam aqui"
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+          </div>
+
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Cupom</h2>
             {applied ? (
@@ -350,45 +482,13 @@ export function CheckoutForm({
             )}
             {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
           </div>
-
-          <div className={sectionClass}>
-            <h2 className={sectionTitle}>Seus dados</h2>
-            <div className="space-y-3">
-              <Field label="Nome completo" htmlFor="ck-name">
-                <Input
-                  id="ck-name"
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  autoComplete="name"
-                  placeholder="Como no seu documento"
-                />
-              </Field>
-              <Field label="E-mail" htmlFor="ck-email">
-                <Input
-                  id="ck-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="Seus ingressos chegam aqui"
-                />
-              </Field>
-            </div>
-          </div>
           {errorBox}
           <StickyBar>
             <div className="flex gap-2">
               <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
                 Voltar
               </Button>
-              <Button
-                size="lg"
-                className="flex-1"
-                disabled={!nameValid || !emailValid}
-                onClick={goToReview}
-              >
+              <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
                 Continuar
               </Button>
             </div>
@@ -441,9 +541,16 @@ export function CheckoutForm({
           </div>
 
           <div className={`${sectionClass} text-body text-ink-soft`}>
-            <p>
-              Comprador: <strong className="text-ink">{name}</strong> · {email}
-            </p>
+            {reuseActive && lookup.status === "found" ? (
+              <p>
+                Comprador: <strong className="text-ink">{lookup.maskedName}</strong> ·{" "}
+                {lookup.maskedEmail}
+              </p>
+            ) : (
+              <p>
+                Comprador: <strong className="text-ink">{name}</strong> · {email}
+              </p>
+            )}
           </div>
 
           {(eventTerms || cancellationPolicy) && (

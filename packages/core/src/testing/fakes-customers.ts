@@ -83,6 +83,15 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     );
   }
 
+  async findByPhone(organizationId: string, phone: string) {
+    return (
+      this.customers.find(
+        (c) =>
+          c.organizationId === organizationId && c.phone === phone && c.anonymizedAt === null,
+      ) ?? null
+    );
+  }
+
   async setOptOut(organizationId: string, email: string, optedOut: boolean) {
     const customer = await this.findByEmail(organizationId, email);
     if (!customer) throw new Error("Customer not found in organization scope");

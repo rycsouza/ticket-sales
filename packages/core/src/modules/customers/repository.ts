@@ -16,6 +16,8 @@ export interface CustomerRepository {
   }): Promise<CustomerRecord>;
   listByOrganization(organizationId: string): Promise<CustomerRecord[]>;
   findByEmail(organizationId: string, email: string): Promise<CustomerRecord | null>;
+  /** Phone-based lookup for checkout (normalized digits). Excludes anonymized rows. */
+  findByPhone(organizationId: string, phone: string): Promise<CustomerRecord | null>;
   setOptOut(organizationId: string, email: string, optedOut: boolean): Promise<CustomerRecord>;
   /** DEC-010 — active buyers whose last purchase predates the cutoff. */
   listAnonymizationCandidates(cutoff: Date, limit: number): Promise<CustomerRecord[]>;
@@ -126,6 +128,14 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return this.prisma.customer.findFirst({
       where: { organizationId, email },
       select: customerSelect,
+    });
+  }
+
+  async findByPhone(organizationId: string, phone: string) {
+    return this.prisma.customer.findFirst({
+      where: { organizationId, phone, anonymizedAt: null },
+      select: customerSelect,
+      orderBy: { lastPurchaseAt: "desc" },
     });
   }
 

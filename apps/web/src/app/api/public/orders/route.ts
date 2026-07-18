@@ -10,7 +10,10 @@ export const POST = route(async (request, { correlationId }) => {
   await enforceRateLimit("public-order-ip", ip, 10, 5 * 60);
 
   const input = createOrderSchema.parse(await readJsonBody(request));
-  await enforceRateLimit("public-order-email", input.buyer.email, 10, 5 * 60);
+  // Reuse-by-phone buyers omit the e-mail; key the per-contact limit on
+  // whatever identifier we have (e-mail, else phone, else IP).
+  const contactKey = input.buyer.email ?? input.buyer.phone ?? ip;
+  await enforceRateLimit("public-order-contact", contactKey, 10, 5 * 60);
 
   const { order, expiresAt } = await getServices().orders.createOrder(input, {
     correlationId,

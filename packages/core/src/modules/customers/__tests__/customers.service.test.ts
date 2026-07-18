@@ -120,6 +120,49 @@ describe("segments (FR-CRM-003/008, EP-08)", () => {
   });
 });
 
+describe("phone lookup for checkout reuse", () => {
+  it("normalizes phone on upsert, returns a MASKED match, resolves real data server-side", async () => {
+    const s = await setup([]);
+    await s.service.upsertFromPaidOrder({
+      organizationId: ORG,
+      buyerEmail: "rychard@demo.com.br",
+      buyerName: "Rychard Demo",
+      buyerPhone: "(67) 98429-9967",
+      buyerDocument: null,
+      paidAt: new Date(),
+    });
+
+    // stored as digits only
+    const stored = await s.customers.findByPhone(ORG, "67984299967");
+    expect(stored?.phone).toBe("67984299967");
+
+    // public lookup by a differently-formatted phone → masked only
+    const masked = await s.service.lookupByPhone(ORG, "67 98429-9967");
+    expect(masked.found).toBe(true);
+    expect(masked.maskedName).toBe("Rychard ***");
+    expect(masked.maskedEmail).toBe("rych***@demo.com.br");
+
+    // server-side resolve returns the real identity (never sent to the client)
+    const real = await s.service.resolveByPhone(ORG, "(67) 98429-9967");
+    expect(real).toEqual({ name: "Rychard Demo", email: "rychard@demo.com.br" });
+  });
+
+  it("returns not-found for unknown phone and never crosses organizations", async () => {
+    const s = await setup([]);
+    await s.service.upsertFromPaidOrder({
+      organizationId: ORG,
+      buyerEmail: "a@x.com",
+      buyerName: "Ana",
+      buyerPhone: "11999998888",
+      buyerDocument: null,
+      paidAt: new Date(),
+    });
+    expect((await s.service.lookupByPhone(ORG, "11000000000")).found).toBe(false);
+    expect((await s.service.lookupByPhone("org_other", "11999998888")).found).toBe(false);
+    expect(await s.service.resolveByPhone("org_other", "11999998888")).toBeNull();
+  });
+});
+
 describe("retention / anonymization (DEC-010, LGPD)", () => {
   it("anonymizes buyers inactive beyond the window, idempotently", async () => {
     const s = await setup([]);

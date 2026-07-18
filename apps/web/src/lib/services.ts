@@ -171,6 +171,12 @@ function buildServices() {
     audit,
     clock: systemClock,
     checkout: promotersService,
+    // Lazy: customersService is constructed below; the closure resolves it at
+    // request time, letting a returning buyer reuse their data by phone.
+    customerLookup: {
+      resolveByPhone: (organizationId, phone) =>
+        customersService.resolveByPhone(organizationId, phone),
+    },
   });
   const ticketsService = new TicketsService({
     tickets: ticketRepo,

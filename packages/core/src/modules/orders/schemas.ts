@@ -23,10 +23,13 @@ export const createOrderSchema = z
         (items) => new Set(items.map((item) => item.batchId)).size === items.length,
         { message: "Duplicate batchId entries — merge quantities per batch" },
       ),
+    // name/email are optional ONLY to support reuse of an existing customer by
+    // phone (resolved server-side). The refine guarantees we always end up with
+    // a contact: full data, or a phone to resolve it from.
     buyer: z
       .object({
-        name: z.string().trim().min(2).max(120),
-        email: z.string().trim().toLowerCase().email().max(254),
+        name: z.string().trim().min(2).max(120).optional(),
+        email: z.string().trim().toLowerCase().email().max(254).optional(),
         document: z
           .string()
           .trim()
@@ -34,7 +37,10 @@ export const createOrderSchema = z
           .optional(),
         phone: z.string().trim().min(8).max(20).optional(),
       })
-      .strict(),
+      .strict()
+      .refine((b) => (!!b.name && !!b.email) || !!b.phone, {
+        message: "Informe nome e e-mail, ou o telefone de um cadastro existente.",
+      }),
     // Attribution (FR-CHK-008/009/010) — opaque strings, length-capped. The
     // discount and promoter credit are resolved SERVER-SIDE from these refs.
     coupon: z.string().trim().min(1).max(40).optional(),

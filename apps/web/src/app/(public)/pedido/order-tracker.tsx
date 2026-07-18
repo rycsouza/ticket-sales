@@ -88,10 +88,14 @@ export function OrderTracker() {
     const stored = sessionStorage.getItem("ingressos:last-order");
     if (!stored) return;
     try {
-      const creds = JSON.parse(stored) as { code: string; email: string };
+      const creds = JSON.parse(stored) as { code: string; email?: string };
       setCode(creds.code);
-      setEmail(creds.email);
-      void track(creds);
+      // Auto-track only when the e-mail is known (returning buyers who reused a
+      // cadastro by phone type it once here).
+      if (creds.email) {
+        setEmail(creds.email);
+        void track({ code: creds.code, email: creds.email });
+      }
     } catch {
       sessionStorage.removeItem("ingressos:last-order");
     }

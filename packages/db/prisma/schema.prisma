@@ -929,6 +929,7 @@ model Customer {
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([organizationId, phone])
   @@index([anonymizedAt, lastPurchaseAt])
 }
 

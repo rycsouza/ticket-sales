@@ -23,6 +23,14 @@ export const anonymizeCustomerSchema = z
   .strict();
 export type AnonymizeCustomerInput = z.infer<typeof anonymizeCustomerSchema>;
 
+// Public checkout — look up an existing customer by phone (masked result only).
+export const customerLookupSchema = z
+  .object({
+    phone: z.string().trim().min(8).max(20),
+  })
+  .strict();
+export type CustomerLookupInput = z.infer<typeof customerLookupSchema>;
+
 export const setOptOutSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(254),
