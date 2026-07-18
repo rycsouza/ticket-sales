@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Card, CardBody, Field, Input } from "@/components/ui";
 
 export function NewOrgForm() {
   const router = useRouter();
@@ -30,30 +31,30 @@ export function NewOrgForm() {
   }
 
   return (
-    <form
-      className="rounded-xl bg-white p-4 shadow-sm"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-    >
-      <label className="mb-1 block text-sm font-medium">Nova organização</label>
-      <div className="flex gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          placeholder="Nome da produtora"
-        />
-        <button
-          type="submit"
-          disabled={busy || name.trim().length < 2}
-          className="shrink-0 rounded-lg bg-brand-500 px-4 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
+    <Card>
+      <CardBody>
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
         >
-          Criar
-        </button>
-      </div>
-      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
-    </form>
+          <Field label="Nova organização" htmlFor="org-name" error={error ?? undefined}>
+            <div className="flex gap-2">
+              <Input
+                id="org-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nome da produtora"
+              />
+              <Button type="submit" loading={busy} disabled={name.trim().length < 2}>
+                Criar
+              </Button>
+            </div>
+          </Field>
+        </form>
+      </CardBody>
+    </Card>
   );
 }

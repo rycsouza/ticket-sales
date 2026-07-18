@@ -1,18 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowLeft,
+  DollarSign,
+  ExternalLink,
+  Lock,
+  LockOpen,
+  PauseCircle,
+  PlayCircle,
+  Rocket,
+  Users,
+} from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
-import { DashboardHeader } from "../../../header";
+import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
+import { BATCH_STATUS, EVENT_STATUS, fmtBRL, statusMeta } from "@/lib/status";
 import { ActionButton, CopyButton } from "../../../ui";
 import { NewBatchForm, NewTicketTypeForm } from "./inventory-forms";
 
 export const metadata: Metadata = { title: "Evento — Ingressos" };
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function EventWorkspace({
   params,
@@ -21,18 +29,16 @@ export default async function EventWorkspace({
 }) {
   const { orgId, eventId } = await params;
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
-  const org = orgs.find((o) => o.organization.id === orgId);
-  if (!org) redirect("/painel");
-
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
+
   let event;
   try {
     event = toEventResponse(await services.events.getEvent(ctx, eventId));
   } catch {
     redirect(`/painel/${orgId}`);
   }
+
   const [ticketTypes, batches] = await Promise.all([
     services.inventory.listTicketTypes(ctx, eventId).then((r) => r.map(toTicketTypeResponse)),
     services.inventory.listSalesBatches(ctx, eventId).then((r) => r.map(toBatchResponse)),
@@ -40,126 +46,174 @@ export default async function EventWorkspace({
   const typeName = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
   const base = `/painel/${orgId}/eventos/${eventId}`;
+  const statusUrl = `/api/orgs/${orgId}/events/${eventId}/status`;
+  const status = statusMeta(EVENT_STATUS, event.status);
   const isDraft = event.status === "DRAFT";
   const isPublished = event.status === "PUBLISHED";
+  const feePct = (event.platformFeeBps / 100).toString();
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-      <main className="space-y-6 p-4">
-        <div>
-          <Link href={`/painel/${orgId}`} className="text-sm text-brand-600">
-            ← Eventos
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-ink-900">{event.title}</h1>
-          <p className="text-sm text-ink-400">
-            {event.status} · taxa {(event.platformFeeBps / 100).toString()}% (
-            {event.feeMode === "BUYER" ? "comprador" : "produtora"})
-          </p>
-        </div>
+    <>
+      <Link
+        href={`/painel/${orgId}`}
+        className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
+      >
+        <ArrowLeft className="size-4" />
+        Eventos
+      </Link>
 
-        {/* Sub-navigation to the other workspaces */}
-        <nav className="flex flex-wrap gap-2 text-sm">
-          <Link href={`${base}/promoters`} className="rounded-lg bg-white px-3 py-2 font-medium shadow-sm">
-            Promoters & cupons
-          </Link>
-          <Link href={`${base}/financeiro`} className="rounded-lg bg-white px-3 py-2 font-medium shadow-sm">
-            Financeiro
-          </Link>
-          <Link href="/checkin" className="rounded-lg bg-white px-3 py-2 font-medium shadow-sm">
-            Portaria
-          </Link>
-        </nav>
-
-        {/* Lifecycle */}
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
-            Situação
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title={event.title}
+        description={
+          <span className="flex items-center gap-2">
+            <Badge tone={status.tone}>{status.label}</Badge>
+            <span className="text-ink-muted">
+              Taxa {feePct}% ({event.feeMode === "BUYER" ? "comprador" : "produtora"})
+            </span>
+          </span>
+        }
+        actions={
+          <>
             {isDraft && (
-              <ActionButton url={`/api/orgs/${orgId}/events/${eventId}/status`} body={{ action: "publish" }}>
+              <ActionButton url={statusUrl} body={{ action: "publish" }} leftIcon={<Rocket className="size-4" />}>
                 Publicar
               </ActionButton>
             )}
             {isPublished && (
-              <ActionButton url={`/api/orgs/${orgId}/events/${eventId}/status`} body={{ action: "pause" }} variant="secondary">
+              <ActionButton
+                url={statusUrl}
+                body={{ action: "pause" }}
+                variant="secondary"
+                leftIcon={<PauseCircle className="size-4" />}
+              >
                 Pausar vendas
               </ActionButton>
             )}
             {event.status === "SALES_PAUSED" && (
-              <ActionButton url={`/api/orgs/${orgId}/events/${eventId}/status`} body={{ action: "resume" }}>
+              <ActionButton url={statusUrl} body={{ action: "resume" }} leftIcon={<PlayCircle className="size-4" />}>
                 Retomar vendas
               </ActionButton>
             )}
-          </div>
-          {isPublished && (
-            <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
-              <Link href={`/e/${eventId}`} className="truncate text-sm text-brand-600" target="_blank">
-                /e/{eventId}
-              </Link>
-              <CopyButton text={`/e/${eventId}`} label="Copiar link" />
-            </div>
-          )}
-        </section>
+          </>
+        }
+      />
 
+      {/* Sub-navigation */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <Link
+          href={`${base}/promoters`}
+          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-small font-medium text-ink-soft transition-colors hover:bg-hover"
+        >
+          <Users className="size-4" />
+          Promoters & cupons
+        </Link>
+        <Link
+          href={`${base}/financeiro`}
+          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-small font-medium text-ink-soft transition-colors hover:bg-hover"
+        >
+          <DollarSign className="size-4" />
+          Financeiro
+        </Link>
+      </div>
+
+      {/* Public link */}
+      {isPublished && (
+        <Card className="mb-6">
+          <CardBody className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-small font-medium text-ink">Link público de vendas</p>
+              <Link
+                href={`/e/${eventId}`}
+                target="_blank"
+                className="inline-flex items-center gap-1 truncate text-small text-brand hover:underline"
+              >
+                /e/{eventId}
+                <ExternalLink className="size-3.5" />
+              </Link>
+            </div>
+            <CopyButton text={`/e/${eventId}`} label="Copiar link" />
+          </CardBody>
+        </Card>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Ticket types */}
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
-            Tipos de ingresso
-          </h2>
+        <Card>
+          <CardHeader
+            title="Tipos de ingresso"
+            action={<NewTicketTypeForm orgId={orgId} eventId={eventId} />}
+          />
           {ticketTypes.length === 0 ? (
-            <p className="text-sm text-ink-400">Nenhum tipo ainda.</p>
+            <EmptyState title="Nenhum tipo ainda" description="Crie um tipo para montar os lotes." />
           ) : (
-            <ul className="mb-3 divide-y divide-slate-100">
+            <ul className="divide-y divide-line">
               {ticketTypes.map((t) => (
-                <li key={t.id} className="flex justify-between py-2 text-sm">
-                  <span>{t.name}</span>
-                  <span className="text-ink-400">{t.kind}</span>
+                <li key={t.id} className="flex items-center justify-between px-5 py-3">
+                  <span className="text-body font-medium text-ink">{t.name}</span>
+                  <span className="text-small text-ink-muted">{t.kind}</span>
                 </li>
               ))}
             </ul>
           )}
-          <NewTicketTypeForm orgId={orgId} eventId={eventId} />
-        </section>
+        </Card>
 
         {/* Batches */}
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
-            Lotes
-          </h2>
+        <Card>
+          <CardHeader
+            title="Lotes"
+            action={
+              ticketTypes.length > 0 ? (
+                <NewBatchForm orgId={orgId} eventId={eventId} ticketTypes={ticketTypes} />
+              ) : undefined
+            }
+          />
           {batches.length === 0 ? (
-            <p className="text-sm text-ink-400">Nenhum lote ainda.</p>
+            <EmptyState
+              title="Nenhum lote ainda"
+              description="Adicione um tipo de ingresso e crie o primeiro lote."
+            />
           ) : (
-            <ul className="mb-3 space-y-2">
-              {batches.map((b) => (
-                <li key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 p-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">
-                      {typeName.get(b.ticketTypeId) ?? "Ingresso"} — {b.name}
+            <ul className="divide-y divide-line">
+              {batches.map((b) => {
+                const bs = statusMeta(BATCH_STATUS, b.status);
+                return (
+                  <li key={b.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-body font-medium text-ink">
+                        {typeName.get(b.ticketTypeId) ?? "Ingresso"} — {b.name}
+                      </span>
+                      <span className="block truncate text-small text-ink-muted">
+                        {fmtBRL(b.priceCents)} · {b.quantitySold}/{b.quantityTotal} vendidos
+                      </span>
                     </span>
-                    <span className="text-xs text-ink-400">
-                      {brl(b.priceCents)} · {b.quantitySold}/{b.quantityTotal} vendidos · {b.status}
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Badge tone={bs.tone}>{bs.label}</Badge>
+                      {b.status === "OPEN" ? (
+                        <ActionButton
+                          url={`/api/orgs/${orgId}/batches/${b.id}/status`}
+                          body={{ action: "close" }}
+                          variant="secondary"
+                          leftIcon={<Lock className="size-4" />}
+                        >
+                          Fechar
+                        </ActionButton>
+                      ) : b.status === "SCHEDULED" || b.status === "CLOSED" ? (
+                        <ActionButton
+                          url={`/api/orgs/${orgId}/batches/${b.id}/status`}
+                          body={{ action: "open" }}
+                          leftIcon={<LockOpen className="size-4" />}
+                        >
+                          Abrir
+                        </ActionButton>
+                      ) : null}
                     </span>
-                  </span>
-                  {b.status === "OPEN" ? (
-                    <ActionButton url={`/api/orgs/${orgId}/batches/${b.id}/status`} body={{ action: "close" }} variant="secondary">
-                      Fechar
-                    </ActionButton>
-                  ) : b.status === "SCHEDULED" || b.status === "CLOSED" ? (
-                    <ActionButton url={`/api/orgs/${orgId}/batches/${b.id}/status`} body={{ action: "open" }}>
-                      Abrir
-                    </ActionButton>
-                  ) : null}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
-          {ticketTypes.length > 0 && (
-            <NewBatchForm orgId={orgId} eventId={eventId} ticketTypes={ticketTypes} />
-          )}
-        </section>
-      </main>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }

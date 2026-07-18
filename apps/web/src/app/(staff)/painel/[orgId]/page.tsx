@@ -1,67 +1,61 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { CalendarDays, ChevronRight } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { toEventResponse } from "@/lib/serializers";
-import { DashboardHeader } from "../header";
+import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { EVENT_STATUS, statusMeta } from "@/lib/status";
 import { NewEventForm } from "./event-forms";
 
 export const metadata: Metadata = { title: "Eventos — Ingressos" };
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Rascunho",
-  PUBLISHED: "Publicado",
-  SALES_PAUSED: "Vendas pausadas",
-  SALES_CLOSED: "Vendas encerradas",
-  POSTPONED: "Adiado",
-  CANCELLED: "Cancelado",
-  COMPLETED: "Concluído",
-  ARCHIVED: "Arquivado",
-};
-
 export default async function OrgEvents({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
-  const org = orgs.find((o) => o.organization.id === orgId);
-  if (!org) redirect("/painel");
-
   const ctx = dashboardCtx(orgId, userId);
   const events = (await getServices().events.listEvents(ctx)).map(toEventResponse);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-      <main className="space-y-6 p-4">
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">Eventos</h2>
-          {events.length === 0 ? (
-            <p className="text-sm text-ink-400">Nenhum evento ainda. Crie o primeiro abaixo.</p>
-          ) : (
-            <ul className="space-y-2">
-              {events.map((e) => (
-                <li key={e.id}>
-                  <Link
-                    href={`/painel/${orgId}/eventos/${e.id}`}
-                    className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm active:bg-slate-50"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">{e.title}</span>
-                      <span className="text-xs text-ink-400">/{e.slug}</span>
-                    </span>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-ink-600">
-                      {STATUS_LABEL[e.status] ?? e.status}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+    <>
+      <PageHeader
+        title="Eventos"
+        description="Crie e gerencie os eventos da sua produtora."
+        actions={<NewEventForm orgId={orgId} />}
+      />
 
-        <NewEventForm orgId={orgId} />
-      </main>
-    </div>
+      {events.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<CalendarDays className="size-5" />}
+            title="Nenhum evento ainda"
+            description="Crie o primeiro evento para começar a montar lotes e vender ingressos."
+          />
+        </Card>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {events.map((e) => {
+            const s = statusMeta(EVENT_STATUS, e.status);
+            return (
+              <li key={e.id}>
+                <Link
+                  href={`/painel/${orgId}/eventos/${e.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-hover"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-ink">{e.title}</span>
+                    <span className="block truncate text-small text-ink-muted">/{e.slug}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Badge tone={s.tone}>{s.label}</Badge>
+                    <ChevronRight className="size-4 text-ink-faint" />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
   );
 }

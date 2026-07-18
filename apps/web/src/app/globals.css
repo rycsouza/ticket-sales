@@ -1,16 +1,136 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Design tokens — light-mode, whitelabel-ready (STYLE_GUIDE.md)
+   Semantic tokens only. Brand tokens are overridable at runtime: redefine any
+   --color-brand* on :root (or a scoped wrapper) to re-theme the whole app
+   without touching a single component. State colors are fixed (never rebrand).
+   ========================================================================== */
+
 @theme {
-  --color-brand-50: #eef7ff;
-  --color-brand-100: #d9edff;
-  --color-brand-500: #2f6bff;
-  --color-brand-600: #1f54e0;
-  --color-brand-700: #1a43b3;
-  --color-ink-900: #101623;
-  --color-ink-600: #45506a;
-  --color-ink-400: #7c87a3;
+  /* Typography ------------------------------------------------------------ */
+  --font-sans:
+    var(--font-inter), "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --text-h1: 1.75rem; /* 28px */
+  --text-h1--line-height: 2.25rem; /* 36px */
+  --text-h1--font-weight: 700;
+  --text-h2: 1.25rem; /* 20px */
+  --text-h2--line-height: 1.75rem; /* 28px */
+  --text-h2--font-weight: 600;
+  --text-h3: 1rem; /* 16px */
+  --text-h3--line-height: 1.5rem; /* 24px */
+  --text-h3--font-weight: 600;
+  --text-body: 0.875rem; /* 14px */
+  --text-body--line-height: 1.25rem; /* 20px */
+  --text-small: 0.75rem; /* 12px */
+  --text-small--line-height: 1.125rem; /* 18px */
+  --text-caption: 0.6875rem; /* 11px */
+  --text-caption--line-height: 1rem; /* 16px */
+
+  /* Brand (whitelabel — default: azul) ------------------------------------ */
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-active: #1e40af;
+  --color-brand-soft: #eff6ff;
+  --color-brand-border: #bfdbfe;
+  --color-brand-fg: #ffffff;
+
+  /* Backgrounds ----------------------------------------------------------- */
+  --color-page: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-subtle: #f9fafb;
+  --color-hover: #f3f4f6;
+  --color-selected: #eef1f5;
+
+  /* Text ------------------------------------------------------------------ */
+  --color-ink: #111827; /* primary */
+  --color-ink-soft: #374151; /* secondary */
+  --color-ink-muted: #6b7280; /* muted / placeholder */
+  --color-ink-faint: #9ca3af; /* disabled */
+  --color-ink-inverse: #ffffff;
+
+  /* Borders --------------------------------------------------------------- */
+  --color-line: #e5e7eb; /* subtle — default card/line */
+  --color-line-strong: #d1d5db; /* default control border */
+  --color-line-stronger: #9ca3af; /* strong */
+  --color-divider: #eaecf0;
+
+  /* State (fixed — never rebrand) ----------------------------------------- */
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-success-text: #166534;
+
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #92400e;
+
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+
+  --color-info: #0284c7;
+  --color-info-bg: #f0f9ff;
+  --color-info-border: #bae6fd;
+  --color-info-text: #075985;
+
+  /* Chart series (brand first is applied in components) ------------------- */
+  --color-chart-1: #0891b2;
+  --color-chart-2: #7c3aed;
+  --color-chart-3: #d97706;
+  --color-chart-4: #16a34a;
+  --color-chart-5: #db2777;
+  --color-chart-6: #64748b;
+
+  /* Elevation — discreet; cards prefer a border, not a shadow ------------- */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md:
+    0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 24px -4px rgba(16, 24, 40, 0.12);
+
+  /* Motion ---------------------------------------------------------------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
-body {
-  @apply bg-slate-50 text-ink-900 antialiased;
+/* Overlay token (not a Tailwind color utility) */
+:root {
+  --overlay: rgba(15, 23, 42, 0.45);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-size: var(--text-body);
+    line-height: 1.25rem;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Visible, brand-tinted focus for keyboard users (WCAG 2.2 AA). */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /* Respect reduced-motion preferences. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

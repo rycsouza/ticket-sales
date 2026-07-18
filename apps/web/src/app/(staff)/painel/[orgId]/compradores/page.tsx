@@ -1,84 +1,82 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { Users } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
-import { DashboardHeader } from "../../header";
+import { Badge, Card, CardBody, EmptyState, PageHeader, Stat } from "@/components/ui";
+import { fmtBRL } from "@/lib/status";
 import { CrmExportButton, OptOutButton } from "./crm-client";
 
 export const metadata: Metadata = { title: "Compradores — Ingressos" };
 
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export default async function CrmPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
-  const org = orgs.find((o) => o.organization.id === orgId);
-  if (!org) redirect("/painel");
-
   const ctx = dashboardCtx(orgId, userId);
+
   let segment;
   try {
     segment = await getServices().customers.getSegment(ctx, { includeOptedOut: true });
   } catch {
     return (
-      <div className="mx-auto max-w-2xl">
-        <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-        <main className="p-4">
-          <p className="rounded-xl bg-white p-6 text-center text-sm text-ink-600 shadow-sm">
-            Você não tem permissão para ver os compradores desta organização.
-          </p>
-        </main>
-      </div>
+      <>
+        <PageHeader title="Compradores" />
+        <Card>
+          <CardBody>
+            <p className="text-body text-ink-muted">
+              Você não tem permissão para ver os compradores desta organização.
+            </p>
+          </CardBody>
+        </Card>
+      </>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-      <main className="space-y-6 p-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-ink-900">Compradores</h1>
-            <p className="text-sm text-ink-400">
-              {segment.count} pessoas · {brl(segment.totalSpentCents)} em compras
-            </p>
-          </div>
-          <CrmExportButton orgId={orgId} />
-        </div>
+    <>
+      <PageHeader
+        title="Compradores"
+        description="Base construída automaticamente a cada pedido pago."
+        actions={<CrmExportButton orgId={orgId} />}
+      />
 
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          {segment.customers.length === 0 ? (
-            <p className="text-sm text-ink-400">
-              Nenhum comprador ainda. A base é preenchida automaticamente a cada pedido pago.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {segment.customers.map((c) => (
-                <li key={c.email} className="flex items-center justify-between gap-3 py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">
-                      {c.name ?? c.email}
-                    </span>
-                    <span className="block truncate text-xs text-ink-400">
-                      {c.email} · {c.orderCount} pedido(s) · {brl(c.totalSpentCents)}
-                      {c.optedOut ? " · opt-out" : ""}
-                    </span>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:max-w-md">
+        <Stat label="Pessoas" value={segment.count.toLocaleString("pt-BR")} />
+        <Stat label="Em compras" value={fmtBRL(segment.totalSpentCents)} />
+      </div>
+
+      <Card>
+        {segment.customers.length === 0 ? (
+          <EmptyState
+            icon={<Users className="size-5" />}
+            title="Nenhum comprador ainda"
+            description="A base é preenchida automaticamente a cada pedido pago."
+          />
+        ) : (
+          <ul className="divide-y divide-line">
+            {segment.customers.map((c) => (
+              <li key={c.email} className="flex items-center justify-between gap-3 px-5 py-3">
+                <span className="min-w-0">
+                  <span className="block truncate text-body font-medium text-ink">
+                    {c.name ?? c.email}
                   </span>
+                  <span className="block truncate text-small text-ink-muted">
+                    {c.email} · {c.orderCount} pedido(s) · {fmtBRL(c.totalSpentCents)}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {c.optedOut && <Badge tone="warning">opt-out</Badge>}
                   <OptOutButton orgId={orgId} email={c.email} optedOut={c.optedOut} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
-        <p className="text-xs text-ink-400">
-          A base respeita consentimento e opt-out (LGPD). Compradores inativos por mais de 24 meses
-          são anonimizados automaticamente.
-        </p>
-      </main>
-    </div>
+      <p className="mt-4 text-small text-ink-muted">
+        A base respeita consentimento e opt-out (LGPD). Compradores inativos por mais de 24 meses são
+        anonimizados automaticamente.
+      </p>
+    </>
   );
 }

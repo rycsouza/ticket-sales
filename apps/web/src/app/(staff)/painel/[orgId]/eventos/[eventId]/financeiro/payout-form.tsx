@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-const input =
-  "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+import { Button, Field, Input } from "@/components/ui";
 
 export function PayoutForm({ apiBase }: { apiBase: string }) {
   const router = useRouter();
@@ -40,25 +38,37 @@ export function PayoutForm({ apiBase }: { apiBase: string }) {
 
   return (
     <form
-      className="space-y-2"
+      className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
     >
-      <div className="grid grid-cols-2 gap-2">
-        <input className={input} type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Valor R$" />
-        <input className={input} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Referência (PIX, TED...)" />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Valor (R$)" htmlFor="po-amount">
+          <Input
+            id="po-amount"
+            type="number"
+            min={0}
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </Field>
+        <Field label="Referência" htmlFor="po-memo">
+          <Input
+            id="po-memo"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="PIX, TED..."
+          />
+        </Field>
       </div>
-      {error && <p className="text-sm text-red-700">{error}</p>}
-      {ok && <p className="text-sm text-green-700">Repasse registrado.</p>}
-      <button
-        type="submit"
-        disabled={busy || !amount || memo.trim().length < 3}
-        className="w-full rounded-lg bg-brand-500 py-2.5 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
-      >
-        {busy ? "Registrando..." : "Registrar repasse"}
-      </button>
+      {error && <p className="text-small text-danger">{error}</p>}
+      {ok && <p className="text-small text-success-text">Repasse registrado.</p>}
+      <Button type="submit" loading={busy} disabled={!amount || memo.trim().length < 3}>
+        Registrar repasse
+      </Button>
     </form>
   );
 }

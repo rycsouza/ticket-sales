@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Minus, Plus } from "lucide-react";
+import { Button, Field, Input } from "@/components/ui";
 import type { PublicBatchView } from "@/lib/public-views";
 
 function formatBRL(centsValue: number): string {
@@ -32,6 +34,9 @@ interface AppliedCoupon {
   value: number;
 }
 
+const sectionClass = "rounded-xl border border-line bg-surface p-4";
+const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
+
 export function CheckoutForm({
   eventId,
   batches,
@@ -49,7 +54,6 @@ export function CheckoutForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Coupon (FR-CHK-008) + attribution capture (FR-CHK-009/010)
   const [couponInput, setCouponInput] = useState("");
   const [applied, setApplied] = useState<AppliedCoupon | null>(null);
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
@@ -57,8 +61,6 @@ export function CheckoutForm({
   const [linkRef, setLinkRef] = useState<string | undefined>(undefined);
   const [utm, setUtm] = useState<Utm>({});
 
-  // Capture link ref + UTM from the landing URL once (display-only client read;
-  // the server re-resolves everything authoritatively).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("p") ?? params.get("ref") ?? undefined;
@@ -94,12 +96,9 @@ export function CheckoutForm({
     return Math.max(0, Math.min(raw, subtotalCents));
   }, [applied, subtotalCents]);
   const netCents = subtotalCents - discountCents;
-  // DEC-003: BUYER-mode events add a service fee on top (mirrors the server).
   const feeCents = useMemo(
     () =>
-      feeMode === "BUYER"
-        ? Math.round((netCents * Math.min(platformFeeBps, 10_000)) / 10_000)
-        : 0,
+      feeMode === "BUYER" ? Math.round((netCents * Math.min(platformFeeBps, 10_000)) / 10_000) : 0,
     [feeMode, platformFeeBps, netCents],
   );
   const totalCents = netCents + feeCents;
@@ -185,7 +184,6 @@ export function CheckoutForm({
         return;
       }
 
-      // Credentials for the order page — session storage, never the URL
       sessionStorage.setItem(
         "ingressos:last-order",
         JSON.stringify({ code: data.code, email: email.trim().toLowerCase() }),
@@ -200,7 +198,7 @@ export function CheckoutForm({
 
   if (batches.length === 0) {
     return (
-      <section className="rounded-xl bg-white p-6 text-center text-sm text-ink-600 shadow-sm">
+      <section className={`${sectionClass} text-center text-body text-ink-muted`}>
         As vendas ainda não estão abertas para este evento.
       </section>
     );
@@ -208,19 +206,17 @@ export function CheckoutForm({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
-          Ingressos
-        </h2>
-        <ul className="divide-y divide-slate-100">
+      <div className={sectionClass}>
+        <h2 className={sectionTitle}>Ingressos</h2>
+        <ul className="divide-y divide-line">
           {batches.map((batch) => {
             const quantity = quantities[batch.id] ?? 0;
             return (
               <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{batch.ticketTypeName}</p>
-                  <p className="text-xs text-ink-400">{batch.name}</p>
-                  <p className="mt-1 text-sm font-semibold text-brand-600">
+                  <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
+                  <p className="text-small text-ink-muted">{batch.name}</p>
+                  <p className="mt-1 text-body font-semibold text-brand">
                     {formatBRL(batch.priceCents)}
                   </p>
                 </div>
@@ -230,25 +226,25 @@ export function CheckoutForm({
                       type="button"
                       aria-label={`Remover ${batch.ticketTypeName}`}
                       onClick={() => setQuantity(batch, quantity - 1)}
-                      className="h-11 w-11 rounded-full border border-slate-200 text-lg font-bold text-ink-600 active:bg-slate-100 disabled:opacity-30"
+                      className="flex size-11 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors active:bg-hover disabled:opacity-30"
                       disabled={quantity === 0}
                     >
-                      −
+                      <Minus className="size-5" />
                     </button>
-                    <span className="w-6 text-center text-base font-semibold tabular-nums">
+                    <span className="w-6 text-center text-body font-semibold tabular-nums text-ink">
                       {quantity}
                     </span>
                     <button
                       type="button"
                       aria-label={`Adicionar ${batch.ticketTypeName}`}
                       onClick={() => setQuantity(batch, quantity + 1)}
-                      className="h-11 w-11 rounded-full bg-brand-500 text-lg font-bold text-white active:bg-brand-600"
+                      className="flex size-11 items-center justify-center rounded-full bg-brand text-brand-fg transition-colors active:bg-brand-active"
                     >
-                      +
+                      <Plus className="size-5" />
                     </button>
                   </div>
                 ) : (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-ink-400">
+                  <span className="rounded-full bg-hover px-3 py-1 text-small font-semibold text-ink-muted">
                     Esgotado
                   </span>
                 )}
@@ -258,79 +254,75 @@ export function CheckoutForm({
         </ul>
       </div>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">Cupom</h2>
+      <div className={sectionClass}>
+        <h2 className={sectionTitle}>Cupom</h2>
         {applied ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-3">
-            <span className="text-sm font-medium text-green-800">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-success-border bg-success-bg px-3 py-3">
+            <span className="text-body font-medium text-success-text">
               Cupom <strong>{applied.code}</strong> aplicado
               {subtotalCents > 0 ? ` — ${formatBRL(discountCents)} de desconto` : ""}
             </span>
             <button
               type="button"
               onClick={removeCoupon}
-              className="text-sm font-semibold text-green-800 underline"
+              className="text-body font-semibold text-success-text underline"
             >
               Remover
             </button>
           </div>
         ) : (
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               value={couponInput}
               onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base uppercase outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="uppercase"
               placeholder="Tem um cupom?"
               autoCapitalize="characters"
             />
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              loading={checkingCoupon}
+              disabled={couponInput.trim().length === 0}
               onClick={applyCoupon}
-              disabled={checkingCoupon || couponInput.trim().length === 0}
-              className="shrink-0 rounded-lg border border-brand-500 px-4 text-sm font-semibold text-brand-600 active:bg-brand-50 disabled:opacity-40"
             >
-              {checkingCoupon ? "..." : "Aplicar"}
-            </button>
+              Aplicar
+            </Button>
           </div>
         )}
-        {couponMsg && <p className="mt-2 text-sm text-red-700">{couponMsg}</p>}
+        {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
       </div>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
-          Seus dados
-        </h2>
+      <div className={sectionClass}>
+        <h2 className={sectionTitle}>Seus dados</h2>
         <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Nome completo</span>
-            <input
+          <Field label="Nome completo" htmlFor="ck-name">
+            <Input
+              id="ck-name"
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
               autoComplete="name"
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               placeholder="Como no seu documento"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">E-mail</span>
-            <input
+          </Field>
+          <Field label="E-mail" htmlFor="ck-email">
+            <Input
+              id="ck-email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
               inputMode="email"
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               placeholder="Seus ingressos chegam aqui"
             />
-          </label>
+          </Field>
         </div>
       </div>
 
       {(eventTerms || cancellationPolicy) && (
-        <details className="rounded-xl bg-white p-4 text-sm text-ink-600 shadow-sm">
-          <summary className="cursor-pointer font-medium text-ink-900">
+        <details className={`${sectionClass} text-body text-ink-soft`}>
+          <summary className="cursor-pointer font-medium text-ink">
             Termos e política de cancelamento
           </summary>
           {cancellationPolicy && <p className="mt-2 whitespace-pre-line">{cancellationPolicy}</p>}
@@ -338,64 +330,61 @@ export function CheckoutForm({
         </details>
       )}
 
-      <label className="flex items-start gap-3 rounded-xl bg-white p-4 text-sm shadow-sm">
+      <label className={`flex items-start gap-3 ${sectionClass} text-body text-ink-soft`}>
         <input
           type="checkbox"
           checked={accepted}
           onChange={(event) => setAccepted(event.target.checked)}
-          className="mt-0.5 h-5 w-5 accent-brand-500"
+          className="mt-0.5 size-5 accent-brand"
         />
-        <span>
-          Li e aceito os termos do evento e a política de privacidade. {/* FR-CHK-012 */}
-        </span>
+        <span>Li e aceito os termos do evento e a política de privacidade.</span>
       </label>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-body text-danger-text"
+        >
           {error}
         </p>
       )}
 
       {totalQuantity > 0 && (discountCents > 0 || feeCents > 0) && (
-        <div className="rounded-xl bg-white p-4 text-sm shadow-sm">
-          <div className="flex justify-between text-ink-600">
+        <div className={`${sectionClass} text-body`}>
+          <div className="flex justify-between text-ink-soft">
             <span>Subtotal</span>
-            <span>{formatBRL(subtotalCents)}</span>
+            <span className="tabular-nums">{formatBRL(subtotalCents)}</span>
           </div>
           {discountCents > 0 && (
-            <div className="flex justify-between text-green-700">
+            <div className="flex justify-between text-success-text">
               <span>Desconto</span>
-              <span>−{formatBRL(discountCents)}</span>
+              <span className="tabular-nums">−{formatBRL(discountCents)}</span>
             </div>
           )}
           {feeCents > 0 && (
-            <div className="flex justify-between text-ink-600">
+            <div className="flex justify-between text-ink-soft">
               <span>Taxa de serviço</span>
-              <span>{formatBRL(feeCents)}</span>
+              <span className="tabular-nums">{formatBRL(feeCents)}</span>
             </div>
           )}
-          <div className="mt-1 flex justify-between border-t border-slate-100 pt-1 font-semibold">
+          <div className="mt-1 flex justify-between border-t border-line pt-1 font-semibold text-ink">
             <span>Total</span>
-            <span>{formatBRL(totalCents)}</span>
+            <span className="tabular-nums">{formatBRL(totalCents)}</span>
           </div>
         </div>
       )}
 
       <div className="sticky bottom-4">
-        <button
-          type="button"
+        <Button
+          size="lg"
+          className="w-full shadow-lg"
+          loading={submitting}
           onClick={submit}
-          disabled={submitting}
-          className="w-full rounded-xl bg-brand-500 py-4 text-base font-bold text-white shadow-lg shadow-blue-200 active:bg-brand-600 disabled:opacity-60"
         >
-          {submitting
-            ? "Reservando..."
-            : totalQuantity > 0
-              ? `Continuar — ${formatBRL(totalCents)}`
-              : "Continuar"}
-        </button>
+          {totalQuantity > 0 ? `Continuar — ${formatBRL(totalCents)}` : "Continuar"}
+        </Button>
         {totalQuantity > 0 && (
-          <p className="mt-2 text-center text-xs text-ink-400">
+          <p className="mt-2 text-center text-small text-ink-muted">
             {totalQuantity} {totalQuantity === 1 ? "ingresso" : "ingressos"} · preço final, sem
             taxas escondidas
           </p>

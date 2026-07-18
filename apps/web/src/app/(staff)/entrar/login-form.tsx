@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
+import { Button, Field, Input } from "@/components/ui";
 
 type Step = "credentials" | "setup" | "verify" | "backup";
 
@@ -50,9 +51,7 @@ export function LoginForm() {
       }
       setChallenge(String(data.challengeToken));
       if (data.status === "mfa_setup_required") {
-        const setup = await post("/api/auth/mfa/setup", {
-          challengeToken: data.challengeToken,
-        });
+        const setup = await post("/api/auth/mfa/setup", { challengeToken: data.challengeToken });
         setSecret(String(setup.data.secret ?? ""));
         setOtpauthUri(String(setup.data.otpauthUri ?? ""));
         setStep("setup");
@@ -92,27 +91,29 @@ export function LoginForm() {
     }
   }
 
+  const errorBox = error && (
+    <p role="alert" className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-small text-danger-text">
+      {error}
+    </p>
+  );
+
   if (step === "backup") {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-lg border border-warning-border bg-warning-bg p-3 text-small text-warning-text">
           Guarde estes <strong>códigos de backup</strong> num lugar seguro. Cada um funciona uma
           única vez, caso você perca o app autenticador.
         </div>
-        <ul className="grid grid-cols-2 gap-2 rounded-lg bg-white p-4 font-mono text-sm shadow-sm">
+        <ul className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-subtle p-4 font-mono text-body">
           {backupCodes.map((c) => (
-            <li key={c} className="tabular-nums">
+            <li key={c} className="tabular-nums text-ink">
               {c}
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          onClick={() => router.push("/checkin")}
-          className="w-full rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white active:bg-brand-600"
-        >
+        <Button size="lg" className="w-full" onClick={() => router.push("/checkin")}>
           Guardei — continuar
-        </button>
+        </Button>
       </div>
     );
   }
@@ -121,61 +122,57 @@ export function LoginForm() {
     const isSetup = step === "setup";
     return (
       <div className="space-y-4">
-        {isSetup && (
+        {isSetup ? (
           <div className="space-y-3">
-            <p className="text-sm text-ink-600">
+            <p className="text-body text-ink-soft">
               Escaneie o QR com seu app autenticador (Google Authenticator, Authy, 1Password) e
               informe o código gerado.
             </p>
             {otpauthUri && (
-              <div className="mx-auto w-fit rounded-xl bg-white p-3 ring-1 ring-slate-100">
+              <div className="mx-auto w-fit rounded-xl border border-line bg-surface p-3">
                 <QRCode value={otpauthUri} size={168} />
               </div>
             )}
             {secret && (
-              <p className="text-center text-xs text-ink-400">
+              <p className="text-center text-small text-ink-muted">
                 Chave manual: <span className="font-mono">{secret}</span>
               </p>
             )}
           </div>
-        )}
-        {!isSetup && (
-          <p className="text-sm text-ink-600">
+        ) : (
+          <p className="text-body text-ink-soft">
             Informe o código do seu app autenticador (ou um código de backup).
           </p>
         )}
-        <input
+        <Input
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-3 text-center text-lg tracking-widest outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="h-12 text-center text-lg tracking-widest"
           placeholder="000000"
           autoFocus
         />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-body text-ink-soft">
           <input
             type="checkbox"
             checked={trustDevice}
             onChange={(e) => setTrustDevice(e.target.checked)}
-            className="h-4 w-4 accent-brand-500"
+            className="size-4 accent-brand"
           />
           Confiar neste dispositivo por 30 dias
         </label>
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={busy || code.trim().length < 6}
+        {errorBox}
+        <Button
+          size="lg"
+          className="w-full"
+          loading={busy}
+          disabled={code.trim().length < 6}
           onClick={() => submitCode(isSetup ? "/api/auth/mfa/confirm" : "/api/auth/mfa/verify")}
-          className="w-full rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white active:bg-brand-600 disabled:opacity-50"
         >
-          {busy ? "Verificando..." : isSetup ? "Ativar e entrar" : "Verificar"}
-        </button>
+          {isSetup ? "Ativar e entrar" : "Verificar"}
+        </Button>
       </div>
     );
   }
@@ -188,43 +185,37 @@ export function LoginForm() {
         void submitCredentials();
       }}
     >
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium">E-mail</span>
-        <input
+      <Field label="E-mail" htmlFor="login-email">
+        <Input
+          id="login-email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
           inputMode="email"
-          className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           placeholder="voce@produtora.com"
         />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium">Senha</span>
-        <input
+      </Field>
+      <Field label="Senha" htmlFor="login-password">
+        <Input
+          id="login-password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
-          className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           placeholder="Sua senha"
         />
-      </label>
-
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
-
-      <button
+      </Field>
+      {errorBox}
+      <Button
         type="submit"
-        disabled={busy || email.length === 0 || password.length === 0}
-        className="w-full rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-200 active:bg-brand-600 disabled:opacity-50"
+        size="lg"
+        className="w-full"
+        loading={busy}
+        disabled={email.length === 0 || password.length === 0}
       >
-        {busy ? "Entrando..." : "Entrar"}
-      </button>
+        Entrar
+      </Button>
     </form>
   );
 }

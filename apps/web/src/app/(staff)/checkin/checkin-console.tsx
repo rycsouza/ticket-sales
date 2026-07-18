@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, ScanLine, XCircle } from "lucide-react";
+import { Button, Card, CardBody, Input } from "@/components/ui";
 
 interface Org {
   id: string;
@@ -48,7 +50,6 @@ export function CheckinConsole() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Who am I / which orgs
   useEffect(() => {
     void (async () => {
       const res = await fetch("/api/auth/me");
@@ -62,7 +63,6 @@ export function CheckinConsole() {
     })();
   }, []);
 
-  // Events for the chosen org
   useEffect(() => {
     if (!orgId) return;
     void (async () => {
@@ -108,12 +108,14 @@ export function CheckinConsole() {
 
   if (authError) {
     return (
-      <div className="mt-16 rounded-xl bg-white p-6 text-center text-sm text-ink-600 shadow-sm">
-        Sessão expirada.{" "}
-        <a href="/entrar" className="font-semibold text-brand-600 underline">
-          Entrar
-        </a>
-      </div>
+      <Card className="mt-16">
+        <CardBody className="text-center text-body text-ink-soft">
+          Sessão expirada.{" "}
+          <a href="/entrar" className="font-semibold text-brand hover:underline">
+            Entrar
+          </a>
+        </CardBody>
+      </Card>
     );
   }
 
@@ -144,81 +146,96 @@ export function CheckinConsole() {
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-ink-900">Portaria</h1>
-        <button
-          type="button"
+        <h1 className="flex items-center gap-2 text-h2 text-ink">
+          <ScanLine className="size-5 text-brand" />
+          Portaria
+        </h1>
+        <Button
+          variant="link"
+          size="sm"
           onClick={() => {
             setEventId(null);
             setResult(null);
           }}
-          className="text-sm font-medium text-brand-600"
         >
           Trocar evento
-        </button>
+        </Button>
       </header>
 
       {dashboard && (
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <Stat label="Presentes" value={dashboard.present} />
-          <Stat label="Ausentes" value={dashboard.absent} />
-          <Stat label="Entrada" value={`${dashboard.entryRatePercent}%`} />
+        <div className="grid grid-cols-3 gap-2">
+          <MiniStat label="Presentes" value={dashboard.present} />
+          <MiniStat label="Ausentes" value={dashboard.absent} />
+          <MiniStat label="Entrada" value={`${dashboard.entryRatePercent}%`} />
         </div>
       )}
 
       {result && (
         <div
           role="status"
-          className={`rounded-xl p-5 text-center ${
-            result.accepted ? "bg-green-50" : "bg-red-50"
-          }`}
+          className={
+            result.accepted
+              ? "rounded-xl border border-success-border bg-success-bg p-5 text-center"
+              : "rounded-xl border border-danger-border bg-danger-bg p-5 text-center"
+          }
         >
           <p
-            className={`text-2xl font-extrabold ${
-              result.accepted ? "text-green-700" : "text-red-700"
-            }`}
+            className={
+              result.accepted
+                ? "flex items-center justify-center gap-2 text-h1 font-extrabold text-success-text"
+                : "flex items-center justify-center gap-2 text-h1 font-extrabold text-danger-text"
+            }
           >
-            {result.accepted ? "✓ ENTRADA LIBERADA" : "✕ RECUSADO"}
+            {result.accepted ? (
+              <CheckCircle2 className="size-7" />
+            ) : (
+              <XCircle className="size-7" />
+            )}
+            {result.accepted ? "ENTRADA LIBERADA" : "RECUSADO"}
           </p>
           {result.accepted && result.ticket?.participantName && (
-            <p className="mt-1 text-sm text-green-800">{result.ticket.participantName}</p>
+            <p className="mt-1 text-body text-success-text">{result.ticket.participantName}</p>
           )}
           {!result.accepted && (
-            <p className="mt-1 text-sm text-red-800">
+            <p className="mt-1 text-body text-danger-text">
               {REASON_LABEL[result.reason ?? ""] ?? "Ingresso inválido"}
             </p>
           )}
         </div>
       )}
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <label className="mb-1 block text-sm font-medium">Código do ingresso (QR)</label>
-        <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoFocus
-            className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            placeholder="Escaneie ou cole o código"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void validate();
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => void validate()}
-            disabled={busy || token.trim().length === 0}
-            className="shrink-0 rounded-lg bg-brand-500 px-5 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
-          >
-            {busy ? "..." : "Validar"}
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-ink-400">
-          Leitura por câmera e modo offline são aprimoramentos futuros — a validação online já
-          usa a mesma API.
-        </p>
-      </div>
+      <Card>
+        <CardBody>
+          <label htmlFor="ci-token" className="mb-1.5 block text-small font-medium text-ink-soft">
+            Código do ingresso (QR)
+          </label>
+          <div className="flex gap-2">
+            <Input
+              id="ci-token"
+              ref={inputRef}
+              type="text"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              autoFocus
+              placeholder="Escaneie ou cole o código"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void validate();
+              }}
+            />
+            <Button
+              loading={busy}
+              disabled={token.trim().length === 0}
+              onClick={() => void validate()}
+            >
+              Validar
+            </Button>
+          </div>
+          <p className="mt-2 text-small text-ink-muted">
+            Leitura por câmera e modo offline são aprimoramentos futuros — a validação online já usa
+            a mesma API.
+          </p>
+        </CardBody>
+      </Card>
     </div>
   );
 }
@@ -235,9 +252,9 @@ function Picker({
   const items = Array.isArray(children) ? children : [children];
   return (
     <div className="mt-8 space-y-3">
-      <h1 className="text-lg font-bold text-ink-900">{title}</h1>
+      <h1 className="text-h2 text-ink">{title}</h1>
       {items.length === 0 ? (
-        <p className="text-sm text-ink-400">{empty}</p>
+        <p className="text-body text-ink-muted">{empty}</p>
       ) : (
         <div className="space-y-2">{children}</div>
       )}
@@ -245,29 +262,23 @@ function Picker({
   );
 }
 
-function PickerButton({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function PickerButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-xl bg-white p-4 text-left font-medium shadow-sm active:bg-slate-50"
+      className="w-full rounded-xl border border-line bg-surface p-4 text-left font-medium text-ink transition-colors hover:bg-hover"
     >
       {children}
     </button>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl bg-white p-3 shadow-sm">
-      <p className="text-xl font-bold tabular-nums text-ink-900">{value}</p>
-      <p className="text-xs text-ink-400">{label}</p>
+    <div className="rounded-xl border border-line bg-surface p-3 text-center">
+      <p className="text-h2 font-bold tabular-nums text-ink">{value}</p>
+      <p className="text-small text-ink-muted">{label}</p>
     </div>
   );
 }

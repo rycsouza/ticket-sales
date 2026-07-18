@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui";
 
 export function CrmExportButton({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState(false);
@@ -28,14 +30,14 @@ export function CrmExportButton({ orgId }: { orgId: string }) {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      loading={busy}
+      leftIcon={<Download className="size-[18px]" />}
       onClick={() => void exportCsv()}
-      disabled={busy}
-      className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-ink-600 active:bg-slate-50 disabled:opacity-50"
     >
-      {busy ? "..." : "Exportar CSV"}
-    </button>
+      Exportar CSV
+    </Button>
   );
 }
 
@@ -66,13 +68,8 @@ export function OptOutButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => void toggle()}
-      disabled={busy}
-      className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-ink-600 active:bg-slate-50 disabled:opacity-50"
-    >
+    <Button variant="outline" size="sm" loading={busy} onClick={() => void toggle()}>
       {optedOut ? "Reativar" : "Opt-out"}
-    </button>
+    </Button>
   );
 }

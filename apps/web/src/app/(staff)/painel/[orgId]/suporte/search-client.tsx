@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { brl, orderStatusLabel, ORDER_STATUS_LABELS } from "./labels";
+import { ChevronRight, Search } from "lucide-react";
+import { Badge, Button, Card, EmptyState, Input, Select } from "@/components/ui";
+import { ORDER_STATUS, fmtBRL, statusMeta } from "@/lib/status";
 
 type Row = {
   id: string;
@@ -13,9 +15,6 @@ type Row = {
   totalCents: number;
   createdAt: string;
 };
-
-const input =
-  "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
 export function SupportSearch({ orgId }: { orgId: string }) {
   const [q, setQ] = useState("");
@@ -40,71 +39,79 @@ export function SupportSearch({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-4">
       <form
-        className="space-y-2"
+        className="flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
           e.preventDefault();
           void search();
         }}
       >
-        <input
-          className={input}
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Código, e-mail, nome ou documento"
+          className="sm:flex-1"
         />
         <div className="flex gap-2">
-          <select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full sm:w-52"
+          >
             <option value="">Todos os status</option>
-            {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
+            {Object.entries(ORDER_STATUS).map(([value, meta]) => (
               <option key={value} value={value}>
-                {label}
+                {meta.label}
               </option>
             ))}
-          </select>
-          <button
-            type="submit"
-            disabled={busy}
-            className="shrink-0 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
-          >
-            {busy ? "..." : "Buscar"}
-          </button>
+          </Select>
+          <Button type="submit" loading={busy} leftIcon={<Search className="size-[18px]" />}>
+            Buscar
+          </Button>
         </div>
       </form>
 
       {rows !== null && (
-        <section className="rounded-xl bg-white p-2 shadow-sm">
+        <Card>
           {rows.length === 0 ? (
-            <p className="p-4 text-center text-sm text-ink-400">Nenhum pedido encontrado.</p>
+            <EmptyState
+              icon={<Search className="size-5" />}
+              title="Nenhum pedido encontrado"
+              description="Ajuste os termos da busca ou o filtro de status."
+            />
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {rows.map((o) => (
-                <li key={o.id}>
-                  <Link
-                    href={`/painel/${orgId}/suporte/${o.id}`}
-                    className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 active:bg-slate-50"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-ink-900">
-                        {o.buyerName}
+            <ul className="divide-y divide-line">
+              {rows.map((o) => {
+                const s = statusMeta(ORDER_STATUS, o.status);
+                return (
+                  <li key={o.id}>
+                    <Link
+                      href={`/painel/${orgId}/suporte/${o.id}`}
+                      className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-hover"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-body font-medium text-ink">
+                          {o.buyerName}
+                        </span>
+                        <span className="block truncate text-small text-ink-muted">
+                          <span className="font-mono">{o.code}</span> · {o.buyerEmail}
+                        </span>
                       </span>
-                      <span className="block truncate text-xs text-ink-400">
-                        {o.code} · {o.buyerEmail}
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="text-right">
+                          <span className="block text-body font-semibold tabular-nums text-ink">
+                            {fmtBRL(o.totalCents)}
+                          </span>
+                        </span>
+                        <Badge tone={s.tone}>{s.label}</Badge>
+                        <ChevronRight className="size-4 text-ink-faint" />
                       </span>
-                    </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block text-sm font-semibold text-ink-900">
-                        {brl(o.totalCents)}
-                      </span>
-                      <span className="block text-xs text-ink-400">
-                        {orderStatusLabel(o.status)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
-        </section>
+        </Card>
       )}
     </div>
   );

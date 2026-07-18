@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
+import { Button, Field, Input, Modal, Select } from "@/components/ui";
 
 function slugify(value: string): string {
   return value
@@ -13,18 +15,21 @@ function slugify(value: string): string {
     .slice(0, 80);
 }
 
+const EMPTY = {
+  title: "",
+  venueName: "",
+  city: "",
+  state: "",
+  startsAt: "",
+  capacityTotal: "",
+  feePercent: "10",
+  feeMode: "PRODUCER",
+};
+
 export function NewEventForm({ orgId }: { orgId: string }) {
   const router = useRouter();
-  const [form, setForm] = useState({
-    title: "",
-    venueName: "",
-    city: "",
-    state: "",
-    startsAt: "",
-    capacityTotal: "",
-    feePercent: "10",
-    feeMode: "PRODUCER",
-  });
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,73 +69,122 @@ export function NewEventForm({ orgId }: { orgId: string }) {
     }
   }
 
-  const input =
-    "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
-
   return (
-    <details className="rounded-xl bg-white p-4 shadow-sm">
-      <summary className="cursor-pointer text-sm font-semibold text-brand-600">
-        + Novo evento
-      </summary>
-      <form
-        className="mt-3 space-y-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-      >
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Título</span>
-          <input className={input} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Festa de Verão" />
-          {form.title && <span className="mt-1 block text-xs text-ink-400">/{slugify(form.title)}</span>}
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Local</span>
-          <input className={input} value={form.venueName} onChange={(e) => set("venueName", e.target.value)} placeholder="Clube da Cidade" />
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          <label className="col-span-2 block">
-            <span className="mb-1 block text-sm font-medium">Cidade</span>
-            <input className={input} value={form.city} onChange={(e) => set("city", e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">UF</span>
-            <input className={input} maxLength={2} value={form.state} onChange={(e) => set("state", e.target.value)} />
-          </label>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Início</span>
-            <input type="datetime-local" className={input} value={form.startsAt} onChange={(e) => set("startsAt", e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Capacidade</span>
-            <input type="number" min={1} className={input} value={form.capacityTotal} onChange={(e) => set("capacityTotal", e.target.value)} />
-          </label>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Taxa (%)</span>
-            <input type="number" min={0} max={100} step="0.1" className={input} value={form.feePercent} onChange={(e) => set("feePercent", e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Quem paga a taxa</span>
-            <select className={input} value={form.feeMode} onChange={(e) => set("feeMode", e.target.value)}>
-              <option value="PRODUCER">Produtora (deduz do repasse)</option>
-              <option value="BUYER">Comprador (soma ao total)</option>
-            </select>
-          </label>
-        </div>
+    <>
+      <Button leftIcon={<Plus className="size-[18px]" />} onClick={() => setOpen(true)}>
+        Novo evento
+      </Button>
 
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy || form.title.trim().length < 3}
-          className="w-full rounded-xl bg-brand-500 py-3 text-base font-bold text-white active:bg-brand-600 disabled:opacity-50"
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Novo evento"
+        description="Você poderá publicar e ajustar tudo depois."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void submit()}
+              loading={busy}
+              disabled={form.title.trim().length < 3}
+            >
+              Criar evento
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
         >
-          {busy ? "Criando..." : "Criar evento"}
-        </button>
-      </form>
-    </details>
+          <Field
+            label="Título"
+            htmlFor="ev-title"
+            hint={form.title ? `/${slugify(form.title)}` : undefined}
+          >
+            <Input
+              id="ev-title"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+              placeholder="Festa de Verão"
+            />
+          </Field>
+
+          <Field label="Local" htmlFor="ev-venue">
+            <Input
+              id="ev-venue"
+              value={form.venueName}
+              onChange={(e) => set("venueName", e.target.value)}
+              placeholder="Clube da Cidade"
+            />
+          </Field>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Cidade" htmlFor="ev-city" className="col-span-2">
+              <Input id="ev-city" value={form.city} onChange={(e) => set("city", e.target.value)} />
+            </Field>
+            <Field label="UF" htmlFor="ev-uf">
+              <Input
+                id="ev-uf"
+                maxLength={2}
+                value={form.state}
+                onChange={(e) => set("state", e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Início" htmlFor="ev-start">
+              <Input
+                id="ev-start"
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(e) => set("startsAt", e.target.value)}
+              />
+            </Field>
+            <Field label="Capacidade" htmlFor="ev-cap">
+              <Input
+                id="ev-cap"
+                type="number"
+                min={1}
+                value={form.capacityTotal}
+                onChange={(e) => set("capacityTotal", e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Taxa (%)" htmlFor="ev-fee">
+              <Input
+                id="ev-fee"
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={form.feePercent}
+                onChange={(e) => set("feePercent", e.target.value)}
+              />
+            </Field>
+            <Field label="Quem paga a taxa" htmlFor="ev-feemode">
+              <Select
+                id="ev-feemode"
+                value={form.feeMode}
+                onChange={(e) => set("feeMode", e.target.value)}
+              >
+                <option value="PRODUCER">Produtora (deduz do repasse)</option>
+                <option value="BUYER">Comprador (soma ao total)</option>
+              </Select>
+            </Field>
+          </div>
+
+          {error && <p className="text-small text-danger">{error}</p>}
+        </form>
+      </Modal>
+    </>
   );
 }

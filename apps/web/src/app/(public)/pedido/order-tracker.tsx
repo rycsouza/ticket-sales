@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy, PartyPopper } from "lucide-react";
+import { Badge, Button, Field, Input } from "@/components/ui";
+import { ORDER_STATUS, statusMeta } from "@/lib/status";
 
 interface OrderView {
   code: string;
@@ -20,6 +23,7 @@ function formatBRL(centsValue: number): string {
 }
 
 const POLL_INTERVAL_MS = 10_000;
+const cardClass = "rounded-xl border border-line bg-surface p-4";
 
 export function OrderTracker() {
   const [code, setCode] = useState("");
@@ -80,7 +84,6 @@ export function OrderTracker() {
     [lookup, startPix],
   );
 
-  // Arriving from checkout: credentials in sessionStorage, never in the URL
   useEffect(() => {
     const stored = sessionStorage.getItem("ingressos:last-order");
     if (!stored) return;
@@ -95,7 +98,6 @@ export function OrderTracker() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll while awaiting payment (FR-CHK-015)
   useEffect(() => {
     if (order?.status !== "AWAITING_PAYMENT" || !credentials.current) return;
     const interval = setInterval(async () => {
@@ -107,7 +109,6 @@ export function OrderTracker() {
     return () => clearInterval(interval);
   }, [order?.status, lookup]);
 
-  // Reservation countdown (FR-CHK-011)
   useEffect(() => {
     if (order?.status !== "AWAITING_PAYMENT" || !order.expiresAt) {
       setCountdown(null);
@@ -145,150 +146,139 @@ export function OrderTracker() {
     else setError("Não foi possível reenviar agora. Tente novamente em alguns minutos.");
   }
 
-  // ------------------------------------------------------------------ views
+  const errorBox = error && (
+    <p
+      role="alert"
+      className="rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-body text-danger-text"
+    >
+      {error}
+    </p>
+  );
 
   if (!order) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-ink-600">
+        <p className="text-body text-ink-soft">
           Informe o código do pedido (enviado na confirmação) e o e-mail usado na compra.
         </p>
-        <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Código do pedido</span>
-            <input
+        <div className={`space-y-3 ${cardClass}`}>
+          <Field label="Código do pedido" htmlFor="ot-code">
+            <Input
+              id="ot-code"
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase().trim())}
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 font-mono text-base uppercase outline-none focus:border-brand-500"
+              className="font-mono uppercase"
               placeholder="EX.: ABCD2345EFGH"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">E-mail da compra</span>
-            <input
+          </Field>
+          <Field label="E-mail da compra" htmlFor="ot-email">
+            <Input
+              id="ot-email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-brand-500"
               placeholder="voce@exemplo.com"
             />
-          </label>
-          <button
-            type="button"
+          </Field>
+          <Button
+            size="lg"
+            className="w-full"
+            loading={loading}
+            disabled={code.length < 8 || !email.includes("@")}
             onClick={() => track({ code, email: email.trim().toLowerCase() })}
-            disabled={loading || code.length < 8 || !email.includes("@")}
-            className="w-full rounded-xl bg-brand-500 py-3.5 font-bold text-white active:bg-brand-600 disabled:opacity-50"
           >
-            {loading ? "Buscando..." : "Buscar pedido"}
-          </button>
+            Buscar pedido
+          </Button>
         </div>
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        {errorBox}
       </div>
     );
   }
 
+  const status = statusMeta(ORDER_STATUS, order.status);
+
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-white p-4 shadow-sm">
+      <div className={cardClass}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-ink-400">Pedido</p>
-            <p className="font-mono text-lg font-bold">{order.code}</p>
+            <p className="text-small text-ink-muted">Pedido</p>
+            <p className="font-mono text-h2 font-bold text-ink">{order.code}</p>
           </div>
-          <StatusBadge status={order.status} />
+          <Badge tone={status.tone}>{status.label}</Badge>
         </div>
-        <p className="mt-2 text-sm text-ink-600">
-          Total: <strong>{formatBRL(order.totalCents)}</strong>
+        <p className="mt-2 text-body text-ink-soft">
+          Total: <strong className="tabular-nums">{formatBRL(order.totalCents)}</strong>
         </p>
       </div>
 
       {order.status === "AWAITING_PAYMENT" && (
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
-          <h2 className="mb-1 font-semibold">Pague com Pix para garantir</h2>
+        <div className={`${cardClass} text-center`}>
+          <h2 className="mb-1 text-h3 text-ink">Pague com Pix para garantir</h2>
           {countdown && (
-            <p className="mb-3 text-sm text-ink-600">
+            <p className="mb-3 text-body text-ink-soft">
               Reserva expira em{" "}
-              <span className="font-mono font-bold text-brand-600">{countdown}</span>
+              <span className="font-mono font-bold text-brand">{countdown}</span>
             </p>
           )}
           {pix?.pixQrCode && (
             <img
               src={`data:image/png;base64,${pix.pixQrCode}`}
               alt="QR Code Pix"
-              className="mx-auto h-56 w-56 rounded-lg border border-slate-100"
+              className="mx-auto size-56 rounded-lg border border-line"
             />
           )}
           {pix?.pixQrCodeText && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              leftIcon={
+                copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />
+              }
               onClick={copyPixCode}
-              className="mt-3 w-full rounded-xl border-2 border-brand-500 py-3 font-semibold text-brand-600 active:bg-brand-50"
             >
-              {copied ? "Copiado ✓" : "Copiar código Pix"}
-            </button>
+              {copied ? "Copiado" : "Copiar código Pix"}
+            </Button>
           )}
-          <p className="mt-3 text-xs text-ink-400">
+          <p className="mt-3 text-small text-ink-muted">
             Aprovação automática — esta página atualiza sozinha após o pagamento.
           </p>
         </div>
       )}
 
       {order.status === "PAID" && (
-        <div className="rounded-xl bg-emerald-50 p-5 text-center shadow-sm">
-          <p className="text-3xl">🎉</p>
-          <h2 className="mt-1 text-lg font-bold text-emerald-800">Pagamento confirmado!</h2>
-          <p className="mt-1 text-sm text-emerald-700">
-            Seus ingressos foram enviados para <strong>{email}</strong>. Cada ingresso tem um
-            link próprio com QR Code.
+        <div className="rounded-xl border border-success-border bg-success-bg p-5 text-center">
+          <PartyPopper className="mx-auto size-8 text-success" />
+          <h2 className="mt-2 text-h3 text-success-text">Pagamento confirmado!</h2>
+          <p className="mt-1 text-body text-success-text">
+            Seus ingressos foram enviados para <strong>{email}</strong>. Cada ingresso tem um link
+            próprio com QR Code.
           </p>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            className="mt-4 w-full"
+            leftIcon={resent ? <Check className="size-4 text-success" /> : undefined}
             onClick={resendTickets}
-            className="mt-4 w-full rounded-xl border-2 border-emerald-600 py-3 font-semibold text-emerald-700 active:bg-emerald-100"
           >
-            {resent ? "Reenviado ✓ Confira sua caixa de entrada" : "Reenviar ingressos por e-mail"}
-          </button>
-          <p className="mt-2 text-xs text-emerald-700/70">
+            {resent ? "Reenviado — confira sua caixa de entrada" : "Reenviar ingressos por e-mail"}
+          </Button>
+          <p className="mt-2 text-small text-success-text/80">
             O reenvio gera novos links e invalida os anteriores.
           </p>
         </div>
       )}
 
       {order.status === "EXPIRED" && (
-        <div className="rounded-xl bg-amber-50 p-5 text-center text-amber-800 shadow-sm">
-          <h2 className="font-bold">Reserva expirada</h2>
-          <p className="mt-1 text-sm">
-            O prazo de pagamento terminou e os ingressos voltaram para venda. Você pode fazer um
-            novo pedido na página do evento.
+        <div className="rounded-xl border border-warning-border bg-warning-bg p-5 text-center text-warning-text">
+          <h2 className="text-h3">Reserva expirada</h2>
+          <p className="mt-1 text-body">
+            O prazo de pagamento terminou e os ingressos voltaram para venda. Você pode fazer um novo
+            pedido na página do evento.
           </p>
         </div>
       )}
 
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {errorBox}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, { label: string; className: string }> = {
-    AWAITING_PAYMENT: { label: "Aguardando pagamento", className: "bg-amber-100 text-amber-800" },
-    PAID: { label: "Pago", className: "bg-emerald-100 text-emerald-800" },
-    EXPIRED: { label: "Expirado", className: "bg-slate-100 text-slate-600" },
-    CANCELLED: { label: "Cancelado", className: "bg-slate-100 text-slate-600" },
-    REFUNDED: { label: "Reembolsado", className: "bg-slate-100 text-slate-600" },
-  };
-  const style = styles[status] ?? { label: status, className: "bg-slate-100 text-slate-600" };
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-bold ${style.className}`}>
-      {style.label}
-    </span>
   );
 }

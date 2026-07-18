@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { ArrowLeft, Download } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
-import { DashboardHeader } from "../../../../header";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  PageHeader,
+  Stat,
+  buttonVariants,
+} from "@/components/ui";
+import { fmtBRL } from "@/lib/status";
 import { PayoutForm } from "./payout-form";
 
 export const metadata: Metadata = { title: "Financeiro — Ingressos" };
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function FinancePage({
   params,
@@ -19,32 +23,29 @@ export default async function FinancePage({
 }) {
   const { orgId, eventId } = await params;
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
-  const org = orgs.find((o) => o.organization.id === orgId);
-  if (!org) redirect("/painel");
-
   const ctx = dashboardCtx(orgId, userId);
+  const backHref = `/painel/${orgId}/eventos/${eventId}`;
+
   let summary;
   try {
     summary = await getServices().finance.getEventFinancialSummary(ctx, eventId);
   } catch {
-    // Finance is restricted to owner/admin/finance — show a friendly notice.
     return (
-      <div className="mx-auto max-w-2xl">
-        <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-        <main className="p-4">
-          <Link href={`/painel/${orgId}/eventos/${eventId}`} className="text-sm text-brand-600">
-            ← Evento
-          </Link>
-          <p className="mt-4 rounded-xl bg-white p-6 text-center text-sm text-ink-600 shadow-sm">
-            Você não tem permissão para ver o financeiro deste evento.
-          </p>
-        </main>
-      </div>
+      <>
+        <BackLink href={backHref} />
+        <PageHeader title="Financeiro" />
+        <Card>
+          <CardBody>
+            <p className="text-body text-ink-muted">
+              Você não tem permissão para ver o financeiro deste evento.
+            </p>
+          </CardBody>
+        </Card>
+      </>
     );
   }
 
-  const rows: [string, number, boolean?][] = [
+  const rows: [string, number][] = [
     ["Vendas brutas", summary.grossSalesCents],
     ["Descontos", -summary.discountCents],
     ["Taxa da plataforma", summary.platformFeeCents],
@@ -54,58 +55,73 @@ export default async function FinancePage({
   ];
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <DashboardHeader orgName={org.organization.name} orgId={orgId} />
-      <main className="space-y-6 p-4">
-        <div>
-          <Link href={`/painel/${orgId}/eventos/${eventId}`} className="text-sm text-brand-600">
-            ← Evento
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-ink-900">Financeiro</h1>
-        </div>
-
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-brand-50 p-3">
-              <p className="text-xs text-ink-400">A repassar (produtora)</p>
-              <p className="text-xl font-bold text-brand-700">{brl(summary.producerPayableCents)}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs text-ink-400">Receita líquida plataforma</p>
-              <p className="text-xl font-bold text-ink-900">{brl(summary.platformNetCents)}</p>
-            </div>
-          </div>
-          <ul className="mt-4 divide-y divide-slate-100 text-sm">
-            {rows.map(([label, value]) => (
-              <li key={label} className="flex justify-between py-2">
-                <span className="text-ink-600">{label}</span>
-                <span className={value < 0 ? "text-ink-400" : ""}>{brl(value)}</span>
-              </li>
-            ))}
-            <li className="flex justify-between py-2 font-semibold">
-              <span>Comissão a pagar (promoters)</span>
-              <span>{brl(summary.promoterPayableCents)}</span>
-            </li>
-          </ul>
+    <>
+      <BackLink href={backHref} />
+      <PageHeader
+        title="Financeiro"
+        description="Reproduzível do ledger imutável. Repasses e comissões são registrados manualmente."
+        actions={
           <a
             href={`/api/orgs/${orgId}/events/${eventId}/finance/export`}
-            className="mt-3 inline-block rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-ink-600 active:bg-slate-50"
+            className={buttonVariants({ variant: "outline", size: "md" })}
           >
+            <Download className="size-[18px]" />
             Exportar extrato (CSV)
           </a>
-        </section>
+        }
+      />
 
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-400">
-            Registrar repasse externo
-          </h2>
-          <p className="mb-3 text-xs text-ink-400">
-            O repasse é feito por fora (transferência manual). Aqui você registra o valor e a
-            referência para conciliação — não movimenta dinheiro.
-          </p>
-          <PayoutForm apiBase={`/api/orgs/${orgId}/events/${eventId}`} />
-        </section>
-      </main>
-    </div>
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <Stat label="A repassar (produtora)" value={fmtBRL(summary.producerPayableCents)} />
+        <Stat label="Receita líquida plataforma" value={fmtBRL(summary.platformNetCents)} />
+        <Stat label="Comissão a pagar (promoters)" value={fmtBRL(summary.promoterPayableCents)} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Detalhamento" />
+          <CardBody>
+            <ul className="divide-y divide-line">
+              {rows.map(([label, value]) => (
+                <li key={label} className="flex justify-between py-2.5 text-body">
+                  <span className="text-ink-soft">{label}</span>
+                  <span
+                    className={
+                      value < 0
+                        ? "tabular-nums text-ink-muted"
+                        : "tabular-nums text-ink"
+                    }
+                  >
+                    {fmtBRL(value)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Registrar repasse externo"
+            description="Registra valor e referência para conciliação — não movimenta dinheiro."
+          />
+          <CardBody>
+            <PayoutForm apiBase={`/api/orgs/${orgId}/events/${eventId}`} />
+          </CardBody>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function BackLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
+    >
+      <ArrowLeft className="size-4" />
+      Evento
+    </Link>
   );
 }

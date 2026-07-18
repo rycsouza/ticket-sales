@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Ban, PencilLine, ShieldCheck, ArrowLeftRight } from "lucide-react";
+import { Button, Field, Input } from "@/components/ui";
 import { apiSend } from "../../../ui";
-
-const input =
-  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
 /** FR-ADM-009 — add an internal note to the order. */
 export function NoteForm({ orgId, orderId }: { orgId: string; orderId: string }) {
@@ -41,20 +40,16 @@ export function NoteForm({ orgId, orderId }: { orgId: string; orderId: string })
       }}
     >
       <textarea
-        className={input}
         rows={2}
         value={body}
         onChange={(e) => setBody(e.target.value)}
         placeholder="Anotar contato, decisão, etc."
+        className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-body text-ink transition-colors placeholder:text-ink-faint focus:border-brand focus:outline-none"
       />
-      {error && <p className="text-xs text-red-700">{error}</p>}
-      <button
-        type="submit"
-        disabled={busy || body.trim().length === 0}
-        className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
-      >
-        {busy ? "..." : "Adicionar nota"}
-      </button>
+      {error && <p className="text-small text-danger">{error}</p>}
+      <Button type="submit" size="sm" loading={busy} disabled={body.trim().length === 0}>
+        Adicionar nota
+      </Button>
     </form>
   );
 }
@@ -62,8 +57,8 @@ export function NoteForm({ orgId, orderId }: { orgId: string; orderId: string })
 type Panel = "block" | "transfer" | "participant" | null;
 
 /**
- * FR-ADM-004/FR-TKT-007/012 — per-ticket support operations. Blocked tickets
- * can be unblocked; every action requires the operator's explicit input.
+ * FR-ADM-004 / FR-TKT-007 / FR-TKT-012 — per-ticket support operations.
+ * Available actions follow the ticket state machine.
  */
 export function TicketActions({
   orgId,
@@ -81,14 +76,19 @@ export function TicketActions({
   const [error, setError] = useState<string | null>(null);
   const [transferPath, setTransferPath] = useState<string | null>(null);
 
-  // Fields (shared across panels; only the relevant ones are sent).
   const [justification, setJustification] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const canBlock = status === "ISSUED" || status === "VALID";
+  const canBlock = status === "VALID" || status === "PENDING_ISSUE";
   const canUnblock = status === "BLOCKED";
-  const canTransfer = status === "ISSUED" || status === "VALID";
+  const canTransfer = status === "VALID";
+  const canCorrect = status === "VALID" || status === "BLOCKED" || status === "PENDING_ISSUE";
+
+  function toggle(next: Panel) {
+    setError(null);
+    setPanel((p) => (p === next ? null : next));
+  }
 
   async function run(url: string, payload: unknown, onOk?: (data: Record<string, unknown>) => void) {
     setError(null);
@@ -110,43 +110,75 @@ export function TicketActions({
     }
   }
 
+  const hasAction = canBlock || canUnblock || canTransfer || canCorrect;
+  if (!hasAction) return null;
+
   return (
-    <div className="mt-3 border-t border-slate-100 pt-3">
+    <div className="mt-3 border-t border-line pt-3">
       <div className="flex flex-wrap gap-2">
-        {canBlock && <Chip onClick={() => setPanel(panel === "block" ? null : "block")}>Bloquear</Chip>}
+        {canBlock && (
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Ban className="size-4" />}
+            onClick={() => toggle("block")}
+          >
+            Bloquear
+          </Button>
+        )}
         {canUnblock && (
-          <Chip
-            variant="danger"
-            onClick={() => setPanel(panel === "block" ? null : "block")}
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<ShieldCheck className="size-4" />}
+            onClick={() => toggle("block")}
           >
             Desbloquear
-          </Chip>
+          </Button>
         )}
         {canTransfer && (
-          <Chip onClick={() => setPanel(panel === "transfer" ? null : "transfer")}>Transferir</Chip>
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<ArrowLeftRight className="size-4" />}
+            onClick={() => toggle("transfer")}
+          >
+            Transferir
+          </Button>
         )}
-        <Chip onClick={() => setPanel(panel === "participant" ? null : "participant")}>
-          Corrigir titular
-        </Chip>
+        {canCorrect && (
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<PencilLine className="size-4" />}
+            onClick={() => toggle("participant")}
+          >
+            Corrigir titular
+          </Button>
+        )}
       </div>
 
       {transferPath && (
-        <p className="mt-2 break-all rounded-lg bg-green-50 p-2 text-xs text-green-800">
-          Novo link do ingresso: <span className="font-mono">{transferPath}</span> — entregue ao novo
-          titular. O link anterior foi invalidado.
+        <p className="mt-2 break-all rounded-lg border border-success-border bg-success-bg p-2 text-small text-success-text">
+          Novo link do ingresso: <span className="font-mono">{transferPath}</span> — entregue ao
+          novo titular. O link anterior foi invalidado.
         </p>
       )}
 
       {panel === "block" && (
-        <div className="mt-2 space-y-2">
-          <input
-            className={input}
-            value={justification}
-            onChange={(e) => setJustification(e.target.value)}
-            placeholder="Justificativa (mín. 5 caracteres)"
-          />
-          <Submit
-            busy={busy}
+        <div className="mt-3 space-y-2">
+          <Field label="Justificativa" htmlFor={`just-${ticketId}`}>
+            <Input
+              id={`just-${ticketId}`}
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+              placeholder="Mínimo 5 caracteres"
+            />
+          </Field>
+          <Button
+            size="sm"
+            variant={canUnblock ? "primary" : "destructive"}
+            loading={busy}
             disabled={justification.trim().length < 5}
             onClick={() =>
               void run(`${base}/status`, {
@@ -156,16 +188,29 @@ export function TicketActions({
             }
           >
             {canUnblock ? "Confirmar desbloqueio" : "Confirmar bloqueio"}
-          </Submit>
+          </Button>
         </div>
       )}
 
       {panel === "transfer" && (
-        <div className="mt-2 space-y-2">
-          <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do novo titular" />
-          <input className={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail do novo titular" />
-          <Submit
-            busy={busy}
+        <div className="mt-3 space-y-2">
+          <Field label="Novo titular" htmlFor={`tn-${ticketId}`}>
+            <Input
+              id={`tn-${ticketId}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nome"
+            />
+          </Field>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-mail"
+          />
+          <Button
+            size="sm"
+            loading={busy}
             disabled={name.trim().length < 2 || !email.includes("@")}
             onClick={() =>
               void run(
@@ -178,16 +223,22 @@ export function TicketActions({
             }
           >
             Confirmar transferência
-          </Submit>
+          </Button>
         </div>
       )}
 
       {panel === "participant" && (
-        <div className="mt-2 space-y-2">
-          <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (opcional)" />
-          <input className={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail (opcional)" />
-          <Submit
-            busy={busy}
+        <div className="mt-3 space-y-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (opcional)" />
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-mail (opcional)"
+          />
+          <Button
+            size="sm"
+            loading={busy}
             disabled={name.trim().length === 0 && email.trim().length === 0}
             onClick={() =>
               void run(`${base}/participant`, {
@@ -197,58 +248,11 @@ export function TicketActions({
             }
           >
             Salvar correção
-          </Submit>
+          </Button>
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
+      {error && <p className="mt-2 text-small text-danger">{error}</p>}
     </div>
-  );
-}
-
-function Chip({
-  children,
-  onClick,
-  variant = "default",
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  variant?: "default" | "danger";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold active:bg-slate-50 ${
-        variant === "danger"
-          ? "border-red-200 text-red-700"
-          : "border-slate-200 text-ink-600"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Submit({
-  children,
-  onClick,
-  busy,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  busy: boolean;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy || disabled}
-      className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-white active:bg-brand-600 disabled:opacity-40"
-    >
-      {busy ? "..." : children}
-    </button>
   );
 }

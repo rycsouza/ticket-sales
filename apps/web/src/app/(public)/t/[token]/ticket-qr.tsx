@@ -14,7 +14,7 @@ export function TicketQr() {
   if (!token) return null;
 
   return (
-    <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+    <div className="rounded-xl border border-line bg-surface p-3">
       <QRCode value={token} size={200} aria-label="QR Code do ingresso" />
     </div>
   );

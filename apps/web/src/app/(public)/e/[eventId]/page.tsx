@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
 import { formatEventDate, getPublicEventView } from "@/lib/public-views";
 import { CheckoutForm } from "./checkout-form";
 
@@ -22,24 +23,35 @@ export default async function PublicEventPage({
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8">
       <header className="mb-6">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-brand-600">
+        <p className="mb-1 text-caption font-semibold uppercase tracking-widest text-brand">
           Evento
         </p>
-        <h1 className="text-2xl font-bold leading-tight">{event.title}</h1>
-        <div className="mt-3 space-y-1 text-sm text-ink-600">
-          {dateLabel && <p>📅 {dateLabel}</p>}
+        <h1 className="text-h1 leading-tight text-ink">{event.title}</h1>
+        <div className="mt-3 space-y-1.5 text-body text-ink-soft">
+          {dateLabel && (
+            <p className="flex items-center gap-2">
+              <CalendarDays className="size-4 shrink-0 text-ink-muted" />
+              {dateLabel}
+            </p>
+          )}
           {event.venueName && (
-            <p>
-              📍 {event.venueName}
+            <p className="flex items-center gap-2">
+              <MapPin className="size-4 shrink-0 text-ink-muted" />
+              {event.venueName}
               {event.city ? ` — ${event.city}${event.state ? `/${event.state}` : ""}` : ""}
             </p>
           )}
-          {event.ageRating && <p>🔞 Classificação: {event.ageRating}</p>}
+          {event.ageRating && (
+            <p className="flex items-center gap-2">
+              <ShieldAlert className="size-4 shrink-0 text-ink-muted" />
+              Classificação: {event.ageRating}
+            </p>
+          )}
         </div>
       </header>
 
       {event.description && (
-        <section className="mb-6 whitespace-pre-line rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-600 shadow-sm">
+        <section className="mb-6 whitespace-pre-line rounded-xl border border-line bg-surface p-4 text-body leading-relaxed text-ink-soft">
           {event.description}
         </section>
       )}

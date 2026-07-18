@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Copy } from "lucide-react";
+import { Button, type ButtonVariant } from "@/components/ui";
 
 export async function apiSend(
   url: string,
@@ -18,32 +20,35 @@ export async function apiSend(
   return { ok: res.ok, data };
 }
 
-/** Fires a mutation then refreshes the RSC data. Minimal, consistent styling. */
+const VARIANT_MAP: Record<"primary" | "secondary" | "danger", ButtonVariant> = {
+  primary: "primary",
+  secondary: "outline",
+  danger: "destructive",
+};
+
+/** Fires a mutation then refreshes the RSC data. */
 export function ActionButton({
   url,
   method = "POST",
   body,
   children,
   variant = "primary",
+  size = "sm",
   confirmText,
+  leftIcon,
 }: {
   url: string;
   method?: "POST" | "DELETE";
   body?: unknown;
-  children: React.ReactNode;
+  children: ReactNode;
   variant?: "primary" | "secondary" | "danger";
+  size?: "sm" | "md";
   confirmText?: string;
+  leftIcon?: ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const classes =
-    variant === "primary"
-      ? "bg-brand-500 text-white active:bg-brand-600"
-      : variant === "danger"
-        ? "bg-red-50 text-red-700 active:bg-red-100"
-        : "border border-slate-200 text-ink-600 active:bg-slate-50";
 
   async function run() {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -62,16 +67,17 @@ export function ActionButton({
   }
 
   return (
-    <span className="inline-flex flex-col">
-      <button
-        type="button"
+    <span className="inline-flex flex-col items-start gap-1">
+      <Button
+        variant={VARIANT_MAP[variant]}
+        size={size}
+        loading={busy}
+        leftIcon={leftIcon}
         onClick={() => void run()}
-        disabled={busy}
-        className={`rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50 ${classes}`}
       >
-        {busy ? "..." : children}
-      </button>
-      {error && <span className="mt-1 text-xs text-red-700">{error}</span>}
+        {children}
+      </Button>
+      {error && <span className="text-small text-danger">{error}</span>}
     </span>
   );
 }
@@ -79,17 +85,20 @@ export function ActionButton({
 export function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      size="sm"
+      leftIcon={
+        copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />
+      }
       onClick={() => {
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-ink-600 active:bg-slate-50"
     >
       {copied ? "Copiado!" : label}
-    </button>
+    </Button>
   );
 }
