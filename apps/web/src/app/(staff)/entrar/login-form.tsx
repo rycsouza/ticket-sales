@@ -46,7 +46,7 @@ export function LoginForm() {
         return;
       }
       if (data.status === "authenticated") {
-        router.push("/checkin");
+        router.push("/painel");
         return;
       }
       setChallenge(String(data.challengeToken));
@@ -83,7 +83,7 @@ export function LoginForm() {
         setStep("backup");
         return;
       }
-      router.push("/checkin");
+      router.push("/painel");
     } catch {
       setError("Falha de conexão. Tente novamente.");
     } finally {
@@ -111,7 +111,7 @@ export function LoginForm() {
             </li>
           ))}
         </ul>
-        <Button size="lg" className="w-full" onClick={() => router.push("/checkin")}>
+        <Button size="lg" className="w-full" onClick={() => router.push("/painel")}>
           Guardei — continuar
         </Button>
       </div>
