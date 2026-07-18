@@ -1,11 +1,16 @@
 import type {
+  AuditReadRecord,
   CommissionRuleRecord,
   CouponRecord,
   EventRecord,
+  OrderNoteRecord,
+  OrderTimeline,
+  PaymentRecord,
   PromoterAssignmentRecord,
   PromoterLinkRecord,
   PromoterSummaryRow,
   SalesBatchRecord,
+  TicketRecord,
   TicketTypeRecord,
 } from "@ingressos/core";
 
@@ -108,5 +113,81 @@ export function toPromoterSummaryResponse(row: PromoterSummaryRow) {
     quantity: row.quantity,
     baseCents: row.baseCents,
     amountCents: row.amountCents,
+  };
+}
+
+// The token hash NEVER leaves the server — only status/participant data.
+export function toTicketResponse(ticket: TicketRecord) {
+  return {
+    id: ticket.id,
+    status: ticket.status,
+    ticketTypeId: ticket.ticketTypeId,
+    orderId: ticket.orderId,
+    participantName: ticket.participantName,
+    participantEmail: ticket.participantEmail,
+    issuedAt: ticket.issuedAt,
+  };
+}
+
+function toOrderResponse(order: OrderTimeline["order"]) {
+  return {
+    id: order.id,
+    code: order.code,
+    status: order.status,
+    buyerName: order.buyerName,
+    buyerEmail: order.buyerEmail,
+    buyerDocument: order.buyerDocument,
+    buyerPhone: order.buyerPhone,
+    subtotalCents: order.subtotalCents,
+    discountCents: order.discountCents,
+    totalCents: order.totalCents,
+    expiresAt: order.expiresAt,
+    paidAt: order.paidAt,
+  };
+}
+
+// No QR/copia-e-cola, idempotency key or correlation id in support views.
+function toPaymentResponse(payment: PaymentRecord) {
+  return {
+    id: payment.id,
+    method: payment.method,
+    status: payment.status,
+    amountCents: payment.amountCents,
+    providerTransactionId: payment.providerTransactionId,
+    expiresAt: payment.expiresAt,
+  };
+}
+
+export function toAuditEventResponse(event: AuditReadRecord) {
+  return {
+    id: event.id,
+    action: event.action,
+    actorType: event.actorType,
+    actorUserId: event.actorUserId,
+    resourceType: event.resourceType,
+    resourceId: event.resourceId,
+    justification: event.justification,
+    before: event.before,
+    after: event.after,
+    createdAt: event.createdAt,
+  };
+}
+
+export function toOrderNoteResponse(note: OrderNoteRecord) {
+  return {
+    id: note.id,
+    authorUserId: note.authorUserId,
+    body: note.body,
+    createdAt: note.createdAt,
+  };
+}
+
+export function toOrderTimelineResponse(timeline: OrderTimeline) {
+  return {
+    order: toOrderResponse(timeline.order),
+    payments: timeline.payments.map(toPaymentResponse),
+    tickets: timeline.tickets.map(toTicketResponse),
+    events: timeline.events.map(toAuditEventResponse),
+    notes: timeline.notes.map(toOrderNoteResponse),
   };
 }

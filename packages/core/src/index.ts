@@ -10,3 +10,4 @@ export * from "./modules/tickets/index";
 export * from "./modules/payments/index";
 export * from "./modules/notifications/index";
 export * from "./modules/promoters/index";
+export * from "./modules/support/index";

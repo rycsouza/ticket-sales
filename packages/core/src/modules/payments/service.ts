@@ -33,6 +33,19 @@ export interface CommissionReversalCoordinator {
   ): Promise<void>;
 }
 
+/**
+ * Settles a refund/chargeback across order + tickets (FR-PAY-013) — implemented
+ * at the composition root over OrdersService + TicketsService. Optional.
+ */
+export interface RefundSettlementCoordinator {
+  settleRefund(
+    organizationId: string,
+    orderId: string,
+    kind: "REFUNDED" | "CHARGEBACK",
+    meta: { correlationId: string },
+  ): Promise<void>;
+}
+
 export interface PaymentsServiceDeps {
   payments: PaymentRepository;
   paymentEvents: PaymentEventRepository;
@@ -43,6 +56,7 @@ export interface PaymentsServiceDeps {
   audit: AuditRepository;
   clock: ClockPort;
   commissionCoordinator?: CommissionReversalCoordinator | undefined;
+  refundCoordinator?: RefundSettlementCoordinator | undefined;
 }
 
 export type WebhookOutcome =
@@ -244,8 +258,19 @@ export class PaymentsService {
           resourceId: payment.id,
           correlationId: meta.correlationId,
         });
-        // FR-PRM-011: reverse any commission accrued for this order. Idempotent
-        // and best-effort — a reversal hiccup must not fail the webhook.
+        // FR-PAY-013: settle the refund across order + tickets, then reverse
+        // commission (FR-PRM-011). Both idempotent; failures here must not fail
+        // the webhook (the provider will redeliver and the guards re-run).
+        if (this.deps.refundCoordinator) {
+          await this.deps.refundCoordinator
+            .settleRefund(
+              payment.organizationId,
+              payment.orderId,
+              event.type === "payment.refunded" ? "REFUNDED" : "CHARGEBACK",
+              meta,
+            )
+            .catch(() => undefined);
+        }
         if (this.deps.commissionCoordinator) {
           await this.deps.commissionCoordinator
             .reverseForOrder(payment.organizationId, payment.orderId, meta)

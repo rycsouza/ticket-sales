@@ -15,8 +15,10 @@ import {
   PrismaCommissionRuleRepository,
   PrismaCouponRepository,
   PrismaOrderAttributionRepository,
+  PrismaOrderNoteRepository,
   PrismaPromoterAssignmentRepository,
   PrismaPromoterLinkRepository,
+  SupportService,
   PrismaEventRepository,
   PrismaInviteRepository,
   PrismaMembershipRepository,
@@ -125,6 +127,7 @@ function buildServices() {
   const commissionRules = new PrismaCommissionRuleRepository(prisma);
   const orderAttributions = new PrismaOrderAttributionRepository(prisma);
   const commissionEntries = new PrismaCommissionEntryRepository(prisma);
+  const orderNotes = new PrismaOrderNoteRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
@@ -160,6 +163,9 @@ function buildServices() {
     tickets: ticketRepo,
     orders: orderRepo,
     audit,
+    memberships,
+    auditReader: audit,
+    clock: systemClock,
   });
   const notificationsService = new NotificationsService({
     notifications: notificationRepo,
@@ -191,6 +197,20 @@ function buildServices() {
     },
   };
 
+  // Refund settlement across order + tickets (FR-PAY-013) — orchestrated here
+  // over the two services; commission reversal stays with the promoters module.
+  const refundCoordinator = {
+    settleRefund: async (
+      organizationId: string,
+      orderId: string,
+      kind: "REFUNDED" | "CHARGEBACK",
+      meta: { correlationId: string },
+    ) => {
+      await ordersService.settleRefund(organizationId, orderId, kind, meta);
+      await ticketsService.refundTicketsForOrder(organizationId, orderId, meta);
+    },
+  };
+
   const paymentsService = new PaymentsService({
     payments: paymentRepo,
     paymentEvents: paymentEventRepo,
@@ -201,6 +221,7 @@ function buildServices() {
     audit,
     clock: systemClock,
     commissionCoordinator: promotersService,
+    refundCoordinator,
   });
 
   return {
@@ -213,6 +234,15 @@ function buildServices() {
     notifications: notificationsService,
     payments: paymentsService,
     promoters: promotersService,
+    support: new SupportService({
+      notes: orderNotes,
+      orders: orderRepo,
+      payments: paymentRepo,
+      tickets: ticketRepo,
+      audit,
+      memberships,
+      clock: systemClock,
+    }),
     identity: new IdentityService({
       organizations,
       memberships,

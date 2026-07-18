@@ -5,7 +5,12 @@
 import type { CachePort } from "../ports/cache";
 import type { ClockPort } from "../ports/clock";
 import type { PasswordHasherPort } from "../ports/password-hasher";
-import type { AuditEntry, AuditRepository } from "../modules/audit/repository";
+import type {
+  AuditEntry,
+  AuditReadRecord,
+  AuditReader,
+  AuditRepository,
+} from "../modules/audit/repository";
 import type {
   InviteRepository,
   MembershipRepository,
@@ -96,15 +101,57 @@ export class FakeCache implements CachePort {
   }
 }
 
-export class InMemoryAuditRepository implements AuditRepository {
+export class InMemoryAuditRepository implements AuditRepository, AuditReader {
   readonly entries: AuditEntry[] = [];
+  private seq = 0;
+  private readSeq = new WeakMap<AuditEntry, number>();
 
   async append(entry: AuditEntry): Promise<void> {
     this.entries.push(entry);
+    this.readSeq.set(entry, this.seq++);
   }
 
   byAction(action: string): AuditEntry[] {
     return this.entries.filter((entry) => entry.action === action);
+  }
+
+  private toReadRecord(entry: AuditEntry): AuditReadRecord {
+    return {
+      id: `audit_${this.readSeq.get(entry) ?? 0}`,
+      action: entry.action,
+      actorUserId: entry.actorUserId ?? null,
+      actorType: entry.actorType ?? "user",
+      resourceType: entry.resourceType,
+      resourceId: entry.resourceId ?? null,
+      justification: entry.justification ?? null,
+      before: entry.before ?? null,
+      after: entry.after ?? null,
+      createdAt: new Date(2026, 0, 1, 0, 0, this.readSeq.get(entry) ?? 0),
+    };
+  }
+
+  async listByResource(organizationId: string, resourceType: string, resourceId: string) {
+    return this.entries
+      .filter(
+        (e) =>
+          e.organizationId === organizationId &&
+          e.resourceType === resourceType &&
+          e.resourceId === resourceId,
+      )
+      .map((e) => this.toReadRecord(e));
+  }
+
+  async listByResources(
+    organizationId: string,
+    refs: { resourceType: string; resourceId: string }[],
+  ) {
+    return this.entries
+      .filter(
+        (e) =>
+          e.organizationId === organizationId &&
+          refs.some((r) => r.resourceType === e.resourceType && r.resourceId === e.resourceId),
+      )
+      .map((e) => this.toReadRecord(e));
   }
 }
 

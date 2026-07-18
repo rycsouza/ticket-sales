@@ -216,7 +216,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     orderId: string,
     from: OrderStatus[],
     to: OrderStatus,
-    fields?: { paidAt?: Date; cancelledAt?: Date },
+    fields?: { paidAt?: Date; cancelledAt?: Date; refundedAt?: Date },
   ): Promise<boolean> {
     const order = await this.findByIdScoped(organizationId, orderId);
     if (!order || !from.includes(order.status)) return false;
@@ -265,6 +265,14 @@ export class InMemoryTicketRepository implements TicketRepository {
     );
   }
 
+  async findByIdScoped(organizationId: string, ticketId: string) {
+    return (
+      this.tickets.find(
+        (ticket) => ticket.id === ticketId && ticket.organizationId === organizationId,
+      ) ?? null
+    );
+  }
+
   async findByTokenHash(tokenHash: string) {
     return this.tickets.find((ticket) => ticket.tokenHash === tokenHash) ?? null;
   }
@@ -275,6 +283,53 @@ export class InMemoryTicketRepository implements TicketRepository {
     );
     if (!ticket) throw new Error("Ticket not found in organization scope");
     ticket.tokenHash = tokenHash;
+  }
+
+  async updateStatus(
+    organizationId: string,
+    ticketId: string,
+    from: TicketRecord["status"][],
+    to: TicketRecord["status"],
+  ): Promise<boolean> {
+    const ticket = this.tickets.find(
+      (entry) => entry.id === ticketId && entry.organizationId === organizationId,
+    );
+    if (!ticket || !from.includes(ticket.status)) return false;
+    ticket.status = to;
+    return true;
+  }
+
+  async updateParticipant(
+    organizationId: string,
+    ticketId: string,
+    data: { participantName?: string | undefined; participantEmail?: string | undefined },
+  ) {
+    const ticket = this.tickets.find(
+      (entry) => entry.id === ticketId && entry.organizationId === organizationId,
+    );
+    if (!ticket) throw new Error("Ticket not found in organization scope");
+    if (data.participantName !== undefined) ticket.participantName = data.participantName;
+    if (data.participantEmail !== undefined) ticket.participantEmail = data.participantEmail;
+  }
+
+  async transitionOrderTickets(
+    organizationId: string,
+    orderId: string,
+    from: TicketRecord["status"][],
+    to: TicketRecord["status"],
+  ): Promise<number> {
+    let count = 0;
+    for (const ticket of this.tickets) {
+      if (
+        ticket.organizationId === organizationId &&
+        ticket.orderId === orderId &&
+        from.includes(ticket.status)
+      ) {
+        ticket.status = to;
+        count += 1;
+      }
+    }
+    return count;
   }
 }
 
@@ -367,6 +422,12 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return this.payments.filter(
       (p) => p.organizationId === organizationId && p.orderId === orderId,
     ).length;
+  }
+
+  async listByOrder(organizationId: string, orderId: string) {
+    return this.payments.filter(
+      (p) => p.organizationId === organizationId && p.orderId === orderId,
+    );
   }
 
   async transitionStatus(

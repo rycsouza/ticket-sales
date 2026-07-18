@@ -304,3 +304,33 @@ describe("getOrderForBuyer", () => {
     ).rejects.toThrow(NotFoundOrForbiddenError);
   });
 });
+
+describe("settleRefund (FR-PAY-011/013)", () => {
+  it("transitions a PAID order to REFUNDED once (idempotent)", async () => {
+    const env = await setup();
+    const { order } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+    await env.service.markOrderPaid(ORG, order.id, { correlationId: "c" });
+
+    const first = await env.service.settleRefund(ORG, order.id, "REFUNDED", { correlationId: "c" });
+    const second = await env.service.settleRefund(ORG, order.id, "REFUNDED", { correlationId: "c" });
+
+    expect(first).toBe(true);
+    expect(second).toBe(false); // already terminal
+    expect(env.orders.orders[0]?.status).toBe("REFUNDED");
+    expect(env.audit.byAction("order.refunded")).toHaveLength(1);
+  });
+
+  it("does not refund an order that was never paid", async () => {
+    const env = await setup();
+    const { order } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+    const done = await env.service.settleRefund(ORG, order.id, "REFUNDED", { correlationId: "c" });
+    expect(done).toBe(false);
+    expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
+  });
+});

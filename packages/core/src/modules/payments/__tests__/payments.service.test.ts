@@ -321,12 +321,13 @@ describe("processWebhook — approval flow", () => {
   });
 });
 
-describe("processWebhook — refund reverses commission (FR-PRM-011)", () => {
-  it("invokes the commission coordinator on a refund event", async () => {
+describe("processWebhook — refund settles order+tickets and reverses commission", () => {
+  it("invokes refund + commission coordinators on a refund event (FR-PAY-013/FR-PRM-011)", async () => {
     const env = await setup();
 
     const reversed: string[] = [];
-    const serviceWithCommission = new PaymentsService({
+    const settled: { orderId: string; kind: string }[] = [];
+    const service = new PaymentsService({
       payments: env.payments,
       paymentEvents: env.paymentEvents,
       orders: env.orders,
@@ -340,20 +341,21 @@ describe("processWebhook — refund reverses commission (FR-PRM-011)", () => {
           reversed.push(orderId);
         },
       },
+      refundCoordinator: {
+        settleRefund: async (_org, orderId, kind) => {
+          settled.push({ orderId, kind });
+        },
+      },
     });
 
-    const payment = await serviceWithCommission.createPixChargeForOrder(
-      env.order.code,
-      "maria@teste.com",
-      meta,
-    );
+    const payment = await service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
     env.psp.nextWebhookEvent = {
       providerEventId: "evt_appr",
       providerTransactionId: payment.providerTransactionId as string,
       type: "payment.approved",
       occurredAt: env.clock.now(),
     };
-    await serviceWithCommission.processWebhook({ headers: {}, rawBody: "{}" }, meta);
+    await service.processWebhook({ headers: {}, rawBody: "{}" }, meta);
 
     env.psp.nextWebhookEvent = {
       providerEventId: "evt_refund",
@@ -361,9 +363,10 @@ describe("processWebhook — refund reverses commission (FR-PRM-011)", () => {
       type: "payment.refunded",
       occurredAt: env.clock.now(),
     };
-    await serviceWithCommission.processWebhook({ headers: {}, rawBody: "{}" }, meta);
+    await service.processWebhook({ headers: {}, rawBody: "{}" }, meta);
 
     expect(env.payments.payments[0]?.status).toBe("REFUNDED");
+    expect(settled).toEqual([{ orderId: env.order.id, kind: "REFUNDED" }]);
     expect(reversed).toEqual([env.order.id]);
   });
 });

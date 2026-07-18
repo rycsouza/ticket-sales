@@ -260,6 +260,38 @@ export class OrdersService {
   }
 
   /**
+   * Settles a confirmed refund / chargeback on the order (FR-PAY-011/013).
+   * Guarded and idempotent: a duplicated provider event finds the order already
+   * terminal and returns false. Called by the refund coordinator (system).
+   */
+  async settleRefund(
+    organizationId: string,
+    orderId: string,
+    kind: "REFUNDED" | "CHARGEBACK",
+    meta: { correlationId: string },
+  ): Promise<boolean> {
+    const now = this.deps.clock.now();
+    const transitioned = await this.deps.orders.transitionStatus(
+      organizationId,
+      orderId,
+      ["PAID", "PARTIALLY_REFUNDED"],
+      kind,
+      { refundedAt: now, ...(kind === "CHARGEBACK" ? { cancelledAt: now } : {}) },
+    );
+    if (!transitioned) return false;
+
+    await this.deps.audit.append({
+      organizationId,
+      actorType: "system",
+      action: kind === "REFUNDED" ? "order.refunded" : "order.chargeback",
+      resourceType: "order",
+      resourceId: orderId,
+      correlationId: meta.correlationId,
+    });
+    return true;
+  }
+
+  /**
    * Expiry sweep (FR-INV-007, BR-INV-003). Idempotent: the guarded status
    * transition makes concurrent sweeps harmless, and reservations release
    * availability exactly once.

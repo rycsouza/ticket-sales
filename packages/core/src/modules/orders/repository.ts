@@ -39,7 +39,7 @@ export interface OrderRepository {
     orderId: string,
     from: OrderStatus[],
     to: OrderStatus,
-    fields?: { paidAt?: Date; cancelledAt?: Date },
+    fields?: { paidAt?: Date; cancelledAt?: Date; refundedAt?: Date },
   ): Promise<boolean>;
 }
 
@@ -148,7 +148,7 @@ export class PrismaOrderRepository implements OrderRepository {
     orderId: string,
     from: OrderStatus[],
     to: OrderStatus,
-    fields?: { paidAt?: Date; cancelledAt?: Date },
+    fields?: { paidAt?: Date; cancelledAt?: Date; refundedAt?: Date },
   ): Promise<boolean> {
     const result = await this.prisma.order.updateMany({
       where: { id: orderId, organizationId, status: { in: from } },
@@ -156,6 +156,7 @@ export class PrismaOrderRepository implements OrderRepository {
         status: to,
         ...(fields?.paidAt !== undefined ? { paidAt: fields.paidAt } : {}),
         ...(fields?.cancelledAt !== undefined ? { cancelledAt: fields.cancelledAt } : {}),
+        ...(fields?.refundedAt !== undefined ? { refundedAt: fields.refundedAt } : {}),
       },
     });
     return result.count > 0;

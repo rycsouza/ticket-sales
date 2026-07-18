@@ -1,14 +1,23 @@
-import { NotFoundOrForbiddenError } from "../../shared/errors";
+import type { RequestContext } from "../../shared/context";
+import { ConflictError, NotFoundOrForbiddenError } from "../../shared/errors";
 import { generateToken, hashToken } from "../../shared/tokens";
-import type { AuditRepository } from "../audit/repository";
+import type { ClockPort } from "../../ports/clock";
+import type { AuditReadRecord, AuditReader, AuditRepository } from "../audit/repository";
+import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { OrderRepository } from "../orders/repository";
 import type { TicketRepository } from "./repository";
-import type { IssuedTicket, TicketRecord } from "./types";
+import { assertTicketTransition } from "./transitions";
+import { TICKET_SUPPORT_ROLES, type IssuedTicket, type TicketRecord } from "./types";
 
 export interface TicketsServiceDeps {
   tickets: TicketRepository;
   orders: OrderRepository;
   audit: AuditRepository;
+  // Optional so ticket EMISSION works in minimal wiring; support operations
+  // require these to be present.
+  memberships?: MembershipLookup | undefined;
+  auditReader?: AuditReader | undefined;
+  clock?: ClockPort | undefined;
 }
 
 export class TicketsService {
@@ -112,5 +121,236 @@ export class TicketsService {
       });
     }
     return rotated;
+  }
+
+  // -------------------------------------------------------------------------
+  // Support operations (FR-TKT-007..013) — staff, audited
+  // -------------------------------------------------------------------------
+
+  /** FR-TKT-009 — block a valid ticket with justification. */
+  async blockTicket(
+    ctx: RequestContext,
+    ticketId: string,
+    input: { justification: string },
+  ): Promise<TicketRecord> {
+    await this.requireSupport(ctx);
+    const ticket = await this.mustFindTicket(ctx.organizationId, ticketId);
+    // Capture BEFORE the update — the repo may return a live reference that
+    // the guarded update mutates in place (aliasing).
+    const previousStatus = ticket.status;
+    assertTicketTransition(previousStatus, "BLOCKED");
+
+    const changed = await this.deps.tickets.updateStatus(
+      ctx.organizationId,
+      ticketId,
+      ["VALID"],
+      "BLOCKED",
+      { blockedAt: this.now() },
+    );
+    if (!changed) throw new ConflictError("Ticket is not in a blockable state");
+
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "ticket.blocked",
+      resourceType: "ticket",
+      resourceId: ticketId,
+      justification: input.justification,
+      before: { status: previousStatus },
+      after: { status: "BLOCKED" },
+      correlationId: ctx.correlationId,
+    });
+    return { ...ticket, status: "BLOCKED" };
+  }
+
+  /** FR-TKT-009 — unblock a blocked ticket with justification. */
+  async unblockTicket(
+    ctx: RequestContext,
+    ticketId: string,
+    input: { justification: string },
+  ): Promise<TicketRecord> {
+    await this.requireSupport(ctx);
+    const ticket = await this.mustFindTicket(ctx.organizationId, ticketId);
+    const previousStatus = ticket.status;
+    assertTicketTransition(previousStatus, "VALID");
+
+    const changed = await this.deps.tickets.updateStatus(
+      ctx.organizationId,
+      ticketId,
+      ["BLOCKED"],
+      "VALID",
+    );
+    if (!changed) throw new ConflictError("Ticket is not blocked");
+
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "ticket.unblocked",
+      resourceType: "ticket",
+      resourceId: ticketId,
+      justification: input.justification,
+      before: { status: previousStatus },
+      after: { status: "VALID" },
+      correlationId: ctx.correlationId,
+    });
+    return { ...ticket, status: "VALID" };
+  }
+
+  /**
+   * FR-TKT-012/013 — correct non-financial participant data. The previous
+   * value is preserved in the audit `before` (never overwritten silently).
+   */
+  async correctParticipant(
+    ctx: RequestContext,
+    ticketId: string,
+    input: { participantName?: string | undefined; participantEmail?: string | undefined },
+  ): Promise<TicketRecord> {
+    await this.requireSupport(ctx);
+    const ticket = await this.mustFindTicket(ctx.organizationId, ticketId);
+    if (ticket.status === "CANCELLED" || ticket.status === "REFUNDED") {
+      throw new ConflictError("Cannot edit a cancelled or refunded ticket");
+    }
+
+    // Capture BEFORE the write — the trail must keep the old values.
+    const before = {
+      participantName: ticket.participantName,
+      participantEmail: ticket.participantEmail,
+    };
+    await this.deps.tickets.updateParticipant(ctx.organizationId, ticketId, input);
+
+    const after = {
+      participantName: input.participantName ?? ticket.participantName,
+      participantEmail: input.participantEmail ?? ticket.participantEmail,
+    };
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "ticket.participant_corrected",
+      resourceType: "ticket",
+      resourceId: ticketId,
+      before,
+      after,
+      correlationId: ctx.correlationId,
+    });
+    return { ...ticket, ...after };
+  }
+
+  /**
+   * FR-TKT-007/008 — transfer ownership. Rotates the token so the previous
+   * link/QR is invalidated immediately, updates the holder, and keeps the old
+   * holder in the audit trail. Returns the new raw token for delivery.
+   */
+  async transferTicket(
+    ctx: RequestContext,
+    ticketId: string,
+    input: { participantName: string; participantEmail: string },
+  ): Promise<IssuedTicket> {
+    await this.requireSupport(ctx);
+    const ticket = await this.mustFindTicket(ctx.organizationId, ticketId);
+    if (ticket.status !== "VALID") {
+      throw new ConflictError("Only a valid ticket can be transferred");
+    }
+
+    const before = {
+      participantName: ticket.participantName,
+      participantEmail: ticket.participantEmail,
+    };
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    await this.deps.tickets.updateTokenHash(ctx.organizationId, ticketId, tokenHash);
+    await this.deps.tickets.updateParticipant(ctx.organizationId, ticketId, input);
+
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "ticket.transferred",
+      resourceType: "ticket",
+      resourceId: ticketId,
+      before,
+      after: {
+        participantName: input.participantName,
+        participantEmail: input.participantEmail,
+        tokenRotated: true,
+      },
+      correlationId: ctx.correlationId,
+    });
+    return {
+      ticket: {
+        ...ticket,
+        tokenHash,
+        participantName: input.participantName,
+        participantEmail: input.participantEmail,
+      },
+      rawToken,
+    };
+  }
+
+  /** FR-TKT-011 — current status plus the audited history of the ticket. */
+  async getTicketHistory(
+    ctx: RequestContext,
+    ticketId: string,
+  ): Promise<{ ticket: TicketRecord; history: AuditReadRecord[] }> {
+    await this.requireSupport(ctx);
+    const ticket = await this.mustFindTicket(ctx.organizationId, ticketId);
+    if (!this.deps.auditReader) {
+      return { ticket, history: [] };
+    }
+    const history = await this.deps.auditReader.listByResource(
+      ctx.organizationId,
+      "ticket",
+      ticketId,
+    );
+    return { ticket, history };
+  }
+
+  /**
+   * Terminal refund of every non-terminal ticket of an order (FR-PAY-013,
+   * FR-TKT-010). Called by the refund coordinator on a confirmed refund /
+   * chargeback — system actor, idempotent (guarded bulk transition).
+   */
+  async refundTicketsForOrder(
+    organizationId: string,
+    orderId: string,
+    meta: { correlationId: string },
+  ): Promise<number> {
+    const count = await this.deps.tickets.transitionOrderTickets(
+      organizationId,
+      orderId,
+      ["VALID", "BLOCKED"],
+      "REFUNDED",
+      { cancelledAt: this.now() },
+    );
+    if (count > 0) {
+      await this.deps.audit.append({
+        organizationId,
+        actorType: "system",
+        action: "tickets.refunded",
+        resourceType: "order",
+        resourceId: orderId,
+        after: { count },
+        correlationId: meta.correlationId,
+      });
+    }
+    return count;
+  }
+
+  // -------------------------------------------------------------------------
+
+  private now(): Date {
+    return this.deps.clock ? this.deps.clock.now() : new Date();
+  }
+
+  private async requireSupport(ctx: RequestContext): Promise<void> {
+    if (!this.deps.memberships) throw new NotFoundOrForbiddenError();
+    await requireActiveRole(this.deps.memberships, ctx, TICKET_SUPPORT_ROLES);
+  }
+
+  private async mustFindTicket(
+    organizationId: string,
+    ticketId: string,
+  ): Promise<TicketRecord> {
+    const ticket = await this.deps.tickets.findByIdScoped(organizationId, ticketId);
+    if (!ticket) throw new NotFoundOrForbiddenError();
+    return ticket;
   }
 }

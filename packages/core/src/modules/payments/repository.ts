@@ -28,6 +28,8 @@ export interface PaymentRepository {
     now: Date,
   ): Promise<PaymentRecord | null>;
   countByOrder(organizationId: string, orderId: string): Promise<number>;
+  /** All payments of an order (support timeline — FR-ADM-002). */
+  listByOrder(organizationId: string, orderId: string): Promise<PaymentRecord[]>;
   /** Guarded transition — idempotency primitive for webhook processing. */
   transitionStatus(
     paymentId: string,
@@ -131,6 +133,14 @@ export class PrismaPaymentRepository implements PaymentRepository {
 
   async countByOrder(organizationId: string, orderId: string) {
     return this.prisma.payment.count({ where: { organizationId, orderId } });
+  }
+
+  async listByOrder(organizationId: string, orderId: string) {
+    return this.prisma.payment.findMany({
+      where: { organizationId, orderId },
+      select: paymentSelect,
+      orderBy: { createdAt: "asc" },
+    });
   }
 
   async transitionStatus(

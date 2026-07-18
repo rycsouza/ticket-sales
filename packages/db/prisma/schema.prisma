@@ -769,6 +769,19 @@ model OrderAttribution {
   @@index([membershipId])
 }
 
+// FR-ADM-009 — internal support notes on an order. Never exposed to the buyer.
+model OrderNote {
+  id             String @id @default(uuid(7))
+  organizationId String
+  orderId        String
+  authorUserId   String
+  body           String
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, orderId])
+}
+
 // FR-PRM-010/011, BR-PRM-004 — append-only commission ledger. Commission is
 // due only on paid, non-refunded, eligible items; refund/chargeback posts a
 // REVERSAL. `ruleSnapshot` keeps each entry reproducible.
