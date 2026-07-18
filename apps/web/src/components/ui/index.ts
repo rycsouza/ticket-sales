@@ -1,5 +1,6 @@
 export { Button, buttonVariants, type ButtonVariant, type ButtonSize } from "./button";
-export { Input } from "./input";
+export { Input, inputBaseClass } from "./input";
+export { PhoneInput } from "./phone-input";
 export { Textarea } from "./textarea";
 export { Select } from "./select";
 export { Field } from "./field";

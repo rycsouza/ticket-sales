@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
-import { Button, Field, Input } from "@/components/ui";
+import { Button, Field, Input, PhoneInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { isCompleteMobilePhone, isValidEmail } from "@/lib/format";
 import type { PublicBatchView } from "@/lib/public-views";
 
 function formatBRL(centsValue: number): string {
@@ -65,6 +66,7 @@ export function CheckoutForm({
   // Returning-buyer lookup by phone (masked preview only).
   const [lookup, setLookup] = useState<Lookup>({ status: "idle" });
   const [useOther, setUseOther] = useState(false);
+  const [touched, setTouched] = useState({ phone: false, name: false, email: false });
 
   const [couponInput, setCouponInput] = useState("");
   const [applied, setApplied] = useState<AppliedCoupon | null>(null);
@@ -91,13 +93,13 @@ export function CheckoutForm({
     setUtm(captured);
   }, []);
 
-  const phoneDigits = phone.replace(/\D/g, "");
-  const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 13;
+  // `phone` holds digits only (PhoneInput handles the mask).
+  const phoneComplete = isCompleteMobilePhone(phone);
 
-  // Debounced lookup: when the phone looks complete, check for an existing
-  // cadastro so a returning buyer can skip retyping name + e-mail.
+  // Debounced lookup — fires ONLY once the number reaches its ideal size (a
+  // full BR mobile), never on partial input.
   useEffect(() => {
-    if (!phoneValid) {
+    if (!phoneComplete) {
       setLookup({ status: "idle" });
       return;
     }
@@ -108,7 +110,7 @@ export function CheckoutForm({
         const res = await fetch(`/api/public/events/${eventId}/customer-lookup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits }),
+          body: JSON.stringify({ phone }),
         });
         const data = (await res.json().catch(() => ({}))) as {
           found?: boolean;
@@ -134,7 +136,7 @@ export function CheckoutForm({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [phoneDigits, phoneValid, eventId]);
+  }, [phone, phoneComplete, eventId]);
 
   const reuseActive = lookup.status === "found" && !useOther;
 
@@ -163,8 +165,8 @@ export function CheckoutForm({
   const totalCents = netCents + feeCents;
 
   const nameValid = name.trim().length >= 2;
-  const emailValid = email.includes("@") && email.trim().length >= 5;
-  const dataStepValid = phoneValid && (reuseActive || (nameValid && emailValid));
+  const emailValid = isValidEmail(email);
+  const dataStepValid = phoneComplete && (reuseActive || (nameValid && emailValid));
 
   function setQuantity(batch: PublicBatchView, next: number) {
     const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
@@ -244,8 +246,8 @@ export function CheckoutForm({
       // Reuse path sends only the phone; the server fills name/e-mail from the
       // existing customer (the real values are never exposed to the client).
       const buyer = reuseActive
-        ? { phone: phoneDigits }
-        : { phone: phoneDigits, name: name.trim(), email: email.trim().toLowerCase() };
+        ? { phone }
+        : { phone, name: name.trim(), email: email.trim().toLowerCase() };
 
       const response = await fetch("/api/public/orders", {
         method: "POST",
@@ -382,16 +384,19 @@ export function CheckoutForm({
               <Field
                 label="WhatsApp"
                 htmlFor="ck-phone"
-                hint="Usamos para agilizar sua compra e enviar atualizações do pedido."
+                hint="Celular com DDD. Usamos para agilizar sua compra e avisar do pedido."
+                error={
+                  touched.phone && !phoneComplete
+                    ? "Informe um WhatsApp válido com DDD."
+                    : undefined
+                }
               >
-                <Input
+                <PhoneInput
                   id="ck-phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
+                  onChange={setPhone}
+                  onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+                  invalid={touched.phone && !phoneComplete}
                 />
               </Field>
 
@@ -418,22 +423,34 @@ export function CheckoutForm({
 
               {!reuseActive && (
                 <>
-                  <Field label="Nome completo" htmlFor="ck-name">
+                  <Field
+                    label="Nome completo"
+                    htmlFor="ck-name"
+                    error={touched.name && !nameValid ? "Informe seu nome completo." : undefined}
+                  >
                     <Input
                       id="ck-name"
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                      aria-invalid={touched.name && !nameValid ? true : undefined}
                       autoComplete="name"
                       placeholder="Como no seu documento"
                     />
                   </Field>
-                  <Field label="E-mail" htmlFor="ck-email">
+                  <Field
+                    label="E-mail"
+                    htmlFor="ck-email"
+                    error={touched.email && !emailValid ? "Informe um e-mail válido." : undefined}
+                  >
                     <Input
                       id="ck-email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                      aria-invalid={touched.email && !emailValid ? true : undefined}
                       autoComplete="email"
                       inputMode="email"
                       placeholder="Seus ingressos chegam aqui"
