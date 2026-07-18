@@ -364,3 +364,265 @@ model AuditEvent {
   @@index([resourceType, resourceId])
   @@index([actorUserId, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Sales engine — Fase 2 (EP-03/04/05)
+// ---------------------------------------------------------------------------
+
+enum ReservationStatus {
+  ACTIVE
+  CONFIRMED
+  RELEASED
+  EXPIRED
+}
+
+// FR-INV-005/006/007 — temporary hold on batch units. Counters live on
+// SalesBatch and are mutated ONLY via atomic conditional SQL (ARQUITETURA §8).
+model InventoryReservation {
+  id             String            @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  batchId        String
+  orderId        String?
+  status         ReservationStatus @default(ACTIVE)
+  quantity       Int
+  expiresAt      DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([orderId])
+  @@index([organizationId, batchId])
+}
+
+// PRD §11.2
+enum OrderStatus {
+  CREATED
+  AWAITING_PAYMENT
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  EXPIRED
+  CANCELLED
+  CHARGEBACK
+}
+
+model Order {
+  id             String      @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  status         OrderStatus @default(CREATED)
+
+  // Public, non-sequential lookup code (never the uuid) — FR-CHK-017
+  code String @unique
+
+  buyerName     String
+  buyerEmail    String
+  buyerDocument String?
+  buyerPhone    String?
+
+  // BR-FIN-001: integer cents; totals computed SERVER-SIDE only
+  subtotalCents Int
+  discountCents Int @default(0)
+  totalCents    Int
+
+  // Payment deadline — mirrors the inventory reservation expiry
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  cancelledAt DateTime?
+  refundedAt  DateTime?
+
+  correlationId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, eventId])
+  @@index([buyerEmail])
+  @@index([status, expiresAt])
+}
+
+// One row per UNIT (PRD §13.1) — each item becomes exactly one ticket.
+model OrderItem {
+  id             String @id @default(uuid(7))
+  organizationId String
+  orderId        String
+  eventId        String
+  batchId        String
+  ticketTypeId   String
+
+  unitPriceCents Int
+
+  createdAt DateTime @default(now())
+
+  order  Order   @relation(fields: [orderId], references: [id])
+  ticket Ticket?
+
+  @@index([orderId])
+  @@index([organizationId, batchId])
+}
+
+// PRD §11.3
+enum PaymentStatus {
+  CREATED
+  PROCESSING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  DISPUTED
+  CHARGED_BACK
+}
+
+enum PaymentMethod {
+  PIX
+  CARD
+}
+
+model Payment {
+  id             String        @id @default(uuid(7))
+  organizationId String
+  orderId        String
+  provider       String
+  method         PaymentMethod
+  status         PaymentStatus @default(CREATED)
+
+  amountCents Int
+
+  providerTransactionId String? @unique
+  // FR-PAY-004: every charge creation is idempotent
+  idempotencyKey        String  @unique
+
+  pixQrCode     String?
+  pixQrCodeText String?
+  expiresAt     DateTime?
+
+  providerFeeCents Int?
+  approvedAt       DateTime?
+  refundedAt       DateTime?
+
+  correlationId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([organizationId, status])
+}
+
+enum PaymentEventStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+// FR-PAY-006: webhooks persisted BEFORE processing; unique provider event id
+// makes duplicated deliveries harmless.
+model PaymentEvent {
+  id       String             @id @default(uuid(7))
+  provider String
+  status   PaymentEventStatus @default(RECEIVED)
+
+  providerEventId       String  @unique
+  providerTransactionId String?
+  type                  String
+
+  payload Json
+  error   String?
+
+  correlationId String
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status, receivedAt])
+}
+
+// PRD §11.4 (transfer returns to VALID — it is not a resting state)
+enum TicketStatus {
+  PENDING_ISSUE
+  VALID
+  CHECKED_IN
+  BLOCKED
+  CANCELLED
+  REFUNDED
+}
+
+model Ticket {
+  id             String       @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  orderId        String
+  // Unique: retrying emission can never duplicate a ticket (FR-TKT-016)
+  orderItemId    String       @unique
+  ticketTypeId   String
+  status         TicketStatus @default(VALID)
+
+  // SHA-256 of the QR/access token; the raw token exists only in the
+  // buyer's link/e-mail (FR-TKT-002/003). Transfer regenerates it.
+  tokenHash String @unique
+
+  participantName  String?
+  participantEmail String?
+
+  issuedAt    DateTime  @default(now())
+  checkedInAt DateTime?
+  blockedAt   DateTime?
+  cancelledAt DateTime?
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([organizationId, eventId, status])
+  @@index([orderId])
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Notification {
+  id             String             @id @default(uuid(7))
+  organizationId String?
+  status         NotificationStatus @default(PENDING)
+
+  type      String
+  recipient String
+  subject   String?
+
+  attempts          Int     @default(0)
+  lastError         String?
+  providerMessageId String?
+
+  orderId  String?
+  ticketId String?
+
+  correlationId String
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([status, attempts])
+}
+
+// ARQUITETURA §7 — durable idempotency for externally-visible effects.
+model IdempotencyKey {
+  key    String @id
+  scope  String
+  result Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([scope, createdAt])
+}

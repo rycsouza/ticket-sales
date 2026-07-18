@@ -5,3 +5,5 @@ export * from "./modules/identity/index";
 export * from "./modules/auth/index";
 export * from "./modules/events/index";
 export * from "./modules/inventory/index";
+export * from "./modules/orders/index";
+export * from "./modules/tickets/index";
