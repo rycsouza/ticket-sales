@@ -3,16 +3,17 @@ import { NotFoundOrForbiddenError } from "../../shared/errors";
 import type { ClockPort } from "../../ports/clock";
 import type { AuditReadRecord, AuditReader, AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
-import type { OrderRecord } from "../orders/types";
+import type { OrderRecord, OrderSearchFilters, OrderSearchRow } from "../orders/types";
 import type { PaymentRecord } from "../payments/types";
 import type { TicketRecord } from "../tickets/types";
 import type { OrderNoteRepository } from "./repository";
-import type { AddOrderNoteInput } from "./schemas";
+import type { AddOrderNoteInput, SearchOrdersInput } from "./schemas";
 import { SUPPORT_NOTE_ROLES, SUPPORT_TIMELINE_ROLES, type OrderNoteRecord } from "./types";
 
 /** Narrow readers — support never writes another module's tables. */
 export interface SupportOrderReader {
   findByIdScoped(organizationId: string, orderId: string): Promise<OrderRecord | null>;
+  searchOrders(organizationId: string, filters: OrderSearchFilters): Promise<OrderSearchRow[]>;
 }
 export interface SupportPaymentReader {
   listByOrder(organizationId: string, orderId: string): Promise<PaymentRecord[]>;
@@ -67,6 +68,21 @@ export class SupportService {
     events.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     return { order, payments, tickets, events, notes };
+  }
+
+  /**
+   * FR-ADM-001 — order search for the support console. Read-only, org-scoped,
+   * bounded by `limit`. The projection is deliberately narrow (no QR, no
+   * idempotency/correlation ids). Same role gate as the timeline.
+   */
+  async searchOrders(ctx: RequestContext, input: SearchOrdersInput): Promise<OrderSearchRow[]> {
+    await requireActiveRole(this.deps.memberships, ctx, SUPPORT_TIMELINE_ROLES);
+    return this.deps.orders.searchOrders(ctx.organizationId, {
+      q: input.q,
+      status: input.status,
+      eventId: input.eventId,
+      limit: input.limit,
+    });
   }
 
   /** FR-ADM-009 — add an internal note (invisible to the buyer). */

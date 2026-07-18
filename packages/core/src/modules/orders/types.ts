@@ -32,6 +32,30 @@ export interface OrderRecord {
   correlationId: string;
 }
 
+/**
+ * FR-ADM-001 — lightweight row for the support order-search list. Never widens
+ * the order projection: only what an operator needs to find and open an order.
+ */
+export interface OrderSearchRow {
+  id: string;
+  code: string;
+  eventId: string;
+  status: OrderStatus;
+  buyerName: string;
+  buyerEmail: string;
+  totalCents: number;
+  createdAt: Date;
+  paidAt: Date | null;
+}
+
+export interface OrderSearchFilters {
+  /** Free text: matches order code, buyer e-mail, buyer name or document. */
+  q?: string | undefined;
+  status?: OrderStatus | undefined;
+  eventId?: string | undefined;
+  limit: number;
+}
+
 export interface OrderItemRecord {
   id: string;
   organizationId: string;

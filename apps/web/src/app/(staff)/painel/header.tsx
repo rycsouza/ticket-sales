@@ -34,6 +34,12 @@ export function DashboardHeader({ orgName, orgId }: { orgName: string; orgId: st
             Compradores
           </Link>
           <Link
+            href={`/painel/${orgId}/suporte`}
+            className="rounded-lg px-3 py-1.5 font-medium text-ink-600 active:bg-slate-100"
+          >
+            Suporte
+          </Link>
+          <Link
             href="/checkin"
             className="rounded-lg px-3 py-1.5 font-medium text-ink-600 active:bg-slate-100"
           >

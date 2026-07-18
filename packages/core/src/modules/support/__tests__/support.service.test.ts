@@ -162,6 +162,59 @@ describe("getOrderTimeline (FR-ADM-002)", () => {
   });
 });
 
+describe("searchOrders (FR-ADM-001)", () => {
+  it("finds an order by code, e-mail, name — bounded and role-gated", async () => {
+    const s = await setup();
+
+    const byEmail = await s.support.searchOrders(s.supportCtx, {
+      q: "maria@teste.com",
+      limit: 20,
+    });
+    expect(byEmail).toHaveLength(1);
+    expect(byEmail[0]!.id).toBe(s.order.id);
+    // Narrow projection: no correlation id / raw row leakage.
+    expect(byEmail[0]).not.toHaveProperty("correlationId");
+
+    const byCode = await s.support.searchOrders(s.supportCtx, { q: s.order.code, limit: 20 });
+    expect(byCode.map((o) => o.id)).toContain(s.order.id);
+
+    const byName = await s.support.searchOrders(s.supportCtx, { q: "mari", limit: 20 });
+    expect(byName.map((o) => o.id)).toContain(s.order.id);
+
+    const miss = await s.support.searchOrders(s.supportCtx, { q: "inexistente@x.com", limit: 20 });
+    expect(miss).toHaveLength(0);
+  });
+
+  it("filters by status and respects the limit", async () => {
+    const s = await setup();
+    const paid = await s.support.searchOrders(s.supportCtx, { status: "PAID", limit: 20 });
+    expect(paid.map((o) => o.id)).toContain(s.order.id);
+
+    const awaiting = await s.support.searchOrders(s.supportCtx, {
+      status: "AWAITING_PAYMENT",
+      limit: 20,
+    });
+    expect(awaiting.map((o) => o.id)).not.toContain(s.order.id);
+  });
+
+  it("denies a promoter and cross-org access", async () => {
+    const s = await setup();
+    await expect(
+      s.support.searchOrders(s.promoterCtx, { q: "maria", limit: 20 }),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+
+    await s.memberships.create({ organizationId: OTHER_ORG, userId: "u_x2", role: "SUPPORT" });
+    const ctxX: RequestContext = {
+      organizationId: OTHER_ORG,
+      userId: "u_x2",
+      role: "member",
+      correlationId: "c",
+    };
+    const foreign = await s.support.searchOrders(ctxX, { q: "maria@teste.com", limit: 20 });
+    expect(foreign).toHaveLength(0);
+  });
+});
+
 describe("internal notes (FR-ADM-009)", () => {
   it("adds and lists notes for support roles", async () => {
     const s = await setup();

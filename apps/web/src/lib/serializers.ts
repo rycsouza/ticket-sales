@@ -9,6 +9,7 @@ import type {
   EventRecord,
   LedgerEntryRecord,
   OrderNoteRecord,
+  OrderSearchRow,
   OrderTimeline,
   PaymentRecord,
   PromoterAssignmentRecord,
@@ -177,6 +178,20 @@ export function toAuditEventResponse(event: AuditReadRecord) {
     before: event.before,
     after: event.after,
     createdAt: event.createdAt,
+  };
+}
+
+export function toOrderSearchRowResponse(row: OrderSearchRow) {
+  return {
+    id: row.id,
+    code: row.code,
+    eventId: row.eventId,
+    status: row.status,
+    buyerName: row.buyerName,
+    buyerEmail: row.buyerEmail,
+    totalCents: row.totalCents,
+    createdAt: row.createdAt,
+    paidAt: row.paidAt,
   };
 }
 

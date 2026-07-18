@@ -1,6 +1,12 @@
 import type { PrismaClient } from "@ingressos/db";
 import { RESERVATION_TX_OPTIONS, reserveOrderLines } from "../inventory/reservations";
-import type { OrderItemRecord, OrderRecord, OrderStatus } from "./types";
+import type {
+  OrderItemRecord,
+  OrderRecord,
+  OrderSearchFilters,
+  OrderSearchRow,
+  OrderStatus,
+} from "./types";
 
 export interface CreatePendingOrderData {
   organizationId: string;
@@ -31,6 +37,11 @@ export interface OrderRepository {
   findByIdScoped(organizationId: string, orderId: string): Promise<OrderRecord | null>;
   /** Public lookup — the code is the capability; caller must also match email. */
   findByCode(code: string): Promise<OrderRecord | null>;
+  /**
+   * FR-ADM-001 — org-scoped order search for the support console. Bounded by
+   * `limit`; most recent first. Free-text matches code/e-mail/name/document.
+   */
+  searchOrders(organizationId: string, filters: OrderSearchFilters): Promise<OrderSearchRow[]>;
   listItems(organizationId: string, orderId: string): Promise<OrderItemRecord[]>;
   /**
    * CRM aggregate (EP-08): paid orders grouped by buyer e-mail, optionally
@@ -156,6 +167,44 @@ export class PrismaOrderRepository implements OrderRepository {
 
   async findByCode(code: string) {
     return this.prisma.order.findUnique({ where: { code }, select: orderSelect });
+  }
+
+  async searchOrders(
+    organizationId: string,
+    filters: OrderSearchFilters,
+  ): Promise<OrderSearchRow[]> {
+    const q = filters.q?.trim();
+    const rows = await this.prisma.order.findMany({
+      where: {
+        organizationId,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.eventId ? { eventId: filters.eventId } : {}),
+        ...(q
+          ? {
+              OR: [
+                { code: { contains: q, mode: "insensitive" as const } },
+                { buyerEmail: { contains: q, mode: "insensitive" as const } },
+                { buyerName: { contains: q, mode: "insensitive" as const } },
+                { buyerDocument: { contains: q } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        code: true,
+        eventId: true,
+        status: true,
+        buyerName: true,
+        buyerEmail: true,
+        totalCents: true,
+        createdAt: true,
+        paidAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: filters.limit,
+    });
+    return rows;
   }
 
   async listItems(organizationId: string, orderId: string) {
