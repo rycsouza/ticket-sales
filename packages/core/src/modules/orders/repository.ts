@@ -41,6 +41,15 @@ export interface OrderRepository {
     eventId?: string,
   ): Promise<{ buyerEmail: string; orderCount: number; totalCents: number }[]>;
   /**
+   * DEC-010 (LGPD): replace a buyer's PII across their orders with a pseudonym.
+   * The financial ledger references orderId (not PII), so it stays intact.
+   */
+  anonymizeBuyer(
+    organizationId: string,
+    email: string,
+    pseudonym: { name: string; email: string },
+  ): Promise<number>;
+  /**
    * Guarded transition: succeeds only when the current status is in `from`.
    * Returns false otherwise (idempotency primitive, NFR-REL-001).
    */
@@ -169,6 +178,23 @@ export class PrismaOrderRepository implements OrderRepository {
       orderCount: row._count._all,
       totalCents: row._sum.totalCents ?? 0,
     }));
+  }
+
+  async anonymizeBuyer(
+    organizationId: string,
+    email: string,
+    pseudonym: { name: string; email: string },
+  ): Promise<number> {
+    const result = await this.prisma.order.updateMany({
+      where: { organizationId, buyerEmail: email },
+      data: {
+        buyerName: pseudonym.name,
+        buyerEmail: pseudonym.email,
+        buyerPhone: null,
+        buyerDocument: null,
+      },
+    });
+    return result.count;
   }
 
   async transitionStatus(

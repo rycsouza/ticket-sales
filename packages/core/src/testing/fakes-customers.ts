@@ -14,6 +14,7 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     consentVersion?: string | undefined;
     consentAt?: Date | undefined;
     consentOrigin?: string | undefined;
+    lastPurchaseAt?: Date | undefined;
   }) {
     const existing = this.customers.find(
       (c) => c.organizationId === data.organizationId && c.email === data.email,
@@ -25,6 +26,7 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       if (data.consentVersion !== undefined) existing.consentVersion = data.consentVersion;
       if (data.consentAt !== undefined) existing.consentAt = data.consentAt;
       if (data.consentOrigin !== undefined) existing.consentOrigin = data.consentOrigin;
+      if (data.lastPurchaseAt !== undefined) existing.lastPurchaseAt = data.lastPurchaseAt;
       return existing;
     }
     const record: CustomerRecord = {
@@ -38,9 +40,37 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       consentVersion: data.consentVersion ?? null,
       consentAt: data.consentAt ?? null,
       consentOrigin: data.consentOrigin ?? null,
+      lastPurchaseAt: data.lastPurchaseAt ?? null,
+      anonymizedAt: null,
     };
     this.customers.push(record);
     return record;
+  }
+
+  async listAnonymizationCandidates(cutoff: Date, limit: number) {
+    return this.customers
+      .filter(
+        (c) =>
+          c.anonymizedAt === null &&
+          c.lastPurchaseAt !== null &&
+          c.lastPurchaseAt.getTime() < cutoff.getTime(),
+      )
+      .slice(0, limit);
+  }
+
+  async anonymize(
+    organizationId: string,
+    id: string,
+    data: { email: string; name: string; anonymizedAt: Date },
+  ) {
+    const c = this.customers.find((x) => x.id === id && x.organizationId === organizationId);
+    if (!c) throw new Error("Customer not found in organization scope");
+    c.email = data.email;
+    c.name = data.name;
+    c.phone = null;
+    c.document = null;
+    c.optedOut = true;
+    c.anonymizedAt = data.anonymizedAt;
   }
 
   async listByOrganization(organizationId: string) {

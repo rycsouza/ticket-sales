@@ -7,15 +7,21 @@ import { CustomersService, type CrmOrderReader } from "../service";
 
 const ORG = "org_crm";
 
-/** Deterministic paid-order aggregate reader. */
+/** Deterministic paid-order aggregate reader + anonymization tracker. */
 function orderReader(
   rows: { buyerEmail: string; orderCount: number; totalCents: number; eventId?: string }[],
-): CrmOrderReader {
+): CrmOrderReader & { anonymized: { email: string; pseudo: string }[] } {
+  const anonymized: { email: string; pseudo: string }[] = [];
   return {
+    anonymized,
     aggregatePaidByBuyer: async (_org, eventId) =>
       rows
         .filter((r) => !eventId || r.eventId === eventId)
         .map((r) => ({ buyerEmail: r.buyerEmail, orderCount: r.orderCount, totalCents: r.totalCents })),
+    anonymizeBuyer: async (_org, email, pseudonym) => {
+      anonymized.push({ email, pseudo: pseudonym.email });
+      return 1;
+    },
   };
 }
 
@@ -28,20 +34,15 @@ async function setup(
   const customers = new InMemoryCustomerRepository();
   await memberships.create({ organizationId: ORG, userId: "u_admin", role: "ADMIN" });
   await memberships.create({ organizationId: ORG, userId: "u_promo", role: "PROMOTER" });
-  const service = new CustomersService({
-    customers,
-    orders: orderReader(rows),
-    memberships,
-    audit,
-    clock,
-  });
+  const orders = orderReader(rows);
+  const service = new CustomersService({ customers, orders, memberships, audit, clock });
   const adminCtx: RequestContext = {
     organizationId: ORG,
     userId: "u_admin",
     role: "member",
     correlationId: "c",
   };
-  return { clock, audit, memberships, customers, service, adminCtx };
+  return { clock, audit, memberships, customers, orders, service, adminCtx };
 }
 
 describe("upsertFromPaidOrder (FR-CRM-001/002)", () => {
@@ -116,5 +117,48 @@ describe("segments (FR-CRM-003/008, EP-08)", () => {
     await expect(s.service.getSegment(promoterCtx, {})).rejects.toBeInstanceOf(
       NotFoundOrForbiddenError,
     );
+  });
+});
+
+describe("retention / anonymization (DEC-010, LGPD)", () => {
+  it("anonymizes buyers inactive beyond the window, idempotently", async () => {
+    const s = await setup([]);
+    const old = new Date("2023-01-01T00:00:00Z"); // > 24 months before 'now'
+    const recent = new Date("2026-07-01T00:00:00Z");
+    await s.customers.upsert({ organizationId: ORG, email: "old@x.com", name: "Antigo", lastPurchaseAt: old });
+    await s.customers.upsert({ organizationId: ORG, email: "new@x.com", name: "Recente", lastPurchaseAt: recent });
+
+    const now = new Date("2026-07-18T00:00:00Z");
+    const count = await s.service.runRetention(now, 100);
+    expect(count).toBe(1);
+
+    const oldC = await s.customers.findByEmail(ORG, "old@x.com");
+    expect(oldC).toBeNull(); // e-mail was pseudonymized
+    expect(s.orders.anonymized).toEqual([
+      { email: "old@x.com", pseudo: expect.stringContaining("@anonimizado.local") },
+    ]);
+    const stillThere = await s.customers.findByEmail(ORG, "new@x.com");
+    expect(stillThere?.anonymizedAt).toBeNull();
+
+    // Idempotent: a second run finds nothing new
+    expect(await s.service.runRetention(now, 100)).toBe(0);
+  });
+
+  it("erases a customer on request (audited); denies non-CRM", async () => {
+    const s = await setup([]);
+    await s.customers.upsert({ organizationId: ORG, email: "erase@x.com", name: "Apagar" });
+    await s.service.anonymizeCustomer(s.adminCtx, "erase@x.com");
+    expect(await s.customers.findByEmail(ORG, "erase@x.com")).toBeNull();
+    expect(s.audit.byAction("crm.customer_anonymized")).toHaveLength(1);
+
+    const promoterCtx: RequestContext = {
+      organizationId: ORG,
+      userId: "u_promo",
+      role: "member",
+      correlationId: "c",
+    };
+    await expect(
+      s.service.anonymizeCustomer(promoterCtx, "erase@x.com"),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
   });
 });

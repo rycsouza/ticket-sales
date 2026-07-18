@@ -895,11 +895,16 @@ model Customer {
   consentAt      DateTime?
   consentOrigin  String?
 
+  // DEC-010 (LGPD retention): drives anonymization of inactive buyers.
+  lastPurchaseAt DateTime?
+  anonymizedAt   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([anonymizedAt, lastPurchaseAt])
 }
 
 // FR-ADM-009 — internal support notes on an order. Never exposed to the buyer.

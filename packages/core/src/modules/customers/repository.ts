@@ -12,10 +12,19 @@ export interface CustomerRepository {
     consentVersion?: string | undefined;
     consentAt?: Date | undefined;
     consentOrigin?: string | undefined;
+    lastPurchaseAt?: Date | undefined;
   }): Promise<CustomerRecord>;
   listByOrganization(organizationId: string): Promise<CustomerRecord[]>;
   findByEmail(organizationId: string, email: string): Promise<CustomerRecord | null>;
   setOptOut(organizationId: string, email: string, optedOut: boolean): Promise<CustomerRecord>;
+  /** DEC-010 — active buyers whose last purchase predates the cutoff. */
+  listAnonymizationCandidates(cutoff: Date, limit: number): Promise<CustomerRecord[]>;
+  /** Replaces PII with a pseudonym; stamps anonymizedAt (idempotent). */
+  anonymize(
+    organizationId: string,
+    id: string,
+    data: { email: string; name: string; anonymizedAt: Date },
+  ): Promise<void>;
 }
 
 const customerSelect = {
@@ -29,6 +38,8 @@ const customerSelect = {
   consentVersion: true,
   consentAt: true,
   consentOrigin: true,
+  lastPurchaseAt: true,
+  anonymizedAt: true,
 } as const;
 
 export class PrismaCustomerRepository implements CustomerRepository {
@@ -43,6 +54,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
     consentVersion?: string | undefined;
     consentAt?: Date | undefined;
     consentOrigin?: string | undefined;
+    lastPurchaseAt?: Date | undefined;
   }) {
     // Consent fields are set on first sight and refreshed only when provided.
     // opt-out is NEVER changed here — only via the explicit setOptOut path.
@@ -50,6 +62,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
       ...(data.consentVersion !== undefined ? { consentVersion: data.consentVersion } : {}),
       ...(data.consentAt !== undefined ? { consentAt: data.consentAt } : {}),
       ...(data.consentOrigin !== undefined ? { consentOrigin: data.consentOrigin } : {}),
+      ...(data.lastPurchaseAt !== undefined ? { lastPurchaseAt: data.lastPurchaseAt } : {}),
     };
     return this.prisma.customer.upsert({
       where: {
@@ -71,6 +84,34 @@ export class PrismaCustomerRepository implements CustomerRepository {
       },
       select: customerSelect,
     });
+  }
+
+  async listAnonymizationCandidates(cutoff: Date, limit: number) {
+    return this.prisma.customer.findMany({
+      where: { anonymizedAt: null, lastPurchaseAt: { not: null, lt: cutoff } },
+      select: customerSelect,
+      take: limit,
+      orderBy: { lastPurchaseAt: "asc" },
+    });
+  }
+
+  async anonymize(
+    organizationId: string,
+    id: string,
+    data: { email: string; name: string; anonymizedAt: Date },
+  ) {
+    const result = await this.prisma.customer.updateMany({
+      where: { id, organizationId },
+      data: {
+        email: data.email,
+        name: data.name,
+        phone: null,
+        document: null,
+        optedOut: true, // anonymized contacts are never targeted again
+        anonymizedAt: data.anonymizedAt,
+      },
+    });
+    if (result.count === 0) throw new Error("Customer not found in organization scope");
   }
 
   async listByOrganization(organizationId: string) {

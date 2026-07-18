@@ -15,6 +15,14 @@ export const segmentFilterSchema = z
   .strict();
 export type SegmentFilterInput = z.infer<typeof segmentFilterSchema>;
 
+// FR/LGPD — erasure request for one customer.
+export const anonymizeCustomerSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(254),
+  })
+  .strict();
+export type AnonymizeCustomerInput = z.infer<typeof anonymizeCustomerSchema>;
+
 export const setOptOutSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(254),

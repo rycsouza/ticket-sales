@@ -14,7 +14,12 @@ export interface CustomerRecord {
   consentVersion: string | null;
   consentAt: Date | null;
   consentOrigin: string | null;
+  lastPurchaseAt: Date | null;
+  anonymizedAt: Date | null;
 }
+
+/** DEC-010 — inactivity window before a buyer's PII is anonymized. */
+export const RETENTION_MONTHS = 24;
 
 /** A customer enriched with purchase aggregates (from paid orders). */
 export interface CustomerSegmentRow {
