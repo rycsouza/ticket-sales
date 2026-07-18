@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PublicBatchView } from "@/lib/public-views";
 
@@ -14,6 +14,20 @@ interface Props {
   maxTicketsPerOrder: number | null;
   eventTerms: string | null;
   cancellationPolicy: string | null;
+}
+
+interface Utm {
+  source?: string;
+  medium?: string;
+  campaign?: string;
+  content?: string;
+  term?: string;
+}
+
+interface AppliedCoupon {
+  code: string;
+  type: "PERCENT" | "FIXED";
+  value: number;
 }
 
 export function CheckoutForm({
@@ -31,25 +45,93 @@ export function CheckoutForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Coupon (FR-CHK-008) + attribution capture (FR-CHK-009/010)
+  const [couponInput, setCouponInput] = useState("");
+  const [applied, setApplied] = useState<AppliedCoupon | null>(null);
+  const [couponMsg, setCouponMsg] = useState<string | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
+  const [linkRef, setLinkRef] = useState<string | undefined>(undefined);
+  const [utm, setUtm] = useState<Utm>({});
+
+  // Capture link ref + UTM from the landing URL once (display-only client read;
+  // the server re-resolves everything authoritatively).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("p") ?? params.get("ref") ?? undefined;
+    if (ref) setLinkRef(ref);
+    const captured: Utm = {};
+    const source = params.get("utm_source");
+    const medium = params.get("utm_medium");
+    const campaign = params.get("utm_campaign");
+    const content = params.get("utm_content");
+    const term = params.get("utm_term");
+    if (source) captured.source = source;
+    if (medium) captured.medium = medium;
+    if (campaign) captured.campaign = campaign;
+    if (content) captured.content = content;
+    if (term) captured.term = term;
+    setUtm(captured);
+  }, []);
+
   const totalQuantity = useMemo(
     () => Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0),
     [quantities],
   );
-  const totalCents = useMemo(
-    () =>
-      batches.reduce(
-        (sum, batch) => sum + (quantities[batch.id] ?? 0) * batch.priceCents,
-        0,
-      ),
+  const subtotalCents = useMemo(
+    () => batches.reduce((sum, batch) => sum + (quantities[batch.id] ?? 0) * batch.priceCents, 0),
     [batches, quantities],
   );
+  const discountCents = useMemo(() => {
+    if (!applied) return 0;
+    const raw =
+      applied.type === "PERCENT"
+        ? Math.round((subtotalCents * Math.min(applied.value, 10_000)) / 10_000)
+        : applied.value;
+    return Math.max(0, Math.min(raw, subtotalCents));
+  }, [applied, subtotalCents]);
+  const totalCents = subtotalCents - discountCents;
 
   function setQuantity(batch: PublicBatchView, next: number) {
-    const capped = Math.max(
-      0,
-      Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20),
-    );
+    const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
     setQuantities((current) => ({ ...current, [batch.id]: capped }));
+  }
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCheckingCoupon(true);
+    setCouponMsg(null);
+    try {
+      const response = await fetch(`/api/public/events/${eventId}/coupon-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = (await response.json()) as {
+        valid?: boolean;
+        type?: "PERCENT" | "FIXED";
+        value?: number;
+        message?: string;
+        error?: string;
+      };
+      if (response.ok && data.valid && data.type && typeof data.value === "number") {
+        setApplied({ code, type: data.type, value: data.value });
+        setCouponMsg(null);
+      } else {
+        setApplied(null);
+        setCouponMsg(data.message ?? data.error ?? "Cupom inválido.");
+      }
+    } catch {
+      setCouponMsg("Não foi possível validar o cupom agora.");
+    } finally {
+      setCheckingCoupon(false);
+    }
+  }
+
+  function removeCoupon() {
+    setApplied(null);
+    setCouponInput("");
+    setCouponMsg(null);
   }
 
   async function submit() {
@@ -68,6 +150,9 @@ export function CheckoutForm({
         .filter(([, quantity]) => quantity > 0)
         .map(([batchId, quantity]) => ({ batchId, quantity }));
 
+      const hasUtm = Object.keys(utm).length > 0;
+      const couponToSend = applied?.code ?? (couponInput.trim() || undefined);
+
       const response = await fetch("/api/public/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,6 +160,9 @@ export function CheckoutForm({
           eventId,
           items,
           buyer: { name: name.trim(), email: email.trim().toLowerCase() },
+          ...(couponToSend ? { coupon: couponToSend } : {}),
+          ...(linkRef ? { ref: linkRef } : {}),
+          ...(hasUtm ? { utm } : {}),
         }),
       });
       const data = (await response.json()) as { code?: string; error?: string };
@@ -158,6 +246,45 @@ export function CheckoutForm({
       </div>
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">Cupom</h2>
+        {applied ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-3">
+            <span className="text-sm font-medium text-green-800">
+              Cupom <strong>{applied.code}</strong> aplicado
+              {subtotalCents > 0 ? ` — ${formatBRL(discountCents)} de desconto` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={removeCoupon}
+              className="text-sm font-semibold text-green-800 underline"
+            >
+              Remover
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponInput}
+              onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-base uppercase outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              placeholder="Tem um cupom?"
+              autoCapitalize="characters"
+            />
+            <button
+              type="button"
+              onClick={applyCoupon}
+              disabled={checkingCoupon || couponInput.trim().length === 0}
+              className="shrink-0 rounded-lg border border-brand-500 px-4 text-sm font-semibold text-brand-600 active:bg-brand-50 disabled:opacity-40"
+            >
+              {checkingCoupon ? "..." : "Aplicar"}
+            </button>
+          </div>
+        )}
+        {couponMsg && <p className="mt-2 text-sm text-red-700">{couponMsg}</p>}
+      </div>
+
+      <div className="rounded-xl bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-400">
           Seus dados
         </h2>
@@ -214,6 +341,23 @@ export function CheckoutForm({
         <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
+      )}
+
+      {totalQuantity > 0 && discountCents > 0 && (
+        <div className="rounded-xl bg-white p-4 text-sm shadow-sm">
+          <div className="flex justify-between text-ink-600">
+            <span>Subtotal</span>
+            <span>{formatBRL(subtotalCents)}</span>
+          </div>
+          <div className="flex justify-between text-green-700">
+            <span>Desconto</span>
+            <span>−{formatBRL(discountCents)}</span>
+          </div>
+          <div className="mt-1 flex justify-between border-t border-slate-100 pt-1 font-semibold">
+            <span>Total</span>
+            <span>{formatBRL(totalCents)}</span>
+          </div>
+        </div>
       )}
 
       <div className="sticky bottom-4">

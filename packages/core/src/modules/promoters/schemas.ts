@@ -50,6 +50,14 @@ export const createCouponSchema = z
   });
 export type CreateCouponInput = z.infer<typeof createCouponSchema>;
 
+// Public checkout coupon preview (FR-CHK-008) — only the code is accepted.
+export const couponPreviewSchema = z
+  .object({
+    code: couponCode,
+  })
+  .strict();
+export type CouponPreviewInput = z.infer<typeof couponPreviewSchema>;
+
 export const createCommissionRuleSchema = z
   .object({
     membershipId: z.string().uuid().optional(),

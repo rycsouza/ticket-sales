@@ -1,4 +1,13 @@
-import type { EventRecord, SalesBatchRecord, TicketTypeRecord } from "@ingressos/core";
+import type {
+  CommissionRuleRecord,
+  CouponRecord,
+  EventRecord,
+  PromoterAssignmentRecord,
+  PromoterLinkRecord,
+  PromoterSummaryRow,
+  SalesBatchRecord,
+  TicketTypeRecord,
+} from "@ingressos/core";
 
 // Explicit output shaping: API responses expose ONLY these fields
 // (CLAUDE_SECURITY_RULES §13 — never return full rows).
@@ -49,5 +58,55 @@ export function toBatchResponse(batch: SalesBatchRecord) {
     salesStartAt: batch.salesStartAt,
     salesEndAt: batch.salesEndAt,
     maxPerOrder: batch.maxPerOrder,
+  };
+}
+
+export function toPromoterAssignmentResponse(a: PromoterAssignmentRecord) {
+  return { id: a.id, eventId: a.eventId, membershipId: a.membershipId, active: a.active };
+}
+
+export function toPromoterLinkResponse(link: PromoterLinkRecord) {
+  return {
+    id: link.id,
+    membershipId: link.membershipId,
+    code: link.code,
+    active: link.active,
+    clickCount: link.clickCount,
+  };
+}
+
+export function toCouponResponse(coupon: CouponRecord) {
+  return {
+    id: coupon.id,
+    code: coupon.code,
+    type: coupon.type,
+    value: coupon.value,
+    active: coupon.active,
+    membershipId: coupon.membershipId,
+    startsAt: coupon.startsAt,
+    endsAt: coupon.endsAt,
+    maxRedemptions: coupon.maxRedemptions,
+    redemptions: coupon.redemptions,
+  };
+}
+
+export function toCommissionRuleResponse(rule: CommissionRuleRecord) {
+  return {
+    id: rule.id,
+    membershipId: rule.membershipId,
+    ticketTypeId: rule.ticketTypeId,
+    type: rule.type,
+    value: rule.value,
+    base: rule.base,
+    active: rule.active,
+  };
+}
+
+export function toPromoterSummaryResponse(row: PromoterSummaryRow) {
+  return {
+    membershipId: row.membershipId,
+    quantity: row.quantity,
+    baseCents: row.baseCents,
+    amountCents: row.amountCents,
   };
 }

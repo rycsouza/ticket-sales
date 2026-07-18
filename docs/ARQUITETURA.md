@@ -353,8 +353,8 @@ Precisam ser resolvidas **antes** das fases indicadas:
 |---|---|---|
 | DEC-002 PSP / split | **Resolvida.** Mercado Pago; plataforma como recebedora única; repasse posterior com carência configurável (default 3 dias, sujeito a revisão jurídica — ver §12); MVP com repasse externo registrado (FR-FIN-013) | — |
 | DEC-003 Taxa da plataforma | Cálculo no checkout/ledger | Fase 2 |
-| DEC-004 Base de cálculo de comissão | Módulo promoters/finance | Fase 3 |
-| DEC-005 Janela de atribuição | Regra de atribuição | Fase 3 |
+| DEC-004 Base de cálculo de comissão | **Resolvida.** Base configurável por regra: `NOMINAL` (preço cheio, default) ou `AFTER_DISCOUNT` (preço após rateio do desconto do pedido) — BR-PRM-005. Regra versionada com snapshot no lançamento (não retroage — BR-PRM-006) | — |
+| DEC-005 Janela de atribuição | **Resolvida (MVP).** Prioridade BR-PRM-002: cupom de promoter > link ativo > cupom sem promoter (só desconto). Um único ref (`?p=CODE`) + UTM capturados no checkout e persistidos em `OrderAttribution`. Atribuição multi-toque com janela temporal fica para evolução | — |
 | DEC-006 Reembolso/cancelamento | Estados de pedido/pagamento | Fase 2/4 |
 | DEC-010 Retenção de dados/logs | Política de retenção/anonimização | Fase 7 (antes da produção) |
 | DEC-012 MFA por papel | Config de auth | Fase 7 (antes da produção) |

@@ -306,6 +306,32 @@ export class PromotersService {
   }
 
   /**
+   * Public coupon preview for the checkout UI (FR-CHK-008). Returns the reason
+   * on refusal and the type/value for display — the authoritative discount is
+   * still recomputed server-side at order creation (never trusts the client).
+   */
+  async previewCoupon(input: {
+    organizationId: string;
+    eventId: string;
+    code: string;
+    now: Date;
+  }): Promise<
+    | { valid: true; type: "PERCENT" | "FIXED"; value: number }
+    | { valid: false; reason: CouponRejection }
+  > {
+    const coupon = await this.deps.coupons.findByEventAndCode(
+      input.organizationId,
+      input.eventId,
+      input.code.toUpperCase(),
+    );
+    const validity = validateCoupon(coupon, input.now);
+    if (!validity.ok || !coupon) {
+      return { valid: false, reason: validity.reason ?? "not_found" };
+    }
+    return { valid: true, type: coupon.type, value: coupon.value };
+  }
+
+  /**
    * Persists attribution for a created order (FR-PRM-007). Priority (BR-PRM-002):
    * a valid promoter-owned coupon wins; otherwise a valid promoter link; a
    * non-promoter coupon still records the discount but attributes to no one.
