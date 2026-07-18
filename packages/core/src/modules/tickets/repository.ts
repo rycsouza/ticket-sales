@@ -48,6 +48,24 @@ export interface TicketRepository {
     to: TicketStatus,
     fields?: { cancelledAt?: Date },
   ): Promise<number>;
+  /** Offline check-in pack (FR-CIN-011/012): only VALID tickets, minimal data. */
+  listValidForEvent(
+    organizationId: string,
+    eventId: string,
+  ): Promise<
+    {
+      id: string;
+      tokenHash: string;
+      ticketTypeId: string;
+      participantName: string | null;
+    }[]
+  >;
+  /** Count of tickets in the given statuses for an event (dashboard). */
+  countByEventStatuses(
+    organizationId: string,
+    eventId: string,
+    statuses: TicketStatus[],
+  ): Promise<number>;
 }
 
 const ticketSelect = {
@@ -185,5 +203,23 @@ export class PrismaTicketRepository implements TicketRepository {
       },
     });
     return result.count;
+  }
+
+  async listValidForEvent(organizationId: string, eventId: string) {
+    return this.prisma.ticket.findMany({
+      where: { organizationId, eventId, status: "VALID" },
+      select: { id: true, tokenHash: true, ticketTypeId: true, participantName: true },
+      orderBy: { issuedAt: "asc" },
+    });
+  }
+
+  async countByEventStatuses(
+    organizationId: string,
+    eventId: string,
+    statuses: TicketStatus[],
+  ): Promise<number> {
+    return this.prisma.ticket.count({
+      where: { organizationId, eventId, status: { in: statuses } },
+    });
   }
 }

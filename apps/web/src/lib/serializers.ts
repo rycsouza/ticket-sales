@@ -1,5 +1,6 @@
 import type {
   AuditReadRecord,
+  CheckinAssignmentRecord,
   CommissionRuleRecord,
   CouponRecord,
   CustomerRecord,
@@ -185,6 +186,15 @@ export function toOrderNoteResponse(note: OrderNoteRecord) {
     authorUserId: note.authorUserId,
     body: note.body,
     createdAt: note.createdAt,
+  };
+}
+
+export function toCheckinAssignmentResponse(a: CheckinAssignmentRecord) {
+  return {
+    id: a.id,
+    membershipId: a.membershipId,
+    sectorId: a.sectorId,
+    active: a.active,
   };
 }
 

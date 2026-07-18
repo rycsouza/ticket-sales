@@ -832,6 +832,53 @@ model LedgerEntry {
   @@index([membershipId])
 }
 
+// Check-in / portaria (EP-09) — Fase 6
+// ---------------------------------------------------------------------------
+
+enum CheckinMode {
+  ONLINE
+  OFFLINE
+}
+
+// FR-CIN-001/002 — operators bound to an event (optionally a sector/gate).
+model CheckinAssignment {
+  id             String  @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  membershipId   String
+  sectorId       String?
+  active         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, membershipId])
+  @@index([organizationId, eventId])
+  @@index([membershipId])
+}
+
+// FR-CIN-005 — one successful check-in per ticket. The unique(ticketId) is the
+// dedup/idempotency guard (FR-CIN-006/013/017): a second attempt cannot create
+// a second admission. Undo deletes the row (audited) so re-entry is possible.
+model Checkin {
+  id                   String      @id @default(uuid(7))
+  organizationId       String
+  eventId              String
+  ticketId             String      @unique
+  operatorMembershipId String
+  deviceId             String?
+  mode                 CheckinMode @default(ONLINE)
+  manual               Boolean     @default(false)
+  justification        String?
+
+  checkedInAt DateTime
+  syncedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, eventId])
+}
+
 // CRM (EP-08) — consolidated buyer base per organization. Identity + consent
 // live here; purchase aggregates are derived from paid orders (reproducible).
 model Customer {

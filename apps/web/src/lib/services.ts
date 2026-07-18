@@ -3,6 +3,7 @@ import "server-only";
 import { loadServerEnv } from "@ingressos/config";
 import {
   AuthService,
+  CheckinService,
   CustomersService,
   EventsService,
   FinanceService,
@@ -21,6 +22,8 @@ import {
   PrismaPromoterAssignmentRepository,
   PrismaPromoterLinkRepository,
   SupportService,
+  PrismaCheckinAssignmentRepository,
+  PrismaCheckinRepository,
   PrismaCustomerRepository,
   PrismaEventRepository,
   PrismaInviteRepository,
@@ -134,6 +137,8 @@ function buildServices() {
   const orderNotes = new PrismaOrderNoteRepository(prisma);
   const ledgerRepo = new PrismaLedgerRepository(prisma);
   const customerRepo = new PrismaCustomerRepository(prisma);
+  const checkinAssignments = new PrismaCheckinAssignmentRepository(prisma);
+  const checkinRepo = new PrismaCheckinRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
@@ -278,6 +283,15 @@ function buildServices() {
     promoters: promotersService,
     finance: financeService,
     customers: customersService,
+    checkin: new CheckinService({
+      assignments: checkinAssignments,
+      checkins: checkinRepo,
+      tickets: ticketRepo,
+      events,
+      memberships,
+      audit,
+      clock: systemClock,
+    }),
     support: new SupportService({
       notes: orderNotes,
       orders: orderRepo,

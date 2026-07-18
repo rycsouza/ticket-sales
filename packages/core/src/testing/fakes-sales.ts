@@ -350,6 +350,32 @@ export class InMemoryTicketRepository implements TicketRepository {
     }
     return count;
   }
+
+  async listValidForEvent(organizationId: string, eventId: string) {
+    return this.tickets
+      .filter(
+        (t) => t.organizationId === organizationId && t.eventId === eventId && t.status === "VALID",
+      )
+      .map((t) => ({
+        id: t.id,
+        tokenHash: t.tokenHash,
+        ticketTypeId: t.ticketTypeId,
+        participantName: t.participantName,
+      }));
+  }
+
+  async countByEventStatuses(
+    organizationId: string,
+    eventId: string,
+    statuses: TicketRecord["status"][],
+  ): Promise<number> {
+    return this.tickets.filter(
+      (t) =>
+        t.organizationId === organizationId &&
+        t.eventId === eventId &&
+        statuses.includes(t.status),
+    ).length;
+  }
 }
 
 // ---------------------------------------------------------------------------
