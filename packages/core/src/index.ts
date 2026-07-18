@@ -12,3 +12,4 @@ export * from "./modules/notifications/index";
 export * from "./modules/promoters/index";
 export * from "./modules/support/index";
 export * from "./modules/finance/index";
+export * from "./modules/customers/index";

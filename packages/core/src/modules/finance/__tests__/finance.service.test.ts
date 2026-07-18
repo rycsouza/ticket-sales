@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NotFoundOrForbiddenError } from "../../../shared/errors";
 import type { RequestContext } from "../../../shared/context";
-import { InMemoryMembershipRepository } from "../../../testing/fakes";
+import { InMemoryAuditRepository, InMemoryMembershipRepository } from "../../../testing/fakes";
 import { InMemoryLedgerRepository } from "../../../testing/fakes-finance";
 import { FinanceService } from "../service";
 import type {
@@ -46,7 +46,16 @@ function build(order: OrderShape, commissionCents = 0, pspCostCents = 0) {
   };
   const pspCost: LedgerPspCostReader = { getOrderPspCostCents: async () => pspCostCents };
 
-  const service = new FinanceService({ ledger, orders, events, commission, pspCost, memberships });
+  const audit = new InMemoryAuditRepository();
+  const service = new FinanceService({
+    ledger,
+    orders,
+    events,
+    commission,
+    pspCost,
+    memberships,
+    audit,
+  });
   return { ledger, memberships, service };
 }
 

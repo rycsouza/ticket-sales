@@ -33,6 +33,14 @@ export interface OrderRepository {
   findByCode(code: string): Promise<OrderRecord | null>;
   listItems(organizationId: string, orderId: string): Promise<OrderItemRecord[]>;
   /**
+   * CRM aggregate (EP-08): paid orders grouped by buyer e-mail, optionally
+   * scoped to one event. Reproducible from the source of truth (orders).
+   */
+  aggregatePaidByBuyer(
+    organizationId: string,
+    eventId?: string,
+  ): Promise<{ buyerEmail: string; orderCount: number; totalCents: number }[]>;
+  /**
    * Guarded transition: succeeds only when the current status is in `from`.
    * Returns false otherwise (idempotency primitive, NFR-REL-001).
    */
@@ -147,6 +155,20 @@ export class PrismaOrderRepository implements OrderRepository {
       select: itemSelect,
       orderBy: { createdAt: "asc" },
     });
+  }
+
+  async aggregatePaidByBuyer(organizationId: string, eventId?: string) {
+    const grouped = await this.prisma.order.groupBy({
+      by: ["buyerEmail"],
+      where: { organizationId, status: "PAID", ...(eventId ? { eventId } : {}) },
+      _count: { _all: true },
+      _sum: { totalCents: true },
+    });
+    return grouped.map((row) => ({
+      buyerEmail: row.buyerEmail,
+      orderCount: row._count._all,
+      totalCents: row._sum.totalCents ?? 0,
+    }));
   }
 
   async transitionStatus(

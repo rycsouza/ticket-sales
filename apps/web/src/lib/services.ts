@@ -3,6 +3,7 @@ import "server-only";
 import { loadServerEnv } from "@ingressos/config";
 import {
   AuthService,
+  CustomersService,
   EventsService,
   FinanceService,
   IdentityService,
@@ -20,6 +21,7 @@ import {
   PrismaPromoterAssignmentRepository,
   PrismaPromoterLinkRepository,
   SupportService,
+  PrismaCustomerRepository,
   PrismaEventRepository,
   PrismaInviteRepository,
   PrismaLedgerRepository,
@@ -131,6 +133,7 @@ function buildServices() {
   const commissionEntries = new PrismaCommissionEntryRepository(prisma);
   const orderNotes = new PrismaOrderNoteRepository(prisma);
   const ledgerRepo = new PrismaLedgerRepository(prisma);
+  const customerRepo = new PrismaCustomerRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
@@ -194,6 +197,15 @@ function buildServices() {
     },
     pspCost: { getOrderPspCostCents: async () => 0 },
     memberships,
+    audit,
+  });
+
+  const customersService = new CustomersService({
+    customers: customerRepo,
+    orders: orderRepo,
+    memberships,
+    audit,
+    clock: systemClock,
   });
 
   // Post-approval orchestration: tickets + confirmation e-mail. Idempotent
@@ -216,6 +228,8 @@ function buildServices() {
       if (issued.length === 0) return; // retry path — tickets already exist
       const order = await orderRepo.findByIdScoped(organizationId, orderId);
       if (!order) return;
+      // CRM base — idempotent upsert of the buyer (FR-CRM-001).
+      await customersService.upsertFromPaidOrder(order).catch(() => undefined);
       const event = await events.findByIdScoped(organizationId, order.eventId);
       await notificationsService.sendOrderConfirmation(order, issued, {
         correlationId,
@@ -263,6 +277,7 @@ function buildServices() {
     payments: paymentsService,
     promoters: promotersService,
     finance: financeService,
+    customers: customersService,
     support: new SupportService({
       notes: orderNotes,
       orders: orderRepo,

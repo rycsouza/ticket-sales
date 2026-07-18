@@ -213,6 +213,23 @@ export class InMemoryOrderRepository implements OrderRepository {
     );
   }
 
+  async aggregatePaidByBuyer(organizationId: string, eventId?: string) {
+    const map = new Map<string, { buyerEmail: string; orderCount: number; totalCents: number }>();
+    for (const o of this.orders) {
+      if (o.organizationId !== organizationId || o.status !== "PAID") continue;
+      if (eventId && o.eventId !== eventId) continue;
+      const row = map.get(o.buyerEmail) ?? {
+        buyerEmail: o.buyerEmail,
+        orderCount: 0,
+        totalCents: 0,
+      };
+      row.orderCount += 1;
+      row.totalCents += o.totalCents;
+      map.set(o.buyerEmail, row);
+    }
+    return [...map.values()];
+  }
+
   async transitionStatus(
     organizationId: string,
     orderId: string,

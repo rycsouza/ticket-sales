@@ -1,5 +1,6 @@
 import type { RequestContext } from "../../shared/context";
 import { NotFoundOrForbiddenError } from "../../shared/errors";
+import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { LedgerPostEntry, LedgerRepository } from "./repository";
 import {
@@ -47,6 +48,7 @@ export interface FinanceServiceDeps {
   commission: LedgerCommissionReader;
   pspCost: LedgerPspCostReader;
   memberships: MembershipLookup;
+  audit: AuditRepository;
 }
 
 export class FinanceService {
@@ -195,6 +197,27 @@ export class FinanceService {
       promoterPayableCents,
       payoutsCents: -sum((e) => e.type === "PAYOUT"),
     };
+  }
+
+  /** FR-FIN-009 — event ledger for CSV export; the read is audited. */
+  async getEventLedgerForExport(
+    ctx: RequestContext,
+    eventId: string,
+  ): Promise<LedgerEntryRecord[]> {
+    await requireActiveRole(this.deps.memberships, ctx, FINANCE_ROLES);
+    const event = await this.deps.events.findByIdScoped(ctx.organizationId, eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+    const entries = await this.deps.ledger.listByEvent(ctx.organizationId, eventId);
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "finance.ledger_exported",
+      resourceType: "event",
+      resourceId: eventId,
+      after: { count: entries.length },
+      correlationId: ctx.correlationId,
+    });
+    return entries;
   }
 
   /**

@@ -2,6 +2,8 @@ import type {
   AuditReadRecord,
   CommissionRuleRecord,
   CouponRecord,
+  CustomerRecord,
+  SegmentResult,
   EventFinancialSummary,
   EventRecord,
   LedgerEntryRecord,
@@ -183,6 +185,25 @@ export function toOrderNoteResponse(note: OrderNoteRecord) {
     authorUserId: note.authorUserId,
     body: note.body,
     createdAt: note.createdAt,
+  };
+}
+
+export function toCustomerResponse(customer: CustomerRecord) {
+  return {
+    id: customer.id,
+    email: customer.email,
+    name: customer.name,
+    phone: customer.phone,
+    optedOut: customer.optedOut,
+    consentAt: customer.consentAt,
+  };
+}
+
+export function toSegmentResponse(segment: SegmentResult) {
+  return {
+    count: segment.count,
+    totalSpentCents: segment.totalSpentCents,
+    customers: segment.customers,
   };
 }
 
