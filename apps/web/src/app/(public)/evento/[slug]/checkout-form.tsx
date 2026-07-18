@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus } from "lucide-react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 import { Button, Field, Input } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import type { PublicBatchView } from "@/lib/public-views";
 
 function formatBRL(centsValue: number): string {
@@ -36,6 +37,7 @@ interface AppliedCoupon {
 
 const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
+const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão"];
 
 export function CheckoutForm({
   eventId,
@@ -47,6 +49,7 @@ export function CheckoutForm({
   cancellationPolicy,
 }: Props) {
   const router = useRouter();
+  const [step, setStep] = useState(1);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -103,6 +106,9 @@ export function CheckoutForm({
   );
   const totalCents = netCents + feeCents;
 
+  const emailValid = email.includes("@") && email.trim().length >= 5;
+  const nameValid = name.trim().length >= 2;
+
   function setQuantity(batch: PublicBatchView, next: number) {
     const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
     setQuantities((current) => ({ ...current, [batch.id]: capped }));
@@ -146,12 +152,26 @@ export function CheckoutForm({
     setCouponMsg(null);
   }
 
-  async function submit() {
-    setError(null);
+  function goToData() {
     if (totalQuantity === 0) {
       setError("Selecione pelo menos um ingresso.");
       return;
     }
+    setError(null);
+    setStep(2);
+  }
+
+  function goToReview() {
+    if (!nameValid || !emailValid) {
+      setError("Preencha nome e e-mail para continuar.");
+      return;
+    }
+    setError(null);
+    setStep(3);
+  }
+
+  async function submit() {
+    setError(null);
     if (!accepted) {
       setError("É preciso aceitar os termos para continuar.");
       return;
@@ -204,192 +224,277 @@ export function CheckoutForm({
     );
   }
 
+  const errorBox = error && (
+    <p
+      role="alert"
+      className="rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-body text-danger-text"
+    >
+      {error}
+    </p>
+  );
+
   return (
     <section className="space-y-4">
-      <div className={sectionClass}>
-        <h2 className={sectionTitle}>Ingressos</h2>
-        <ul className="divide-y divide-line">
-          {batches.map((batch) => {
-            const quantity = quantities[batch.id] ?? 0;
-            return (
-              <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
-                  <p className="text-small text-ink-muted">{batch.name}</p>
-                  <p className="mt-1 text-body font-semibold text-brand">
-                    {formatBRL(batch.priceCents)}
-                  </p>
-                </div>
-                {batch.available ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      aria-label={`Remover ${batch.ticketTypeName}`}
-                      onClick={() => setQuantity(batch, quantity - 1)}
-                      className="flex size-11 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors active:bg-hover disabled:opacity-30"
-                      disabled={quantity === 0}
-                    >
-                      <Minus className="size-5" />
-                    </button>
-                    <span className="w-6 text-center text-body font-semibold tabular-nums text-ink">
-                      {quantity}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Adicionar ${batch.ticketTypeName}`}
-                      onClick={() => setQuantity(batch, quantity + 1)}
-                      className="flex size-11 items-center justify-center rounded-full bg-brand text-brand-fg transition-colors active:bg-brand-active"
-                    >
-                      <Plus className="size-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <span className="rounded-full bg-hover px-3 py-1 text-small font-semibold text-ink-muted">
-                    Esgotado
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className={sectionClass}>
-        <h2 className={sectionTitle}>Cupom</h2>
-        {applied ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-success-border bg-success-bg px-3 py-3">
-            <span className="text-body font-medium text-success-text">
-              Cupom <strong>{applied.code}</strong> aplicado
-              {subtotalCents > 0 ? ` — ${formatBRL(discountCents)} de desconto` : ""}
-            </span>
-            <button
-              type="button"
-              onClick={removeCoupon}
-              className="text-body font-semibold text-success-text underline"
-            >
-              Remover
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              value={couponInput}
-              onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
-              className="uppercase"
-              placeholder="Tem um cupom?"
-              autoCapitalize="characters"
+      {/* Step progress */}
+      <div>
+        <div className="flex items-center gap-2">
+          {STEP_LABELS.map((label, i) => (
+            <div
+              key={label}
+              className={cn("h-1.5 flex-1 rounded-full", i + 1 <= step ? "bg-brand" : "bg-hover")}
             />
-            <Button
-              variant="outline"
-              loading={checkingCoupon}
-              disabled={couponInput.trim().length === 0}
-              onClick={applyCoupon}
-            >
-              Aplicar
-            </Button>
-          </div>
-        )}
-        {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
-      </div>
-
-      <div className={sectionClass}>
-        <h2 className={sectionTitle}>Seus dados</h2>
-        <div className="space-y-3">
-          <Field label="Nome completo" htmlFor="ck-name">
-            <Input
-              id="ck-name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              autoComplete="name"
-              placeholder="Como no seu documento"
-            />
-          </Field>
-          <Field label="E-mail" htmlFor="ck-email">
-            <Input
-              id="ck-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              inputMode="email"
-              placeholder="Seus ingressos chegam aqui"
-            />
-          </Field>
+          ))}
         </div>
-      </div>
-
-      {(eventTerms || cancellationPolicy) && (
-        <details className={`${sectionClass} text-body text-ink-soft`}>
-          <summary className="cursor-pointer font-medium text-ink">
-            Termos e política de cancelamento
-          </summary>
-          {cancellationPolicy && <p className="mt-2 whitespace-pre-line">{cancellationPolicy}</p>}
-          {eventTerms && <p className="mt-2 whitespace-pre-line">{eventTerms}</p>}
-        </details>
-      )}
-
-      <label className={`flex items-start gap-3 ${sectionClass} text-body text-ink-soft`}>
-        <input
-          type="checkbox"
-          checked={accepted}
-          onChange={(event) => setAccepted(event.target.checked)}
-          className="mt-0.5 size-5 accent-brand"
-        />
-        <span>Li e aceito os termos do evento e a política de privacidade.</span>
-      </label>
-
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-body text-danger-text"
-        >
-          {error}
+        <p className="mt-2 text-small font-medium text-ink-muted">
+          Passo {step} de 3 · {STEP_LABELS[step - 1]}
         </p>
-      )}
-
-      {totalQuantity > 0 && (discountCents > 0 || feeCents > 0) && (
-        <div className={`${sectionClass} text-body`}>
-          <div className="flex justify-between text-ink-soft">
-            <span>Subtotal</span>
-            <span className="tabular-nums">{formatBRL(subtotalCents)}</span>
-          </div>
-          {discountCents > 0 && (
-            <div className="flex justify-between text-success-text">
-              <span>Desconto</span>
-              <span className="tabular-nums">−{formatBRL(discountCents)}</span>
-            </div>
-          )}
-          {feeCents > 0 && (
-            <div className="flex justify-between text-ink-soft">
-              <span>Taxa de serviço</span>
-              <span className="tabular-nums">{formatBRL(feeCents)}</span>
-            </div>
-          )}
-          <div className="mt-1 flex justify-between border-t border-line pt-1 font-semibold text-ink">
-            <span>Total</span>
-            <span className="tabular-nums">{formatBRL(totalCents)}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="sticky bottom-4">
-        <Button
-          size="lg"
-          className="w-full shadow-lg"
-          loading={submitting}
-          onClick={submit}
-        >
-          {totalQuantity > 0 ? `Continuar — ${formatBRL(totalCents)}` : "Continuar"}
-        </Button>
-        {totalQuantity > 0 && (
-          <p className="mt-2 text-center text-small text-ink-muted">
-            {totalQuantity} {totalQuantity === 1 ? "ingresso" : "ingressos"} · preço final, sem
-            taxas escondidas
-          </p>
-        )}
       </div>
+
+      {/* Step 1 — Ingressos */}
+      {step === 1 && (
+        <>
+          <div className={sectionClass}>
+            <h2 className={sectionTitle}>Ingressos</h2>
+            <ul className="divide-y divide-line">
+              {batches.map((batch) => {
+                const quantity = quantities[batch.id] ?? 0;
+                return (
+                  <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
+                      <p className="text-small text-ink-muted">{batch.name}</p>
+                      <p className="mt-1 text-body font-semibold text-brand">
+                        {formatBRL(batch.priceCents)}
+                      </p>
+                    </div>
+                    {batch.available ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label={`Remover ${batch.ticketTypeName}`}
+                          onClick={() => setQuantity(batch, quantity - 1)}
+                          className="flex size-11 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors active:bg-hover disabled:opacity-30"
+                          disabled={quantity === 0}
+                        >
+                          <Minus className="size-5" />
+                        </button>
+                        <span className="w-6 text-center text-body font-semibold tabular-nums text-ink">
+                          {quantity}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Adicionar ${batch.ticketTypeName}`}
+                          onClick={() => setQuantity(batch, quantity + 1)}
+                          className="flex size-11 items-center justify-center rounded-full bg-brand text-brand-fg transition-colors active:bg-brand-active"
+                        >
+                          <Plus className="size-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="rounded-full bg-hover px-3 py-1 text-small font-semibold text-ink-muted">
+                        Esgotado
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          {errorBox}
+          <StickyBar>
+            <Button size="lg" className="w-full" disabled={totalQuantity === 0} onClick={goToData}>
+              {totalQuantity > 0 ? `Continuar — ${formatBRL(totalCents)}` : "Continuar"}
+            </Button>
+          </StickyBar>
+        </>
+      )}
+
+      {/* Step 2 — Seus dados */}
+      {step === 2 && (
+        <>
+          <div className={sectionClass}>
+            <h2 className={sectionTitle}>Cupom</h2>
+            {applied ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-success-border bg-success-bg px-3 py-3">
+                <span className="text-body font-medium text-success-text">
+                  Cupom <strong>{applied.code}</strong> aplicado
+                  {subtotalCents > 0 ? ` — ${formatBRL(discountCents)} de desconto` : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={removeCoupon}
+                  className="text-body font-semibold text-success-text underline"
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={couponInput}
+                  onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                  className="uppercase"
+                  placeholder="Tem um cupom?"
+                  autoCapitalize="characters"
+                />
+                <Button
+                  variant="outline"
+                  loading={checkingCoupon}
+                  disabled={couponInput.trim().length === 0}
+                  onClick={applyCoupon}
+                >
+                  Aplicar
+                </Button>
+              </div>
+            )}
+            {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
+          </div>
+
+          <div className={sectionClass}>
+            <h2 className={sectionTitle}>Seus dados</h2>
+            <div className="space-y-3">
+              <Field label="Nome completo" htmlFor="ck-name">
+                <Input
+                  id="ck-name"
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  autoComplete="name"
+                  placeholder="Como no seu documento"
+                />
+              </Field>
+              <Field label="E-mail" htmlFor="ck-email">
+                <Input
+                  id="ck-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="Seus ingressos chegam aqui"
+                />
+              </Field>
+            </div>
+          </div>
+          {errorBox}
+          <StickyBar>
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
+                Voltar
+              </Button>
+              <Button
+                size="lg"
+                className="flex-1"
+                disabled={!nameValid || !emailValid}
+                onClick={goToReview}
+              >
+                Continuar
+              </Button>
+            </div>
+          </StickyBar>
+        </>
+      )}
+
+      {/* Step 3 — Revisão */}
+      {step === 3 && (
+        <>
+          <div className={sectionClass}>
+            <h2 className={sectionTitle}>Resumo</h2>
+            <ul className="divide-y divide-line">
+              {batches
+                .filter((b) => (quantities[b.id] ?? 0) > 0)
+                .map((b) => (
+                  <li key={b.id} className="flex items-center justify-between py-2 text-body">
+                    <span className="text-ink">
+                      {quantities[b.id]}× {b.ticketTypeName}
+                      <span className="text-ink-muted"> · {b.name}</span>
+                    </span>
+                    <span className="tabular-nums text-ink">
+                      {formatBRL((quantities[b.id] ?? 0) * b.priceCents)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            <div className="mt-3 space-y-1 border-t border-line pt-3 text-body">
+              <div className="flex justify-between text-ink-soft">
+                <span>Subtotal</span>
+                <span className="tabular-nums">{formatBRL(subtotalCents)}</span>
+              </div>
+              {discountCents > 0 && (
+                <div className="flex justify-between text-success-text">
+                  <span>Desconto</span>
+                  <span className="tabular-nums">−{formatBRL(discountCents)}</span>
+                </div>
+              )}
+              {feeCents > 0 && (
+                <div className="flex justify-between text-ink-soft">
+                  <span>Taxa de serviço</span>
+                  <span className="tabular-nums">{formatBRL(feeCents)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-1 text-h3 font-bold text-ink">
+                <span>Total</span>
+                <span className="tabular-nums">{formatBRL(totalCents)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${sectionClass} text-body text-ink-soft`}>
+            <p>
+              Comprador: <strong className="text-ink">{name}</strong> · {email}
+            </p>
+          </div>
+
+          {(eventTerms || cancellationPolicy) && (
+            <details className={`${sectionClass} text-body text-ink-soft`}>
+              <summary className="cursor-pointer font-medium text-ink">
+                Termos e política de cancelamento
+              </summary>
+              {cancellationPolicy && (
+                <p className="mt-2 whitespace-pre-line">{cancellationPolicy}</p>
+              )}
+              {eventTerms && <p className="mt-2 whitespace-pre-line">{eventTerms}</p>}
+            </details>
+          )}
+
+          <label className={`flex items-start gap-3 ${sectionClass} text-body text-ink-soft`}>
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(event) => setAccepted(event.target.checked)}
+              className="mt-0.5 size-5 accent-brand"
+            />
+            <span>Li e aceito os termos do evento e a política de privacidade.</span>
+          </label>
+
+          {errorBox}
+          <StickyBar>
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(2)}>
+                Voltar
+              </Button>
+              <Button
+                size="lg"
+                className="flex-1"
+                loading={submitting}
+                disabled={!accepted}
+                onClick={submit}
+              >
+                Finalizar — {formatBRL(totalCents)}
+              </Button>
+            </div>
+            <p className="mt-2 text-center text-small text-ink-muted">
+              {totalQuantity} {totalQuantity === 1 ? "ingresso" : "ingressos"} · preço final, sem
+              taxas escondidas
+            </p>
+          </StickyBar>
+        </>
+      )}
     </section>
   );
+}
+
+function StickyBar({ children }: { children: React.ReactNode }) {
+  return <div className="sticky bottom-4">{children}</div>;
 }
