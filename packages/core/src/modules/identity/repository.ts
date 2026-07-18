@@ -25,6 +25,10 @@ export interface OrganizationRepository {
     ownerUserId: string,
   ): Promise<OrganizationRecord>;
   findById(organizationId: string): Promise<OrganizationRecord | null>;
+  /** Organizations where the user holds an ACTIVE membership (FR-ORG-006). */
+  listByUserId(
+    userId: string,
+  ): Promise<{ organization: OrganizationRecord; role: MembershipRole }[]>;
 }
 
 export interface MembershipRepository {
@@ -144,6 +148,15 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       where: { id: organizationId },
       select: organizationSelect,
     });
+  }
+
+  async listByUserId(userId: string) {
+    const memberships = await this.prisma.membership.findMany({
+      where: { userId, status: "ACTIVE" },
+      select: { role: true, organization: { select: organizationSelect } },
+      orderBy: { createdAt: "asc" },
+    });
+    return memberships.map((m) => ({ organization: m.organization, role: m.role }));
   }
 }
 

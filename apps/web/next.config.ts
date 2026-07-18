@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Internal packages are shipped as TypeScript source (ARQUITETURA §3).
-  transpilePackages: ["@ingressos/core", "@ingressos/db", "@ingressos/config"],
+  transpilePackages: ["@ingressos/core", "@ingressos/db", "@ingressos/config", "@ingressos/adapters"],
+  // Native/binary modules must not be bundled by the compiler.
+  serverExternalPackages: ["@node-rs/argon2", "@prisma/client"],
   poweredByHeader: false,
   async headers() {
     // Baseline security headers (CLAUDE_SECURITY_RULES §21). CSP will be

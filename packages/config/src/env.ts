@@ -1,3 +1,5 @@
+import path from "node:path";
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 /**
@@ -49,7 +51,18 @@ let cached: ServerEnv | undefined;
 /** Parse and cache env. Throws with a readable message when invalid. */
 export function loadServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv {
   if (cached) return cached;
-  const parsed = serverEnvSchema.safeParse(source);
+  if (source === process.env && !source.DATABASE_URL) {
+    // Monorepo dev: Next only auto-loads app-local .env files, while secrets
+    // live in the repo-root .env (gitignored). Harmless no-op when the file
+    // does not exist (e.g. on Vercel, where env comes from the platform).
+    loadDotenv({ path: path.resolve(process.cwd(), "../../.env"), quiet: true });
+  }
+  // Empty strings mean "not configured yet" (e.g. placeholder lines in .env)
+  // and must behave exactly like an absent variable.
+  const cleaned = Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== ""),
+  );
+  const parsed = serverEnvSchema.safeParse(cleaned);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((issue) => `- ${issue.path.join(".")}: ${issue.message}`)

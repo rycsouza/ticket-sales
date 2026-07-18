@@ -189,6 +189,11 @@ export class IdentityService {
     return { user, membership };
   }
 
+  /** Cross-org by nature: lists the caller's own organizations only. */
+  async listMyOrganizations(userId: string) {
+    return this.deps.organizations.listByUserId(userId);
+  }
+
   async listMembers(ctx: RequestContext): Promise<MembershipRecord[]> {
     // Any active member can see the member list; management requires more.
     await this.requireActiveMembership(ctx);

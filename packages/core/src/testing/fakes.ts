@@ -218,6 +218,16 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
   async findById(organizationId: string): Promise<OrganizationRecord | null> {
     return this.organizations.find((org) => org.id === organizationId) ?? null;
   }
+
+  async listByUserId(userId: string) {
+    const active = this.memberships.memberships.filter(
+      (m) => m.userId === userId && m.status === "ACTIVE",
+    );
+    return active.flatMap((m) => {
+      const organization = this.organizations.find((org) => org.id === m.organizationId);
+      return organization ? [{ organization, role: m.role }] : [];
+    });
+  }
 }
 
 export class InMemoryInviteRepository implements InviteRepository {
