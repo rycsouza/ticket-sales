@@ -28,6 +28,12 @@ export function DashboardHeader({ orgName, orgId }: { orgName: string; orgId: st
             Eventos
           </Link>
           <Link
+            href={`/painel/${orgId}/compradores`}
+            className="rounded-lg px-3 py-1.5 font-medium text-ink-600 active:bg-slate-100"
+          >
+            Compradores
+          </Link>
+          <Link
             href="/checkin"
             className="rounded-lg px-3 py-1.5 font-medium text-ink-600 active:bg-slate-100"
           >
