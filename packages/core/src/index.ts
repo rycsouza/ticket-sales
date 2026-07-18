@@ -1,2 +1,5 @@
 export * from "./shared/index";
 export * from "./ports/index";
+export * from "./modules/audit/index";
+export * from "./modules/identity/index";
+export * from "./modules/auth/index";

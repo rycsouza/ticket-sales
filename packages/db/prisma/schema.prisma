@@ -1,9 +1,11 @@
-// Prisma schema — models arrive with Fase 1 (identity, auth, events,
-// inventory, audit). Conventions (docs/ARQUITETURA.md §6):
+// Prisma schema — Fase 1 (Fundação): identity, auth, events, inventory, audit.
+// Conventions (docs/ARQUITETURA.md §6 / AGENTS.md):
 // - every producer-owned business table carries organizationId + index
-// - money as Int/BigInt cents, never Float/Decimal for currency
-// - timestamps as timestamptz (Prisma DateTime maps to timestamptz on PG)
-// - ledger/audit tables are append-only (no destructive updates)
+// - money as Int cents, never Float/Decimal for currency
+// - DateTime maps to timestamptz on Postgres; always stored UTC
+// - audit table is append-only (no destructive updates — enforced in code,
+//   and by revoking UPDATE/DELETE from the runtime db role at hardening)
+// - secrets (invite/session tokens) stored as SHA-256 hashes, never raw
 
 generator client {
   provider = "prisma-client-js"
@@ -12,4 +14,353 @@ generator client {
 datasource db {
   provider = "postgresql"
   // Connection URLs live in prisma.config.ts (Prisma 7)
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access (EP-01)
+// ---------------------------------------------------------------------------
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Organization {
+  id     String             @id @default(uuid(7))
+  status OrganizationStatus @default(ACTIVE)
+
+  // FR-ORG-001: nome, documento, contatos e endereço
+  name     String
+  document String? // CNPJ/CPF — validated in service layer
+  email    String?
+  phone    String?
+
+  addressStreet     String?
+  addressNumber     String?
+  addressComplement String?
+  addressDistrict   String?
+  addressCity       String?
+  addressState      String?
+  addressZip        String?
+
+  // FR-ORG-009: identidade pública
+  publicName   String?
+  supportEmail String?
+  supportPhone String?
+  logoUrl      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  invites     Invite[]
+  events      Event[]
+  auditEvents AuditEvent[]
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id     String     @id @default(uuid(7))
+  status UserStatus @default(ACTIVE)
+
+  email           String    @unique
+  name            String
+  // Null until first password is set (e.g. invite not yet accepted).
+  // Argon2id hash — never plaintext (FR-AUTH-002).
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships     Membership[]
+  sessions        Session[]
+  sentInvites     Invite[]     @relation("InviteInvitedBy")
+  acceptedInvites Invite[]     @relation("InviteAcceptedBy")
+}
+
+// PRD §8.1 — papéis por organização
+enum MembershipRole {
+  OWNER
+  ADMIN
+  EVENT_MANAGER
+  FINANCE
+  SUPPORT
+  GATE_COORDINATOR
+  CHECKIN_OPERATOR
+  PROMOTER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model Membership {
+  id             String           @id @default(uuid(7))
+  organizationId String
+  userId         String
+  role           MembershipRole
+  status         MembershipStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  // FR-ORG-006: one membership per user per organization
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model Invite {
+  id             String         @id @default(uuid(7))
+  organizationId String
+  email          String
+  role           MembershipRole
+  status         InviteStatus   @default(PENDING)
+
+  // SHA-256 of the raw token; raw token exists only in the invite e-mail
+  tokenHash String   @unique
+  // FR-ORG-004: validade e uso único
+  expiresAt DateTime
+
+  invitedByUserId  String
+  acceptedByUserId String?
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  invitedBy    User         @relation("InviteInvitedBy", fields: [invitedByUserId], references: [id])
+  acceptedBy   User?        @relation("InviteAcceptedBy", fields: [acceptedByUserId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([email])
+}
+
+model Session {
+  id     String @id @default(uuid(7))
+  userId String
+
+  // SHA-256 of the opaque session token (raw token only in the cookie)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  ip         String?
+  userAgent  String?
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Events & inventory (EP-02)
+// ---------------------------------------------------------------------------
+
+// PRD §11.1
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  SALES_PAUSED
+  SALES_CLOSED
+  POSTPONED
+  CANCELLED
+  COMPLETED
+  ARCHIVED
+}
+
+model Event {
+  id             String      @id @default(uuid(7))
+  organizationId String
+  status         EventStatus @default(DRAFT)
+
+  title       String
+  slug        String
+  description String?
+  coverImageUrl String? // Cloudinary — public event images only
+
+  // Venue (embedded for MVP; sectors as separate model)
+  venueName    String?
+  addressLine  String?
+  city         String?
+  state        String?
+
+  // Times stored UTC; timezone is the IANA zone used for display
+  timezone String  @default("America/Sao_Paulo")
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  // FR-EVT-003: capacidade total
+  capacityTotal Int?
+
+  // FR-EVT-007: janela de vendas
+  salesStartAt DateTime?
+  salesEndAt   DateTime?
+
+  // FR-EVT-008/009: políticas e termos
+  ageRating          String?
+  cancellationPolicy String?
+  eventTerms         String?
+
+  // FR-EVT-012: limites por pedido/comprador (regra detalhada no serviço)
+  maxTicketsPerOrder Int?
+
+  publishedAt DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  sectors      Sector[]
+  ticketTypes  TicketType[]
+  salesBatches SalesBatch[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+}
+
+model Sector {
+  id             String @id @default(uuid(7))
+  organizationId String
+  eventId        String
+
+  name     String
+  // FR-EVT-003: capacidade opcional por setor (sem assentos numerados)
+  capacity Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event        @relation(fields: [eventId], references: [id])
+  ticketTypes TicketType[]
+
+  @@unique([eventId, name])
+  @@index([organizationId])
+}
+
+// FR-EVT-013: inteiro, meia, promocional, cortesia e personalizadas
+enum TicketTypeKind {
+  FULL
+  HALF
+  PROMOTIONAL
+  COURTESY
+  CUSTOM
+}
+
+model TicketType {
+  id             String         @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  sectorId       String?
+  kind           TicketTypeKind
+  active         Boolean        @default(true)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event        Event        @relation(fields: [eventId], references: [id])
+  sector       Sector?      @relation(fields: [sectorId], references: [id])
+  salesBatches SalesBatch[]
+
+  @@unique([eventId, name])
+  @@index([organizationId])
+}
+
+enum SalesBatchStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+  SOLD_OUT
+}
+
+model SalesBatch {
+  id             String           @id @default(uuid(7))
+  organizationId String
+  eventId        String
+  ticketTypeId   String
+  status         SalesBatchStatus @default(SCHEDULED)
+
+  name String
+
+  // BR-FIN-001: money as integer cents
+  priceCents Int
+
+  // Inventory counters — mutated ONLY via atomic conditional updates
+  // (ARQUITETURA §8). available = quantityTotal - quantitySold - quantityReserved
+  quantityTotal    Int
+  quantitySold     Int @default(0)
+  quantityReserved Int @default(0)
+
+  // FR-INV-002/003: janela de venda; abertura/encerramento automáticos
+  salesStartAt DateTime?
+  salesEndAt   DateTime?
+
+  maxPerOrder Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event      Event      @relation(fields: [eventId], references: [id])
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  @@index([organizationId])
+  @@index([eventId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Audit (EP-12) — append-only
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id String @id @default(uuid(7))
+
+  // Nullable: platform-level actions have no organization scope
+  organizationId String?
+  actorUserId    String?
+  // e.g. "user" | "system" | "platform_admin" — free-form label for non-user actors
+  actorType      String  @default("user")
+
+  // FR-AUD-002: ator, organização, recurso, ação, data/hora, origem, justificativa
+  action        String
+  resourceType  String
+  resourceId    String?
+  justification String?
+
+  // FR-AUD-003: valor anterior/posterior (sensitive fields redacted by caller)
+  before Json?
+  after  Json?
+
+  correlationId String
+  ip            String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([actorUserId, createdAt])
 }
