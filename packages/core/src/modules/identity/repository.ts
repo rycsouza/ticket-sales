@@ -169,28 +169,6 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
   }
 }
 
-/** FR-ORG-009 — public identity of the producer, shown on the sales page. */
-export interface PublicOrganizationIdentity {
-  publicName: string | null;
-  logoUrl: string | null;
-}
-
-/**
- * Cross-org PUBLIC organization identity — mirrors PrismaPublicEventReader:
- * a deliberate 2-field allowlist for the public sales page (organizer block).
- * Everything else about the organization never leaves the server.
- */
-export class PrismaPublicOrganizationReader {
-  constructor(private readonly prisma: PrismaClient) {}
-
-  async findIdentityById(organizationId: string): Promise<PublicOrganizationIdentity | null> {
-    return this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { publicName: true, logoUrl: true },
-    });
-  }
-}
-
 export class PrismaMembershipRepository implements MembershipRepository {
   constructor(private readonly prisma: PrismaClient) {}
 

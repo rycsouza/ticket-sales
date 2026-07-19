@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Lock,
   LockOpen,
-  Palette,
   PauseCircle,
   PlayCircle,
   Rocket,
@@ -114,13 +113,6 @@ export default async function EventWorkspace({
         >
           <DollarSign className="size-4" />
           Financeiro
-        </Link>
-        <Link
-          href={`${base}/pagina`}
-          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-small font-medium text-ink-soft transition-colors hover:bg-hover"
-        >
-          <Palette className="size-4" />
-          Personalizar página
         </Link>
       </div>
 
