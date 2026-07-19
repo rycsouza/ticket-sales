@@ -59,7 +59,6 @@ export function CheckoutForm({
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -166,7 +165,12 @@ export function CheckoutForm({
 
   const nameValid = name.trim().length >= 2;
   const emailValid = isValidEmail(email);
-  const dataStepValid = phoneComplete && (reuseActive || (nameValid && emailValid));
+  // Only ask for name/e-mail after the phone lookup resolves without a match
+  // (or when the buyer opts out of the found cadastro). Until then, only the
+  // WhatsApp field is shown.
+  const showIdentityFields = !reuseActive && (lookup.status === "none" || useOther);
+  const dataStepValid =
+    phoneComplete && (reuseActive || (showIdentityFields && nameValid && emailValid));
 
   function setQuantity(batch: PublicBatchView, next: number) {
     const capped = Math.max(0, Math.min(next, batch.maxPerOrder ?? 20, maxTicketsPerOrder ?? 20));
@@ -231,10 +235,6 @@ export function CheckoutForm({
 
   async function submit() {
     setError(null);
-    if (!accepted) {
-      setError("É preciso aceitar os termos para continuar.");
-      return;
-    }
     setSubmitting(true);
     try {
       const items = Object.entries(quantities)
@@ -369,7 +369,7 @@ export function CheckoutForm({
           {errorBox}
           <StickyBar>
             <Button size="lg" className="w-full" disabled={totalQuantity === 0} onClick={goToData}>
-              {totalQuantity > 0 ? `Continuar — ${formatBRL(totalCents)}` : "Continuar"}
+              {totalQuantity > 0 ? `Continuar — ${formatBRL(subtotalCents)}` : "Continuar"}
             </Button>
           </StickyBar>
         </>
@@ -421,7 +421,7 @@ export function CheckoutForm({
                 </div>
               )}
 
-              {!reuseActive && (
+              {showIdentityFields && (
                 <>
                   <Field
                     label="Nome completo"
@@ -460,7 +460,23 @@ export function CheckoutForm({
               )}
             </div>
           </div>
+          {errorBox}
+          <StickyBar>
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
+                Voltar
+              </Button>
+              <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
+                Continuar
+              </Button>
+            </div>
+          </StickyBar>
+        </>
+      )}
 
+      {/* Step 3 — Revisão */}
+      {step === 3 && (
+        <>
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Cupom</h2>
             {applied ? (
@@ -499,23 +515,7 @@ export function CheckoutForm({
             )}
             {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
           </div>
-          {errorBox}
-          <StickyBar>
-            <div className="flex gap-2">
-              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
-                Voltar
-              </Button>
-              <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
-                Continuar
-              </Button>
-            </div>
-          </StickyBar>
-        </>
-      )}
 
-      {/* Step 3 — Revisão */}
-      {step === 3 && (
-        <>
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Resumo</h2>
             <ul className="divide-y divide-line">
@@ -582,35 +582,18 @@ export function CheckoutForm({
             </details>
           )}
 
-          <label className={`flex items-start gap-3 ${sectionClass} text-body text-ink-soft`}>
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={(event) => setAccepted(event.target.checked)}
-              className="mt-0.5 size-5 accent-brand"
-            />
-            <span>Li e aceito os termos do evento e a política de privacidade.</span>
-          </label>
-
           {errorBox}
           <StickyBar>
             <div className="flex gap-2">
               <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(2)}>
                 Voltar
               </Button>
-              <Button
-                size="lg"
-                className="flex-1"
-                loading={submitting}
-                disabled={!accepted}
-                onClick={submit}
-              >
+              <Button size="lg" className="flex-1" loading={submitting} onClick={submit}>
                 Finalizar — {formatBRL(totalCents)}
               </Button>
             </div>
             <p className="mt-2 text-center text-small text-ink-muted">
-              {totalQuantity} {totalQuantity === 1 ? "ingresso" : "ingressos"} · preço final, sem
-              taxas escondidas
+              Ao finalizar, você concorda com os termos do evento e a política de privacidade.
             </p>
           </StickyBar>
         </>
