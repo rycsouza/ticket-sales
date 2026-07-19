@@ -22,6 +22,12 @@ function formatBRL(centsValue: number): string {
   return (centsValue / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Buyer credential for the order endpoints: either the strong access token
+ * (Print 4 — no e-mail needed) or the classic code+e-mail pair.
+ */
+type Access = { token: string } | { code: string; email: string };
+
 const POLL_INTERVAL_MS = 10_000;
 const cardClass = "rounded-xl border border-line bg-surface p-4";
 
@@ -35,9 +41,12 @@ export function OrderTracker() {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [resent, setResent] = useState(false);
-  const credentials = useRef<{ code: string; email: string } | null>(null);
+  const credentials = useRef<Access | null>(null);
+  // Guards the mount auto-track so it fires exactly once — React StrictMode
+  // double-invokes effects in dev, and a duplicated Pix request races the PSP.
+  const autoTrackStarted = useRef(false);
 
-  const lookup = useCallback(async (creds: { code: string; email: string }) => {
+  const lookup = useCallback(async (creds: Access) => {
     const response = await fetch("/api/public/orders/lookup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -47,7 +56,7 @@ export function OrderTracker() {
     return (await response.json()) as OrderView;
   }, []);
 
-  const startPix = useCallback(async (creds: { code: string; email: string }) => {
+  const startPix = useCallback(async (creds: Access) => {
     const response = await fetch("/api/public/orders/pay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,7 +68,7 @@ export function OrderTracker() {
   }, []);
 
   const track = useCallback(
-    async (creds: { code: string; email: string }) => {
+    async (creds: Access) => {
       setLoading(true);
       setError(null);
       try {
@@ -85,16 +94,20 @@ export function OrderTracker() {
   );
 
   useEffect(() => {
+    if (autoTrackStarted.current) return;
+    autoTrackStarted.current = true;
     const stored = sessionStorage.getItem("ingressos:last-order");
     if (!stored) return;
     try {
-      const creds = JSON.parse(stored) as { code: string; email?: string };
-      setCode(creds.code);
-      // Auto-track only when the e-mail is known (returning buyers who reused a
-      // cadastro by phone type it once here).
-      if (creds.email) {
-        setEmail(creds.email);
-        void track({ code: creds.code, email: creds.email });
+      const saved = JSON.parse(stored) as { code?: string; email?: string; token?: string };
+      if (saved.code) setCode(saved.code);
+      // Print 4: with an access token we auto-track AND auto-generate the Pix
+      // with zero extra interaction — no e-mail needed, even for reuse buyers.
+      if (saved.token) {
+        void track({ token: saved.token });
+      } else if (saved.code && saved.email) {
+        setEmail(saved.email);
+        void track({ code: saved.code, email: saved.email });
       }
     } catch {
       sessionStorage.removeItem("ingressos:last-order");
@@ -255,7 +268,7 @@ export function OrderTracker() {
           <PartyPopper className="mx-auto size-8 text-success" />
           <h2 className="mt-2 text-h3 text-success-text">Pagamento confirmado!</h2>
           <p className="mt-1 text-body text-success-text">
-            Seus ingressos foram enviados para <strong>{email}</strong>. Cada ingresso tem um link
+            Seus ingressos foram enviados {email ? <strong>para {email}</strong> : "para o seu e-mail"}. Cada ingresso tem um link
             próprio com QR Code.
           </p>
           <Button

@@ -171,6 +171,8 @@ function buildServices() {
     audit,
     clock: systemClock,
     checkout: promotersService,
+    // Buyer access tokens (Print 4): issued at checkout, resolved on the order page.
+    cache,
     // Lazy: customersService is constructed below; the closure resolves it at
     // request time, letting a returning buyer reuse their data by phone.
     customerLookup: {
@@ -277,6 +279,8 @@ function buildServices() {
     clock: systemClock,
     commissionCoordinator: promotersService,
     refundCoordinator,
+    // Throttles gateway reconciliation on the order page (Print 5).
+    cache,
   });
 
   return {

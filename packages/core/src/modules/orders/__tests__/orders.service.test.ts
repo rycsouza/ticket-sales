@@ -4,7 +4,7 @@ import {
   NotFoundOrForbiddenError,
   ValidationFailedError,
 } from "../../../shared/errors";
-import { FakeClock, InMemoryAuditRepository } from "../../../testing/fakes";
+import { FakeCache, FakeClock, InMemoryAuditRepository } from "../../../testing/fakes";
 import {
   InMemoryEventRepository,
   InMemorySalesBatchRepository,
@@ -24,6 +24,7 @@ async function setup(options?: { capacity?: number; batchQty?: number }) {
   const batches = new InMemorySalesBatchRepository();
   const reservations = new InMemoryReservationStore(batches);
   const orders = new InMemoryOrderRepository(reservations);
+  const cache = new FakeCache(clock);
 
   const event = await events.create({
     organizationId: ORG,
@@ -64,9 +65,10 @@ async function setup(options?: { capacity?: number; batchQty?: number }) {
     batches,
     audit,
     clock,
+    cache,
   });
 
-  return { clock, audit, events, batches, reservations, orders, service, event, batch };
+  return { clock, audit, events, batches, reservations, orders, service, event, batch, cache };
 }
 
 const buyer = { name: "Maria Compradora", email: "maria@teste.com" };
@@ -364,5 +366,57 @@ describe("settleRefund (FR-PAY-011/013)", () => {
     const done = await env.service.settleRefund(ORG, order.id, "REFUNDED", { correlationId: "c" });
     expect(done).toBe(false);
     expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
+  });
+});
+
+describe("order access token (Print 4)", () => {
+  it("issues a token at checkout that resolves back to the order scope", async () => {
+    const env = await setup();
+    const { order, accessToken } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+
+    expect(accessToken).toBeTruthy();
+    const resolved = await env.service.resolveAccessToken(accessToken as string);
+    expect(resolved).toEqual({ organizationId: ORG, orderId: order.id });
+
+    const byToken = await env.service.getOrderByAccessToken(accessToken as string);
+    expect(byToken.id).toBe(order.id);
+  });
+
+  it("never exposes the buyer e-mail through the token payload", async () => {
+    const env = await setup();
+    const { accessToken } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+    // The raw cache entry (the only thing persisted) must carry no PII.
+    const stored = JSON.stringify([...(env.cache as unknown as { store: Map<string, { value: string }> }).store.values()]);
+    expect(stored).not.toContain("maria@teste.com");
+    expect(stored).not.toContain("Maria");
+    expect(accessToken).not.toContain("maria");
+  });
+
+  it("rejects an unknown or forged token with a generic 404 (anti-enumeration)", async () => {
+    const env = await setup();
+    await expect(env.service.resolveAccessToken("not-a-real-token-xxxxxxxx")).rejects.toThrow(
+      NotFoundOrForbiddenError,
+    );
+    await expect(env.service.getOrderByAccessToken("still-fake-yyyyyyyy")).rejects.toThrow(
+      NotFoundOrForbiddenError,
+    );
+  });
+
+  it("expires the token after its TTL", async () => {
+    const env = await setup();
+    const { accessToken } = await env.service.createOrder(
+      { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 1 }], buyer },
+      { correlationId: "c" },
+    );
+    env.clock.advance(2 * 60 * 60 * 1000 + 1000); // past the 2h access TTL
+    await expect(env.service.resolveAccessToken(accessToken as string)).rejects.toThrow(
+      NotFoundOrForbiddenError,
+    );
   });
 });

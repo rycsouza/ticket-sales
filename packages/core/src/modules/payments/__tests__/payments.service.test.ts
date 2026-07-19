@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ConflictError, NotFoundOrForbiddenError } from "../../../shared/errors";
-import { FakeClock, InMemoryAuditRepository } from "../../../testing/fakes";
+import { FakeCache, FakeClock, InMemoryAuditRepository } from "../../../testing/fakes";
 import {
   InMemoryEventRepository,
   InMemorySalesBatchRepository,
@@ -68,6 +68,7 @@ async function setup() {
     clock,
   });
 
+  const cache = new FakeCache(clock);
   const fulfillments: string[] = [];
   const service = new PaymentsService({
     payments,
@@ -82,6 +83,7 @@ async function setup() {
     psp,
     audit,
     clock,
+    cache,
   });
 
   const { order } = await ordersService.createOrder(
@@ -105,6 +107,7 @@ async function setup() {
     service,
     ordersService,
     fulfillments,
+    cache,
   };
 }
 
@@ -368,5 +371,97 @@ describe("processWebhook — refund settles order+tickets and reverses commissio
     expect(env.payments.payments[0]?.status).toBe("REFUNDED");
     expect(settled).toEqual([{ orderId: env.order.id, kind: "REFUNDED" }]);
     expect(reversed).toEqual([env.order.id]);
+  });
+});
+
+describe("reconcileOrder — gateway safety net (Print 5)", () => {
+  it("approves via the gateway when the webhook never arrived (paid + fulfilled once)", async () => {
+    const env = await setup();
+    await env.service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
+
+    // The PSP says APPROVED even though no webhook was processed.
+    env.psp.nextTransactionStatus = "approved";
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+
+    expect(env.payments.payments[0]?.status).toBe("APPROVED");
+    expect(env.orders.orders[0]?.status).toBe("PAID");
+    expect(env.batch.quantitySold).toBe(2);
+    expect(env.fulfillments).toEqual([env.order.id]);
+  });
+
+  it("is idempotent against a later webhook — guarded effects run once", async () => {
+    const env = await setup();
+    // Mirror the real fulfiller: fulfillment is idempotent (issueForOrder is a
+    // no-op on retry). applyEvent is deliberately re-entrant (crash-healing),
+    // so the once-only guarantee at THIS layer is the guarded state machine.
+    const fulfilledOrders = new Set<string>();
+    const service = new PaymentsService({
+      payments: env.payments,
+      paymentEvents: env.paymentEvents,
+      orders: env.orders,
+      orderCoordinator: env.ordersService,
+      fulfiller: { fulfill: async (_org, orderId) => void fulfilledOrders.add(orderId) },
+      psp: env.psp,
+      audit: env.audit,
+      clock: env.clock,
+      cache: env.cache,
+    });
+
+    const payment = await service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
+
+    env.psp.nextTransactionStatus = "approved";
+    await service.reconcileOrder(ORG, env.order.id, meta);
+
+    // Webhook lands afterwards for the same transaction (distinct event id).
+    env.psp.nextWebhookEvent = {
+      providerEventId: "evt_late",
+      providerTransactionId: payment.providerTransactionId as string,
+      type: "payment.approved",
+      occurredAt: env.clock.now(),
+    };
+    await service.processWebhook({ headers: {}, rawBody: "{}" }, meta);
+
+    expect([...fulfilledOrders]).toEqual([env.order.id]);
+    expect(env.payments.payments[0]?.status).toBe("APPROVED"); // approved once
+    expect(env.orders.orders[0]?.status).toBe("PAID"); // paid once
+    expect(env.batch.quantitySold).toBe(2); // inventory sold once, not doubled
+  });
+
+  it("does nothing while the charge is still pending at the gateway", async () => {
+    const env = await setup();
+    await env.service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
+
+    env.psp.nextTransactionStatus = "pending";
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+
+    expect(env.payments.payments[0]?.status).toBe("CREATED");
+    expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
+    expect(env.fulfillments).toHaveLength(0);
+  });
+
+  it("throttles repeated reconciliations so polling never hammers the PSP", async () => {
+    const env = await setup();
+    await env.service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
+    env.psp.nextTransactionStatus = "pending";
+
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+
+    expect(env.psp.transactionCalls).toHaveLength(1); // 2nd/3rd hit the throttle
+
+    env.clock.advance(21_000); // past the 20s throttle window
+    await env.service.reconcileOrder(ORG, env.order.id, meta);
+    expect(env.psp.transactionCalls).toHaveLength(2);
+  });
+
+  it("never throws when the gateway is unreachable", async () => {
+    const env = await setup();
+    await env.service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta);
+    env.psp.getTransaction = async () => {
+      throw new Error("gateway down");
+    };
+    await expect(env.service.reconcileOrder(ORG, env.order.id, meta)).resolves.toBeUndefined();
+    expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
   });
 });

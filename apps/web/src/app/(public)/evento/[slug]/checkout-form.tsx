@@ -261,19 +261,25 @@ export function CheckoutForm({
           ...(hasUtm ? { utm } : {}),
         }),
       });
-      const data = (await response.json()) as { code?: string; error?: string };
+      const data = (await response.json()) as {
+        code?: string;
+        accessToken?: string | null;
+        error?: string;
+      };
 
       if (!response.ok || !data.code) {
         setError(data.error ?? "Não foi possível criar o pedido. Tente novamente.");
         return;
       }
 
-      // Store the e-mail for auto-tracking only when we actually have it
-      // (the reuse path never receives it client-side; the buyer types it once
-      // on the order page if needed).
-      const stored = reuseActive
-        ? { code: data.code }
-        : { code: data.code, email: email.trim().toLowerCase() };
+      // Prefer the access token (Print 4): the order page tracks + generates the
+      // Pix automatically, with no e-mail re-entry — works for reuse buyers too.
+      // Fall back to code+e-mail only when a token was not issued.
+      const stored = data.accessToken
+        ? { code: data.code, token: data.accessToken }
+        : reuseActive
+          ? { code: data.code }
+          : { code: data.code, email: email.trim().toLowerCase() };
       sessionStorage.setItem("ingressos:last-order", JSON.stringify(stored));
       router.push("/pedido");
     } catch {

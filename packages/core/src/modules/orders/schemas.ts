@@ -68,3 +68,26 @@ export const orderLookupSchema = z
   .strict();
 
 export type OrderLookupInput = z.infer<typeof orderLookupSchema>;
+
+/**
+ * Buyer access to an order's status / Pix charge (FR-CHK-016..018). Two
+ * mutually acceptable credentials, both verified server-side:
+ *  - `token`: a strong, high-entropy access token issued at checkout and kept
+ *    ONLY on the client. It resolves the order without ever exposing the buyer
+ *    e-mail — lets a returning buyer (who reused a cadastro by phone) track and
+ *    pay with zero extra typing (Print 4).
+ *  - `code` + `email`: the classic pair, typed by a buyer returning later or on
+ *    another device. Weaker, so tickets are never listed on this path.
+ */
+export const orderAccessSchema = z
+  .object({
+    token: z.string().trim().min(16).max(200).optional(),
+    code: z.string().trim().min(8).max(40).optional(),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+  })
+  .strict()
+  .refine((b) => !!b.token || (!!b.code && !!b.email), {
+    message: "Informe o token de acesso, ou o código e o e-mail do pedido.",
+  });
+
+export type OrderAccessInput = z.infer<typeof orderAccessSchema>;

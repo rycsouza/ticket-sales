@@ -15,7 +15,7 @@ export const POST = route(async (request, { correlationId }) => {
   const contactKey = input.buyer.email ?? input.buyer.phone ?? ip;
   await enforceRateLimit("public-order-contact", contactKey, 10, 5 * 60);
 
-  const { order, expiresAt } = await getServices().orders.createOrder(input, {
+  const { order, expiresAt, accessToken } = await getServices().orders.createOrder(input, {
     correlationId,
   });
 
@@ -26,6 +26,9 @@ export const POST = route(async (request, { correlationId }) => {
       totalCents: order.totalCents,
       // FR-CHK-011: countdown target for the reservation
       expiresAt,
+      // Print 4: strong buyer access token — lets the order page track + pay
+      // without ever re-asking the e-mail. Stored client-side only.
+      accessToken,
     },
     { status: 201 },
   );

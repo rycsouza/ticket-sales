@@ -1,9 +1,16 @@
 import { cents } from "../../shared/money";
 import { ConflictError, NotFoundOrForbiddenError } from "../../shared/errors";
+import type { CachePort } from "../../ports/cache";
 import type { ClockPort } from "../../ports/clock";
-import type { NormalizedPspEvent, PspPort, WebhookInput } from "../../ports/psp";
+import type {
+  NormalizedPspEvent,
+  PspPort,
+  PspTransactionStatus,
+  WebhookInput,
+} from "../../ports/psp";
 import type { AuditRepository } from "../audit/repository";
 import type { OrderRepository } from "../orders/repository";
+import type { OrderRecord } from "../orders/types";
 import type { PaymentEventRepository, PaymentRepository } from "./repository";
 import type { PaymentRecord } from "./types";
 
@@ -57,6 +64,34 @@ export interface PaymentsServiceDeps {
   clock: ClockPort;
   commissionCoordinator?: CommissionReversalCoordinator | undefined;
   refundCoordinator?: RefundSettlementCoordinator | undefined;
+  /** Optional: throttles gateway reconciliation so polling never hammers the PSP. */
+  cache?: CachePort | undefined;
+}
+
+/**
+ * Minimum gap between two gateway reconciliations of the same order. The status
+ * page polls every ~10s; without this it would hit the PSP on every poll.
+ */
+const RECONCILE_THROTTLE_SECONDS = 20;
+
+/** Maps an authoritative PSP status to the domain event the webhook would emit. */
+function statusToEventType(status: PspTransactionStatus): NormalizedPspEvent["type"] | null {
+  switch (status) {
+    case "approved":
+      return "payment.approved";
+    case "rejected":
+      return "payment.rejected";
+    case "expired":
+    case "cancelled":
+      return "payment.expired";
+    case "refunded":
+    case "partially_refunded":
+      return "payment.refunded";
+    case "charged_back":
+      return "payment.charged_back";
+    case "pending":
+      return null; // nothing actionable yet
+  }
 }
 
 export type WebhookOutcome =
@@ -77,12 +112,34 @@ export class PaymentsService {
     email: string,
     meta: { correlationId: string },
   ): Promise<PaymentRecord> {
-    const now = this.deps.clock.now();
-
     const order = await this.deps.orders.findByCode(code);
     if (!order || order.buyerEmail !== email.toLowerCase()) {
       throw new NotFoundOrForbiddenError();
     }
+    return this.chargePix(order, meta);
+  }
+
+  /**
+   * Token path (Print 4): the caller already proved access via the order access
+   * token, so no e-mail check here — we load the order by its scoped id and
+   * charge it. Same idempotent core as the code+e-mail path.
+   */
+  async createPixChargeById(
+    organizationId: string,
+    orderId: string,
+    meta: { correlationId: string },
+  ): Promise<PaymentRecord> {
+    const order = await this.deps.orders.findByIdScoped(organizationId, orderId);
+    if (!order) throw new NotFoundOrForbiddenError();
+    return this.chargePix(order, meta);
+  }
+
+  private async chargePix(
+    order: OrderRecord,
+    meta: { correlationId: string },
+  ): Promise<PaymentRecord> {
+    const now = this.deps.clock.now();
+
     if (order.status !== "AWAITING_PAYMENT") {
       throw new ConflictError("Order is not awaiting payment");
     }
@@ -175,6 +232,59 @@ export class PaymentsService {
         error instanceof Error ? error.message : String(error),
       );
       throw error;
+    }
+  }
+
+  /**
+   * Gateway reconciliation (Print 5, FR-PAY-008). The webhook is the primary
+   * confirmation path; this is the safety net for when it is delayed or lost.
+   * It asks the PSP for the authoritative state of the order's pending charge
+   * and, if that diverges from ours, applies the SAME idempotent effect the
+   * webhook would (approve → mark paid → fulfill; reject/expire → move the
+   * payment). Throttled via cache so a polling status page never hammers the
+   * provider, and it NEVER throws — a buyer's status page must render even when
+   * the gateway is unreachable.
+   */
+  async reconcileOrder(
+    organizationId: string,
+    orderId: string,
+    meta: { correlationId: string },
+  ): Promise<void> {
+    try {
+      if (this.deps.cache) {
+        const fresh = await this.deps.cache.setIfAbsent(
+          `payment-reconcile:${orderId}`,
+          "1",
+          RECONCILE_THROTTLE_SECONDS,
+        );
+        if (!fresh) return; // reconciled very recently — rely on DB + webhook
+      }
+
+      const payments = await this.deps.payments.listByOrder(organizationId, orderId);
+      // Newest pending charge with a provider transaction is the one to verify.
+      const pending = [...payments]
+        .reverse()
+        .find(
+          (p) =>
+            p.providerTransactionId && (p.status === "CREATED" || p.status === "PROCESSING"),
+        );
+      if (!pending?.providerTransactionId) return;
+
+      const transaction = await this.deps.psp.getTransaction(pending.providerTransactionId);
+      const type = statusToEventType(transaction.status);
+      if (!type) return; // still pending — nothing to reconcile
+
+      await this.applyEvent(
+        {
+          providerEventId: `reconcile:${pending.providerTransactionId}:${type}`,
+          providerTransactionId: pending.providerTransactionId,
+          type,
+          occurredAt: this.deps.clock.now(),
+        },
+        meta,
+      );
+    } catch {
+      // Best-effort: never let reconciliation break the buyer's status page.
     }
   }
 

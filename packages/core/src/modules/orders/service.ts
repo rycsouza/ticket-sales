@@ -1,10 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   ConflictError,
   NotFoundOrForbiddenError,
   ValidationFailedError,
 } from "../../shared/errors";
 import { cents, percentageOf } from "../../shared/money";
+import type { CachePort } from "../../ports/cache";
 import type { ClockPort } from "../../ports/clock";
 import type { AuditRepository } from "../audit/repository";
 import type { EventRecord } from "../events/types";
@@ -79,6 +80,19 @@ export interface OrdersServiceDeps {
   checkout?: CheckoutResolver | undefined;
   /** Optional: absent in environments without the customers module. */
   customerLookup?: CustomerLookupResolver | undefined;
+  /** Optional: short-lived buyer access tokens (Print 4). Absent → code+e-mail only. */
+  cache?: CachePort | undefined;
+}
+
+/**
+ * Buyer access token lifetime: long enough to cover the payment window plus a
+ * few page refreshes / a quick return, short enough to stay ephemeral.
+ */
+const ORDER_ACCESS_TTL_SECONDS = 2 * 60 * 60;
+
+/** Cache key for a buyer access token — only a HASH is stored, never the raw token. */
+function orderAccessKey(token: string): string {
+  return `order-access:${createHash("sha256").update(token).digest("hex")}`;
 }
 
 // Crockford-like base32 (no 0/O/1/I) — public order codes are unguessable
@@ -104,7 +118,7 @@ export class OrdersService {
   async createOrder(
     input: CreateOrderInput,
     meta: { correlationId: string },
-  ): Promise<{ order: OrderRecord; expiresAt: Date }> {
+  ): Promise<{ order: OrderRecord; expiresAt: Date; accessToken: string | null }> {
     const now = this.deps.clock.now();
 
     const event = await this.deps.publicEvents.findPublishedById(input.eventId);
@@ -239,7 +253,9 @@ export class OrdersService {
       }
     }
 
-    return { order, expiresAt };
+    const accessToken = await this.issueAccessToken(order);
+
+    return { order, expiresAt, accessToken };
   }
 
   /**
@@ -252,6 +268,56 @@ export class OrdersService {
       throw new NotFoundOrForbiddenError();
     }
     return order;
+  }
+
+  /**
+   * Issues a high-entropy access token bound to the order (Print 4). The token
+   * is the credential — it lets the buyer track status and pay WITHOUT retyping
+   * their e-mail, and the real e-mail never travels to the client. Only a hash
+   * is persisted (in the short-lived cache); returns null when no cache is
+   * configured, so callers transparently fall back to the code+e-mail path.
+   */
+  private async issueAccessToken(order: OrderRecord): Promise<string | null> {
+    if (!this.deps.cache) return null;
+    const token = randomBytes(32).toString("base64url");
+    await this.deps.cache.set(
+      orderAccessKey(token),
+      JSON.stringify({ organizationId: order.organizationId, orderId: order.id }),
+      ORDER_ACCESS_TTL_SECONDS,
+    );
+    return token;
+  }
+
+  /**
+   * Resolves an access token to its order scope, or throws a generic 404
+   * (anti-enumeration — an unknown/expired token is indistinguishable from a
+   * forbidden one).
+   */
+  async resolveAccessToken(
+    token: string,
+  ): Promise<{ organizationId: string; orderId: string }> {
+    const raw = this.deps.cache ? await this.deps.cache.get(orderAccessKey(token)) : null;
+    if (!raw) throw new NotFoundOrForbiddenError();
+    try {
+      const parsed = JSON.parse(raw) as { organizationId?: string; orderId?: string };
+      if (!parsed.organizationId || !parsed.orderId) throw new Error("bad token payload");
+      return { organizationId: parsed.organizationId, orderId: parsed.orderId };
+    } catch {
+      throw new NotFoundOrForbiddenError();
+    }
+  }
+
+  /** Buyer order lookup by access token (Print 4 — no e-mail needed). */
+  async getOrderByAccessToken(token: string): Promise<OrderRecord> {
+    const { organizationId, orderId } = await this.resolveAccessToken(token);
+    const order = await this.deps.orders.findByIdScoped(organizationId, orderId);
+    if (!order) throw new NotFoundOrForbiddenError();
+    return order;
+  }
+
+  /** Scoped re-read — used to reflect the fresh status after reconciliation. */
+  async getOrderById(organizationId: string, orderId: string): Promise<OrderRecord | null> {
+    return this.deps.orders.findByIdScoped(organizationId, orderId);
   }
 
   /**
