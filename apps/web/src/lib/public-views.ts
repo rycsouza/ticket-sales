@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { EventRecord } from "@ingressos/core";
+import { defaultPageBlocks, parseStoredBlocks, type EventRecord, type PageBlock } from "@ingressos/core";
 import { getServices } from "./services";
 
 export interface PublicBatchView {
@@ -10,6 +10,21 @@ export interface PublicBatchView {
   priceCents: number;
   available: boolean;
   maxPerOrder: number | null;
+}
+
+/** Personalização da página (identidade visual + blocos) — allowlist pública. */
+export interface PublicEventPageView {
+  brandColor: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  faviconUrl: string | null;
+  blocks: PageBlock[];
+}
+
+/** FR-ORG-009 — identidade pública do produtor (bloco "organizer"). */
+export interface PublicOrganizerView {
+  publicName: string | null;
+  logoUrl: string | null;
 }
 
 export interface PublicEventView {
@@ -32,6 +47,8 @@ export interface PublicEventView {
   platformFeeBps: number;
   feeMode: "BUYER" | "PRODUCER";
   batches: PublicBatchView[];
+  page: PublicEventPageView;
+  organizer: PublicOrganizerView | null;
 }
 
 /**
@@ -53,9 +70,11 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
 async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
   const now = new Date();
-  const [batches, ticketTypes] = await Promise.all([
+  const [batches, ticketTypes, pageRow, organizerIdentity] = await Promise.all([
     services.batchesRepo.listByEvent(event.organizationId, event.id),
     services.ticketTypesRepo.listByEvent(event.organizationId, event.id),
+    services.publicEventPages.findByEventId(event.id),
+    services.publicOrganizations.findIdentityById(event.organizationId),
   ]);
   const typeNames = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
@@ -95,6 +114,18 @@ async function buildPublicEventView(event: EventRecord): Promise<PublicEventView
     platformFeeBps: event.platformFeeBps,
     feeMode: event.feeMode,
     batches: visibleBatches,
+    // Blocos re-validados por Zod na leitura (JSON corrompido → defaults);
+    // eventos sem personalização renderizam a página padrão de sempre.
+    page: {
+      brandColor: pageRow?.brandColor ?? null,
+      logoUrl: pageRow?.logoUrl ?? null,
+      bannerUrl: pageRow?.bannerUrl ?? null,
+      faviconUrl: pageRow?.faviconUrl ?? null,
+      blocks: pageRow ? parseStoredBlocks(pageRow.blocks) : defaultPageBlocks(),
+    },
+    organizer: organizerIdentity
+      ? { publicName: organizerIdentity.publicName, logoUrl: organizerIdentity.logoUrl }
+      : null,
   };
 }
 

@@ -229,7 +229,9 @@ model Event {
   // all producers). Generated uniquely on creation with a numeric suffix.
   slug        String  @unique
   description String?
-  coverImageUrl String? // Cloudinary — public event images only
+  // Superado por EventPage.bannerUrl (personalização da página de venda);
+  // mantido por compatibilidade — nunca foi lido pela página pública.
+  coverImageUrl String?
 
   // Venue (embedded for MVP; sectors as separate model)
   venueName    String?
@@ -272,8 +274,35 @@ model Event {
   sectors      Sector[]
   ticketTypes  TicketType[]
   salesBatches SalesBatch[]
+  page         EventPage?
 
   @@index([organizationId, status])
+}
+
+// Personalização da página pública de venda (/evento/<slug>) — identidade
+// visual + documento de blocos, editado pelo produtor no painel. 1:1 com o
+// evento; `blocks` é validado por Zod (eventPageBlocksSchema) em toda escrita
+// e re-validado em toda leitura no serviço (nunca confiar no JSON armazenado).
+model EventPage {
+  id             String @id @default(uuid(7))
+  organizationId String
+  eventId        String @unique
+
+  // Identidade visual (colunas — usadas também em metadata/og sem varrer blocks)
+  brandColor String? // #rrggbb, validado por Zod
+  logoUrl    String? // Cloudinary — imagens públicas
+  bannerUrl  String? // Cloudinary — também vira og:image
+  faviconUrl String? // Cloudinary
+
+  // Documento ordenado de blocos (discriminated union no core/event-page)
+  blocks Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@index([organizationId])
 }
 
 model Sector {

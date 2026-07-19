@@ -6,6 +6,7 @@ import type {
   CustomerRecord,
   SegmentResult,
   EventFinancialSummary,
+  EventPageRecord,
   EventRecord,
   LedgerEntryRecord,
   OrderNoteRecord,
@@ -45,6 +46,17 @@ export function toEventResponse(event: EventRecord) {
     platformFeeBps: event.platformFeeBps,
     feeMode: event.feeMode,
     publishedAt: event.publishedAt,
+  };
+}
+
+export function toEventPageResponse(page: EventPageRecord) {
+  return {
+    eventId: page.eventId,
+    brandColor: page.brandColor,
+    logoUrl: page.logoUrl,
+    bannerUrl: page.bannerUrl,
+    faviconUrl: page.faviconUrl,
+    blocks: page.blocks,
   };
 }
 
