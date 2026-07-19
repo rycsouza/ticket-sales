@@ -13,7 +13,9 @@
     "test": "turbo test",
     "db:generate": "pnpm --filter @ingressos/db generate",
     "db:migrate": "pnpm --filter @ingressos/db migrate",
-    "db:studio": "pnpm --filter @ingressos/db studio"
+    "db:migrate:deploy": "pnpm --filter @ingressos/db exec prisma migrate deploy",
+    "db:studio": "pnpm --filter @ingressos/db studio",
+    "postinstall": "pnpm --filter @ingressos/db run generate"
   },
   "devDependencies": {
     "turbo": "^2.10.5",
