@@ -5,6 +5,7 @@ import {
   AuthService,
   CheckinService,
   CustomersService,
+  EventPageService,
   EventsService,
   FinanceService,
   IdentityService,
@@ -25,6 +26,7 @@ import {
   PrismaCheckinAssignmentRepository,
   PrismaCheckinRepository,
   PrismaCustomerRepository,
+  PrismaEventPageRepository,
   PrismaEventRepository,
   PrismaInviteRepository,
   PrismaLedgerRepository,
@@ -34,7 +36,9 @@ import {
   PrismaOrganizationRepository,
   PrismaPaymentEventRepository,
   PrismaPaymentRepository,
+  PrismaPublicEventPageReader,
   PrismaPublicEventReader,
+  PrismaPublicOrganizationReader,
   PrismaReservationStore,
   PrismaSalesBatchRepository,
   PrismaSectorRepository,
@@ -50,9 +54,11 @@ import {
   type CachePort,
   type MailerPort,
   type PspPort,
+  type PublicImageStoragePort,
 } from "@ingressos/core";
 import {
   Argon2PasswordHasher,
+  CloudinaryAdapter,
   MailtrapAdapter,
   MemoryCache,
   MercadoPagoAdapter,
@@ -95,6 +101,22 @@ function buildPsp(env: ReturnType<typeof loadServerEnv>): PspPort {
   };
 }
 
+/**
+ * Imagens públicas (logo/banner/favicon da página do evento) via Cloudinary.
+ * Sem env, o resto do editor funciona e o upload devolve um 400 amigável
+ * (padrão buildPsp).
+ */
+function buildPublicImageStorage(env: ReturnType<typeof loadServerEnv>): PublicImageStoragePort {
+  if (env.CLOUDINARY_URL) {
+    return new CloudinaryAdapter(env.CLOUDINARY_URL);
+  }
+  return {
+    upload: async () => {
+      throw new ValidationFailedError("Upload de imagens não configurado neste ambiente");
+    },
+  };
+}
+
 function buildMailer(env: ReturnType<typeof loadServerEnv>): MailerPort {
   if (env.MAILTRAP_API_TOKEN && env.MAILTRAP_SENDER_EMAIL) {
     return new MailtrapAdapter(env.MAILTRAP_API_TOKEN, env.MAILTRAP_SENDER_EMAIL);
@@ -120,6 +142,9 @@ function buildServices() {
   const invites = new PrismaInviteRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);
   const events = new PrismaEventRepository(prisma);
+  const eventPages = new PrismaEventPageRepository(prisma);
+  const publicEventPages = new PrismaPublicEventPageReader(prisma);
+  const publicOrganizations = new PrismaPublicOrganizationReader(prisma);
   const sectors = new PrismaSectorRepository(prisma);
   const ticketTypes = new PrismaTicketTypeRepository(prisma);
   const batches = new PrismaSalesBatchRepository(prisma);
@@ -286,6 +311,8 @@ function buildServices() {
   return {
     cache,
     publicEvents,
+    publicEventPages,
+    publicOrganizations,
     batchesRepo: batches,
     ticketTypesRepo: ticketTypes,
     orders: ordersService,
@@ -359,6 +386,13 @@ function buildServices() {
       events,
       memberships,
       audit,
+    }),
+    eventPage: new EventPageService({
+      pages: eventPages,
+      events,
+      memberships,
+      audit,
+      images: buildPublicImageStorage(env),
     }),
   };
 }

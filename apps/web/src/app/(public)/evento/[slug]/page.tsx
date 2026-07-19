@@ -1,11 +1,105 @@
+import type { CSSProperties } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
-import { formatEventDate, getPublicEventViewBySlug } from "@/lib/public-views";
+import type { PageBlock } from "@ingressos/core";
+import { brandTokens } from "@/lib/brand-theme";
+import { getPublicEventViewBySlug, type PublicEventView } from "@/lib/public-views";
 import { CheckoutForm } from "./checkout-form";
+import { TicketsCta } from "./tickets-cta";
+import { CountdownBlock } from "./blocks/countdown-block";
+import { DescriptionBlock } from "./blocks/description-block";
+import { FaqBlock } from "./blocks/faq-block";
+import { GalleryBlock } from "./blocks/gallery-block";
+import { HeroBlock } from "./blocks/hero-block";
+import { LineupBlock } from "./blocks/lineup-block";
+import { LocationBlock } from "./blocks/location-block";
+import { OrganizerBlock } from "./blocks/organizer-block";
+import { VideoBlock } from "./blocks/video-block";
 
 // Public event slug: lowercase letters, digits and hyphens.
 const slugSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+
+async function resolveEvent(slug: string): Promise<PublicEventView | null> {
+  const parsed = slugSchema.safeParse(slug);
+  if (!parsed.success) return null;
+  return getPublicEventViewBySlug(parsed.data);
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await resolveEvent(slug);
+  if (!event) return {};
+
+  const description = event.description
+    ? event.description.slice(0, 160)
+    : `Ingressos para ${event.title}`;
+
+  return {
+    title: event.title,
+    description,
+    ...(event.page.faviconUrl ? { icons: { icon: event.page.faviconUrl } } : {}),
+    openGraph: {
+      title: event.title,
+      description,
+      ...(event.page.bannerUrl ? { images: [{ url: event.page.bannerUrl }] } : {}),
+    },
+  };
+}
+
+/** Mapeia o documento de blocos (já validado no server) para as seções. */
+function renderBlock(block: PageBlock, event: PublicEventView) {
+  if (!block.visible) return null;
+  switch (block.type) {
+    case "hero":
+      return <HeroBlock key={block.id} event={event} config={block.config} />;
+    case "description":
+      return <DescriptionBlock key={block.id} event={event} config={block.config} />;
+    case "location":
+      return <LocationBlock key={block.id} event={event} config={block.config} />;
+    case "organizer":
+      return <OrganizerBlock key={block.id} event={event} config={block.config} />;
+    case "faq":
+      return <FaqBlock key={block.id} config={block.config} />;
+    case "lineup":
+      return <LineupBlock key={block.id} config={block.config} />;
+    case "gallery":
+      return <GalleryBlock key={block.id} config={block.config} />;
+    case "video":
+      return <VideoBlock key={block.id} config={block.config} />;
+    case "countdown":
+      return (
+        <CountdownBlock
+          key={block.id}
+          startsAt={event.startsAt ? event.startsAt.toISOString() : null}
+          config={block.config}
+        />
+      );
+    case "tickets":
+      return (
+        <section key={block.id} id={block.id} className="scroll-mt-4">
+          {block.config.heading && (
+            <h2 className="mb-2 text-small font-semibold uppercase tracking-wide text-ink-muted">
+              {block.config.heading}
+            </h2>
+          )}
+          <CheckoutForm
+            eventId={event.id}
+            batches={event.batches}
+            maxTicketsPerOrder={event.maxTicketsPerOrder}
+            platformFeeBps={event.platformFeeBps}
+            feeMode={event.feeMode}
+            eventTerms={event.eventTerms}
+            cancellationPolicy={event.cancellationPolicy}
+          />
+        </section>
+      );
+  }
+}
 
 export default async function PublicEventPage({
   params,
@@ -13,59 +107,24 @@ export default async function PublicEventPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const parsed = slugSchema.safeParse(slug);
-  if (!parsed.success) notFound();
-
-  const event = await getPublicEventViewBySlug(parsed.data);
+  const event = await resolveEvent(slug);
   if (!event) notFound();
 
-  const dateLabel = formatEventDate(event.startsAt, event.timezone);
+  // Cor do produtor re-tematiza a página inteira via tokens --color-brand*
+  // (hex inválido → {} → tema padrão). Componentes não mudam nada.
+  const themeStyle = brandTokens(event.page.brandColor) as CSSProperties;
+
+  // CTA fixo "comprar ingressos": menor preço entre lotes compráveis agora.
+  const availablePrices = event.batches.filter((b) => b.available).map((b) => b.priceCents);
+  const ticketsBlock = event.page.blocks.find((b) => b.type === "tickets");
+  const fromPriceCents = availablePrices.length > 0 ? Math.min(...availablePrices) : null;
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8">
-      <header className="mb-6">
-        <p className="mb-1 text-caption font-semibold uppercase tracking-widest text-brand">
-          Evento
-        </p>
-        <h1 className="text-h1 leading-tight text-ink">{event.title}</h1>
-        <div className="mt-3 space-y-1.5 text-body text-ink-soft">
-          {dateLabel && (
-            <p className="flex items-center gap-2">
-              <CalendarDays className="size-4 shrink-0 text-ink-muted" />
-              {dateLabel}
-            </p>
-          )}
-          {event.venueName && (
-            <p className="flex items-center gap-2">
-              <MapPin className="size-4 shrink-0 text-ink-muted" />
-              {event.venueName}
-              {event.city ? ` — ${event.city}${event.state ? `/${event.state}` : ""}` : ""}
-            </p>
-          )}
-          {event.ageRating && (
-            <p className="flex items-center gap-2">
-              <ShieldAlert className="size-4 shrink-0 text-ink-muted" />
-              Classificação: {event.ageRating}
-            </p>
-          )}
-        </div>
-      </header>
-
-      {event.description && (
-        <section className="mb-6 whitespace-pre-line rounded-xl border border-line bg-surface p-4 text-body leading-relaxed text-ink-soft">
-          {event.description}
-        </section>
+    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8" style={themeStyle}>
+      {event.page.blocks.map((block) => renderBlock(block, event))}
+      {ticketsBlock && fromPriceCents !== null && (
+        <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
       )}
-
-      <CheckoutForm
-        eventId={event.id}
-        batches={event.batches}
-        maxTicketsPerOrder={event.maxTicketsPerOrder}
-        platformFeeBps={event.platformFeeBps}
-        feeMode={event.feeMode}
-        eventTerms={event.eventTerms}
-        cancellationPolicy={event.cancellationPolicy}
-      />
     </main>
   );
 }
