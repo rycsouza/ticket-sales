@@ -6,4 +6,5 @@ export {
   type OrderPaymentCoordinator,
   type PaidOrderFulfiller,
   type WebhookOutcome,
+  type CardChargeInput,
 } from "./service";

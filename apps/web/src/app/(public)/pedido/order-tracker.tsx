@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, PartyPopper } from "lucide-react";
+import { Check, Copy, CreditCard, PartyPopper, QrCode } from "lucide-react";
 import { Badge, Button, Field, Input } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { ORDER_STATUS, statusMeta } from "@/lib/status";
+import { CardBrick } from "./card-brick";
 
 interface OrderView {
   code: string;
@@ -31,7 +33,7 @@ type Access = { token: string } | { code: string; email: string };
 const POLL_INTERVAL_MS = 10_000;
 const cardClass = "rounded-xl border border-line bg-surface p-4";
 
-export function OrderTracker() {
+export function OrderTracker({ mpPublicKey }: { mpPublicKey: string | null }) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<OrderView | null>(null);
@@ -41,6 +43,8 @@ export function OrderTracker() {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [resent, setResent] = useState(false);
+  const [payMethod, setPayMethod] = useState<"pix" | "card">("pix");
+  const [cardProcessing, setCardProcessing] = useState(false);
   const credentials = useRef<Access | null>(null);
   // Guards the mount auto-track so it fires exactly once — React StrictMode
   // double-invokes effects in dev, and a duplicated Pix request races the PSP.
@@ -230,36 +234,89 @@ export function OrderTracker() {
       </div>
 
       {order.status === "AWAITING_PAYMENT" && (
-        <div className={`${cardClass} text-center`}>
-          <h2 className="mb-1 text-h3 text-ink">Pague com Pix para garantir</h2>
+        <div className={cardClass}>
           {countdown && (
-            <p className="mb-3 text-body text-ink-soft">
+            <p className="mb-3 text-center text-body text-ink-soft">
               Reserva expira em{" "}
               <span className="font-mono font-bold text-brand">{countdown}</span>
             </p>
           )}
-          {pix?.pixQrCode && (
-            <img
-              src={`data:image/png;base64,${pix.pixQrCode}`}
-              alt="QR Code Pix"
-              className="mx-auto size-56 rounded-lg border border-line"
-            />
+
+          {/* Payment method selector — card only when a public key is configured */}
+          {mpPublicKey && (
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {(
+                [
+                  { key: "pix", label: "Pix", icon: QrCode },
+                  { key: "card", label: "Cartão", icon: CreditCard },
+                ] as const
+              ).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPayMethod(key)}
+                  aria-pressed={payMethod === key}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-lg border py-2.5 text-body font-semibold transition-colors",
+                    payMethod === key
+                      ? "border-brand bg-brand text-brand-fg"
+                      : "border-line-strong text-ink-soft active:bg-hover",
+                  )}
+                >
+                  <Icon className="size-[18px]" /> {label}
+                </button>
+              ))}
+            </div>
           )}
-          {pix?.pixQrCodeText && (
-            <Button
-              variant="outline"
-              className="mt-3 w-full"
-              leftIcon={
-                copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />
-              }
-              onClick={copyPixCode}
-            >
-              {copied ? "Copiado" : "Copiar código Pix"}
-            </Button>
+
+          {payMethod === "pix" ? (
+            <div className="text-center">
+              <h2 className="mb-3 text-h3 text-ink">Pague com Pix para garantir</h2>
+              {pix?.pixQrCode && (
+                <img
+                  src={`data:image/png;base64,${pix.pixQrCode}`}
+                  alt="QR Code Pix"
+                  className="mx-auto size-56 rounded-lg border border-line"
+                />
+              )}
+              {pix?.pixQrCodeText && (
+                <Button
+                  variant="outline"
+                  className="mt-3 w-full"
+                  leftIcon={
+                    copied ? (
+                      <Check className="size-4 text-success" />
+                    ) : (
+                      <Copy className="size-4" />
+                    )
+                  }
+                  onClick={copyPixCode}
+                >
+                  {copied ? "Copiado" : "Copiar código Pix"}
+                </Button>
+              )}
+              <p className="mt-3 text-small text-ink-muted">
+                Aprovação automática — esta página atualiza sozinha após o pagamento.
+              </p>
+            </div>
+          ) : cardProcessing ? (
+            <p className="py-6 text-center text-body text-ink-soft">
+              Pagamento em análise. Assim que for aprovado, seus ingressos são enviados e esta
+              página atualiza sozinha.
+            </p>
+          ) : (
+            mpPublicKey && (
+              <CardBrick
+                publicKey={mpPublicKey}
+                amountCents={order.totalCents}
+                getAccess={() => credentials.current}
+                onApproved={() => {
+                  if (credentials.current) void track(credentials.current);
+                }}
+                onProcessing={() => setCardProcessing(true)}
+              />
+            )
           )}
-          <p className="mt-3 text-small text-ink-muted">
-            Aprovação automática — esta página atualiza sozinha após o pagamento.
-          </p>
         </div>
       )}
 

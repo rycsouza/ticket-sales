@@ -91,3 +91,37 @@ export const orderAccessSchema = z
   });
 
 export type OrderAccessInput = z.infer<typeof orderAccessSchema>;
+
+/**
+ * Card payment input (FR-CHK-014). The order access credential PLUS the opaque
+ * card token produced by the client tokenization SDK. Strict allowlist: the
+ * amount and payer e-mail are NEVER accepted here — both are resolved
+ * server-side from the order. A PAN/CVV must never appear (only the token).
+ */
+export const orderCardPaymentSchema = z
+  .object({
+    token: z.string().trim().min(16).max(200).optional(),
+    code: z.string().trim().min(8).max(40).optional(),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    card: z
+      .object({
+        cardToken: z.string().trim().min(1).max(200),
+        installments: z.number().int().min(1).max(24),
+        paymentMethodId: z.string().trim().min(1).max(40),
+        issuerId: z.string().trim().min(1).max(40).optional(),
+        payerIdentification: z
+          .object({
+            type: z.string().trim().min(1).max(10),
+            number: z.string().trim().min(1).max(20),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict(),
+  })
+  .strict()
+  .refine((b) => !!b.token || (!!b.code && !!b.email), {
+    message: "Informe o token de acesso, ou o código e o e-mail do pedido.",
+  });
+
+export type OrderCardPaymentInput = z.infer<typeof orderCardPaymentSchema>;

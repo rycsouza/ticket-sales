@@ -465,3 +465,61 @@ describe("reconcileOrder — gateway safety net (Print 5)", () => {
     expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
   });
 });
+
+describe("createCardChargeForOrder — synchronous card (FR-CHK-014)", () => {
+  const card = {
+    cardToken: "tok_visa_123",
+    installments: 1,
+    paymentMethodId: "visa",
+  };
+
+  it("approves: marks order paid + fulfills once, amount + e-mail taken server-side", async () => {
+    const env = await setup();
+    env.psp.nextCardStatus = "approved";
+
+    const result = await env.service.createCardChargeForOrder(ORG, env.order.id, card, meta);
+
+    expect(result.status).toBe("APPROVED");
+    expect(env.psp.cardCalls[0]?.amount).toBe(20_000); // 2 units × R$100, server-side
+    expect(env.psp.cardCalls[0]?.payerEmail).toBe("maria@teste.com"); // never from client
+    expect(env.orders.orders[0]?.status).toBe("PAID");
+    expect(env.batch.quantitySold).toBe(2);
+    expect(env.fulfillments).toEqual([env.order.id]);
+  });
+
+  it("rejects: payment REJECTED, order stays AWAITING_PAYMENT, buyer can retry", async () => {
+    const env = await setup();
+    env.psp.nextCardStatus = "rejected";
+
+    const result = await env.service.createCardChargeForOrder(ORG, env.order.id, card, meta);
+
+    expect(result.status).toBe("REJECTED");
+    expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
+    expect(env.fulfillments).toHaveLength(0);
+
+    // A second attempt uses a fresh idempotency key (retry after rejection).
+    env.psp.nextCardStatus = "approved";
+    await env.service.createCardChargeForOrder(ORG, env.order.id, card, meta);
+    expect(env.psp.cardCalls[0]?.idempotencyKey).not.toBe(env.psp.cardCalls[1]?.idempotencyKey);
+    expect(env.orders.orders[0]?.status).toBe("PAID");
+  });
+
+  it("in_process: PROCESSING, order not paid yet (webhook/reconcile finalizes)", async () => {
+    const env = await setup();
+    env.psp.nextCardStatus = "pending";
+
+    const result = await env.service.createCardChargeForOrder(ORG, env.order.id, card, meta);
+
+    expect(result.status).toBe("PROCESSING");
+    expect(env.orders.orders[0]?.status).toBe("AWAITING_PAYMENT");
+    expect(env.fulfillments).toHaveLength(0);
+  });
+
+  it("refuses an expired order", async () => {
+    const env = await setup();
+    env.clock.advance(16 * 60 * 1000);
+    await expect(
+      env.service.createCardChargeForOrder(ORG, env.order.id, card, meta),
+    ).rejects.toThrow(ConflictError);
+  });
+});

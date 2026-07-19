@@ -12,7 +12,16 @@ import type { AuditRepository } from "../audit/repository";
 import type { OrderRepository } from "../orders/repository";
 import type { OrderRecord } from "../orders/types";
 import type { PaymentEventRepository, PaymentRepository } from "./repository";
-import type { PaymentRecord } from "./types";
+import type { PaymentRecord, PaymentStatus } from "./types";
+
+/** Card fields produced by the client tokenization SDK. NEVER include a PAN/CVV. */
+export interface CardChargeInput {
+  cardToken: string;
+  installments: number;
+  paymentMethodId: string;
+  issuerId?: string | undefined;
+  payerIdentification?: { type: string; number: string } | undefined;
+}
 
 /** What payments needs from orders — implemented by OrdersService. */
 export interface OrderPaymentCoordinator {
@@ -132,6 +141,96 @@ export class PaymentsService {
     const order = await this.deps.orders.findByIdScoped(organizationId, orderId);
     if (!order) throw new NotFoundOrForbiddenError();
     return this.chargePix(order, meta);
+  }
+
+  /**
+   * Card charge for the buyer's order (FR-CHK-014, NFR-SEC-008). The card is
+   * tokenized in the browser — only an opaque token reaches us, never a PAN.
+   * Access is proven by the order access token (caller resolved the scope), so
+   * the amount AND payer e-mail are taken SERVER-SIDE from the order, never from
+   * the client. Card approval is synchronous: on "approved" we mark paid and
+   * fulfill immediately; a later webhook/reconciliation is idempotent.
+   */
+  async createCardChargeForOrder(
+    organizationId: string,
+    orderId: string,
+    card: CardChargeInput,
+    meta: { correlationId: string },
+  ): Promise<{ status: PaymentStatus }> {
+    const now = this.deps.clock.now();
+
+    const order = await this.deps.orders.findByIdScoped(organizationId, orderId);
+    if (!order) throw new NotFoundOrForbiddenError();
+    if (order.status !== "AWAITING_PAYMENT") {
+      throw new ConflictError("Order is not awaiting payment");
+    }
+    if (order.expiresAt && order.expiresAt.getTime() <= now.getTime()) {
+      throw new ConflictError("Order has expired");
+    }
+
+    // Attempt counter keeps a retry after a rejection possible while the key
+    // still deduplicates crashes/retries of the SAME attempt (FR-PAY-004).
+    const attempt = await this.deps.payments.countByOrder(order.organizationId, order.id);
+    const idempotencyKey = `card:${order.id}:${attempt}`;
+
+    const charge = await this.deps.psp.createCardCharge({
+      orderId: order.id,
+      amount: cents(order.totalCents),
+      description: `Pedido ${order.code}`,
+      cardToken: card.cardToken,
+      installments: card.installments,
+      paymentMethodId: card.paymentMethodId,
+      issuerId: card.issuerId,
+      payerEmail: order.buyerEmail,
+      payerIdentification: card.payerIdentification,
+      idempotencyKey,
+    });
+
+    const payment = await this.deps.payments.create({
+      organizationId: order.organizationId,
+      orderId: order.id,
+      provider: "mercadopago",
+      method: "CARD",
+      amountCents: order.totalCents,
+      idempotencyKey,
+      providerTransactionId: charge.providerTransactionId,
+      correlationId: meta.correlationId,
+    });
+
+    await this.deps.audit.append({
+      organizationId: order.organizationId,
+      actorType: "system",
+      action: "payment.created",
+      resourceType: "payment",
+      resourceId: payment.id,
+      after: { method: "CARD", amountCents: order.totalCents },
+      correlationId: meta.correlationId,
+    });
+
+    // Synchronous outcome (BR-PAY-001: only a confirmed "approved" pays).
+    if (charge.status === "approved") {
+      await this.deps.payments.transitionStatus(payment.id, ["CREATED"], "APPROVED", {
+        approvedAt: now,
+      });
+      await this.deps.orderCoordinator.markOrderPaid(
+        order.organizationId,
+        order.id,
+        meta,
+      );
+      const fresh = await this.deps.orders.findByIdScoped(order.organizationId, order.id);
+      if (fresh?.status === "PAID") {
+        await this.deps.fulfiller.fulfill(order.organizationId, order.id, meta.correlationId);
+      }
+      return { status: "APPROVED" };
+    }
+    if (charge.status === "rejected" || charge.status === "cancelled") {
+      await this.deps.payments.transitionStatus(payment.id, ["CREATED"], "REJECTED");
+      return { status: "REJECTED" };
+    }
+    // pending / in_process: leave it PROCESSING; the webhook or reconciliation
+    // finalizes it (both idempotent).
+    await this.deps.payments.transitionStatus(payment.id, ["CREATED"], "PROCESSING");
+    return { status: "PROCESSING" };
   }
 
   private async chargePix(

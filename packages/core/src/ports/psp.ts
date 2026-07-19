@@ -51,6 +51,14 @@ export interface CreateCardChargeInput {
   /** Opaque card token produced by the provider's hosted fields — never a PAN. */
   cardToken: string;
   installments: number;
+  /** Provider payment method id (e.g. "visa", "master") from the tokenization SDK. */
+  paymentMethodId: string;
+  /** Card issuer id, when the SDK resolved one. */
+  issuerId?: string | undefined;
+  /** Payer e-mail — resolved SERVER-SIDE from the order, never trusted from the client. */
+  payerEmail: string;
+  /** Payer tax id (CPF/CNPJ), when collected — required by some issuers. */
+  payerIdentification?: { type: string; number: string } | undefined;
   idempotencyKey: string;
 }
 

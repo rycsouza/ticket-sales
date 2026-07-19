@@ -61,8 +61,21 @@ export class MercadoPagoAdapter implements PspPort {
       transaction_amount: centsToDecimal(input.amount),
       token: input.cardToken,
       installments: input.installments,
+      payment_method_id: input.paymentMethodId,
       description: input.description,
       external_reference: input.orderId,
+      ...(input.issuerId ? { issuer_id: input.issuerId } : {}),
+      payer: {
+        email: input.payerEmail,
+        ...(input.payerIdentification
+          ? {
+              identification: {
+                type: input.payerIdentification.type,
+                number: input.payerIdentification.number,
+              },
+            }
+          : {}),
+      },
     };
     const data = await this.request<MpPayment>("POST", "/v1/payments", body, {
       "X-Idempotency-Key": input.idempotencyKey,

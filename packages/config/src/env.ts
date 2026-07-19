@@ -26,6 +26,9 @@ const serverEnvSchema = z.object({
   PSP_PROVIDER: z.enum(["mercadopago"]).default("mercadopago"),
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1).optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Public (client-side) key for the card tokenization SDK/Brick. NOT a secret:
+  // it only tokenizes card data in the browser (card PAN never reaches us).
+  MERCADOPAGO_PUBLIC_KEY: z.string().min(1).optional(),
 
   // DEC-012 — 32-byte key (64 hex or base64) for the TOTP secret box. When set,
   // MFA is ENFORCED for every panel login; absent (dev), MFA is skipped.
