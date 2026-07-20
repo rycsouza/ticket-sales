@@ -1,8 +1,32 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "QSTASH_URL",
+    "QSTASH_TOKEN",
+    "QSTASH_CURRENT_SIGNING_KEY",
+    "QSTASH_NEXT_SIGNING_KEY",
+    "PSP_PROVIDER",
+    "MERCADOPAGO_ACCESS_TOKEN",
+    "MERCADOPAGO_WEBHOOK_SECRET",
+    "MERCADOPAGO_PUBLIC_KEY",
+    "MAILTRAP_API_TOKEN",
+    "MAILTRAP_SENDER_EMAIL",
+    "CLOUDINARY_URL",
+    "MFA_ENCRYPTION_KEY",
+    "SENTRY_DSN",
+    "APP_BASE_URL"
+  ],
   "tasks": {
+    "generate": {
+      "cache": false
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "^generate"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
@@ -10,11 +34,11 @@
       "persistent": true
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "^generate"]
     },
     "lint": {},
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "^generate"]
     }
   }
 }
