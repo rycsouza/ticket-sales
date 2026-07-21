@@ -22,6 +22,9 @@ export function LoginForm() {
   const [code, setCode] = useState("");
   const [trustDevice, setTrustDevice] = useState(true);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  // Which second factor is in play on the verify step.
+  const [channel, setChannel] = useState<"totp" | "email">("totp");
+  const verifyUrl = channel === "email" ? "/api/auth/email-2fa/verify" : "/api/auth/mfa/verify";
 
   async function post(url: string, body: unknown) {
     const res = await fetch(url, {
@@ -55,7 +58,11 @@ export function LoginForm() {
         setSecret(String(setup.data.secret ?? ""));
         setOtpauthUri(String(setup.data.otpauthUri ?? ""));
         setStep("setup");
+      } else if (data.status === "email_2fa_required") {
+        setChannel("email");
+        setStep("verify");
       } else {
+        setChannel("totp");
         setStep("verify");
       }
     } catch {
@@ -139,6 +146,11 @@ export function LoginForm() {
               </p>
             )}
           </div>
+        ) : channel === "email" ? (
+          <p className="text-body text-ink-soft">
+            Enviamos um código de 6 dígitos para o seu e-mail. Informe-o abaixo para entrar. O
+            código expira em 10 minutos.
+          </p>
         ) : (
           <p className="text-body text-ink-soft">
             Informe o código do seu app autenticador (ou um código de backup).
@@ -169,7 +181,7 @@ export function LoginForm() {
           className="w-full"
           loading={busy}
           disabled={code.trim().length < 6}
-          onClick={() => submitCode(isSetup ? "/api/auth/mfa/confirm" : "/api/auth/mfa/verify")}
+          onClick={() => submitCode(isSetup ? "/api/auth/mfa/confirm" : verifyUrl)}
         >
           {isSetup ? "Ativar e entrar" : "Verificar"}
         </Button>

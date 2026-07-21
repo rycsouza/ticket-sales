@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { ConflictError, DomainError, UnauthenticatedError } from "../../shared/errors";
-import { generateToken, hashToken } from "../../shared/tokens";
+import { generateToken, hashToken, tokenHashEquals } from "../../shared/tokens";
+import type { MailerPort } from "../../ports/mailer";
 import { decryptSecret, encryptSecret } from "../../shared/secret-box";
 import { generateTotpSecret, totpAuthUri, verifyTotp } from "../../shared/totp";
 import type { CachePort } from "../../ports/cache";
@@ -18,6 +19,8 @@ const LOGIN_MAX_ATTEMPTS = 10; // per identifier per window (FR-AUTH-006)
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
 const MFA_VERIFY_MAX_ATTEMPTS = 8;
+const EMAIL_OTP_TTL_SECONDS = 10 * 60; // e-mail code lifetime
+const EMAIL_OTP_DIGITS = 6;
 const TRUSTED_DEVICE_DAYS = 30;
 const BACKUP_CODE_COUNT = 10;
 
@@ -38,17 +41,26 @@ export interface AuthServiceDeps {
   cache: CachePort;
   clock: ClockPort;
   passwordHasher: PasswordHasherPort;
-  /** DEC-012 — present iff MFA is enforced (encryption key configured). */
+  /** DEC-012 — present iff TOTP MFA is enforced (encryption key configured). */
   mfa?:
     | { key: Buffer; issuer: string; trustedDevices: TrustedDeviceRepository }
     | undefined;
+  /**
+   * E-mail second factor — present iff EMAIL_2FA_ENABLED and a mailer is
+   * configured. Takes precedence over TOTP. Sends a one-time code to the
+   * account e-mail on untrusted devices; reuses the trusted-device table.
+   */
+  email2fa?:
+    | { mailer: MailerPort; trustedDevices: TrustedDeviceRepository; issuer: string }
+    | undefined;
 }
 
-/** Discriminated login outcome (DEC-012). Without MFA it is always authenticated. */
+/** Discriminated login outcome (DEC-012). Without a second factor it is always authenticated. */
 export type LoginResult =
   | { status: "authenticated"; rawToken: string; expiresAt: Date; userId: string }
   | { status: "mfa_setup_required"; challengeToken: string }
-  | { status: "mfa_required"; challengeToken: string };
+  | { status: "mfa_required"; challengeToken: string }
+  | { status: "email_2fa_required"; challengeToken: string };
 
 export interface MfaCompletion {
   status: "authenticated";
@@ -130,8 +142,24 @@ export class AuthService {
       throw new UnauthenticatedError("Invalid credentials");
     }
 
-    // MFA (DEC-012). When not enforced (no key), behave exactly as before.
-    if (this.deps.mfa) {
+    // Second factor on untrusted devices. E-mail OTP takes precedence over
+    // TOTP; when neither is configured, behave exactly as before.
+    if (this.deps.email2fa) {
+      const now = this.deps.clock.now();
+      const trusted =
+        opts?.trustedDeviceToken !== undefined &&
+        (await this.deps.email2fa.trustedDevices.isValid(
+          user.id,
+          hashToken(opts.trustedDeviceToken),
+          now,
+        ));
+      if (!trusted) {
+        return {
+          status: "email_2fa_required",
+          challengeToken: await this.issueEmailOtp(user, meta),
+        };
+      }
+    } else if (this.deps.mfa) {
       const now = this.deps.clock.now();
       if (!user.mfaEnabled) {
         return { status: "mfa_setup_required", challengeToken: await this.issueChallenge(user.id, "setup") };
@@ -229,6 +257,61 @@ export class AuthService {
     return this.completeMfa(user, meta, opts);
   }
 
+  // --- E-mail 2FA -----------------------------------------------------------
+
+  /** Generates a one-time code, stores its hash, and e-mails it to the user. */
+  private async issueEmailOtp(user: UserRecord, meta: RequestMeta): Promise<string> {
+    const email2fa = this.requireEmail2fa();
+    const code = String(randomInt(0, 10 ** EMAIL_OTP_DIGITS)).padStart(EMAIL_OTP_DIGITS, "0");
+    const token = generateToken();
+    await this.deps.cache.set(
+      `email2fa:challenge:${token}`,
+      JSON.stringify({ userId: user.id, codeHash: hashCode(code) }),
+      EMAIL_OTP_TTL_SECONDS,
+    );
+    // The code is sent ONLY by e-mail — never logged or returned to the client.
+    await email2fa.mailer.send({
+      to: user.email,
+      subject: `${code} é o seu código de acesso`,
+      text: `Seu código de acesso ao ${email2fa.issuer} é ${code}. Ele expira em 10 minutos. Se não foi você, ignore este e-mail e troque sua senha.`,
+      html: `<p>Seu código de acesso ao <strong>${email2fa.issuer}</strong> é:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>Ele expira em 10 minutos. Se não foi você, ignore este e-mail e troque sua senha.</p>`,
+      notificationId: generateToken(),
+    });
+    await this.deps.audit.append({
+      actorUserId: user.id,
+      action: "auth.email_2fa_sent",
+      resourceType: "user",
+      resourceId: user.id,
+      correlationId: meta.correlationId,
+      ip: meta.ip,
+    });
+    return token;
+  }
+
+  /** Verifies the e-mailed code and completes login (optionally trusting the device). */
+  async verifyEmailOtp(
+    challengeToken: string,
+    code: string,
+    meta: RequestMeta,
+    opts?: { trustDevice?: boolean | undefined },
+  ): Promise<MfaCompletion> {
+    const email2fa = this.requireEmail2fa();
+    const raw = await this.deps.cache.get(`email2fa:challenge:${challengeToken}`);
+    if (!raw) throw new UnauthenticatedError("Challenge expired");
+    const { userId, codeHash } = JSON.parse(raw) as { userId: string; codeHash: string };
+
+    await this.enforceMfaRateLimit(userId);
+    const user = await this.mustFindUser(userId);
+
+    if (!tokenHashEquals(hashCode(code), codeHash)) {
+      throw new UnauthenticatedError("Invalid code");
+    }
+    // Single-use: consume the challenge only on success.
+    await this.deps.cache.delete(`email2fa:challenge:${challengeToken}`);
+
+    return this.completeSecondFactor(user, meta, opts, email2fa.trustedDevices);
+  }
+
   /** Boundary calls this on every authenticated request. */
   async validateSession(rawToken: string): Promise<{ userId: string; sessionId: string }> {
     const session = await this.deps.sessions.findByTokenHash(hashToken(rawToken));
@@ -302,12 +385,21 @@ export class AuthService {
     return { rawToken, expiresAt: session.expiresAt };
   }
 
-  private async completeMfa(
+  private completeMfa(
     user: UserRecord,
     meta: RequestMeta,
     opts?: { trustDevice?: boolean | undefined },
   ): Promise<MfaCompletion> {
-    const mfa = this.requireMfa();
+    return this.completeSecondFactor(user, meta, opts, this.requireMfa().trustedDevices);
+  }
+
+  /** Shared post-2FA completion: issue session + optionally remember the device. */
+  private async completeSecondFactor(
+    user: UserRecord,
+    meta: RequestMeta,
+    opts: { trustDevice?: boolean | undefined } | undefined,
+    trustedDevices: TrustedDeviceRepository,
+  ): Promise<MfaCompletion> {
     const session = await this.issueSession(user, meta);
     const result: MfaCompletion = {
       status: "authenticated",
@@ -318,7 +410,7 @@ export class AuthService {
     if (opts?.trustDevice) {
       const deviceToken = generateToken();
       const now = this.deps.clock.now();
-      await mfa.trustedDevices.create({
+      await trustedDevices.create({
         userId: user.id,
         tokenHash: hashToken(deviceToken),
         expiresAt: new Date(now.getTime() + TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000),
@@ -332,6 +424,11 @@ export class AuthService {
   private requireMfa(): NonNullable<AuthServiceDeps["mfa"]> {
     if (!this.deps.mfa) throw new UnauthenticatedError();
     return this.deps.mfa;
+  }
+
+  private requireEmail2fa(): NonNullable<AuthServiceDeps["email2fa"]> {
+    if (!this.deps.email2fa) throw new UnauthenticatedError();
+    return this.deps.email2fa;
   }
 
   private async mustFindUser(userId: string): Promise<UserRecord> {

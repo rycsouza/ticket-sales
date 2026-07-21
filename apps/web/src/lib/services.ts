@@ -356,11 +356,21 @@ function buildServices() {
       cache,
       clock: systemClock,
       passwordHasher,
-      // DEC-012: MFA is enforced only when the encryption key is configured.
+      // DEC-012: TOTP MFA is enforced only when the encryption key is configured.
       ...(env.MFA_ENCRYPTION_KEY
         ? {
             mfa: {
               key: loadKey(env.MFA_ENCRYPTION_KEY),
+              issuer: "Ingressos",
+              trustedDevices: new PrismaTrustedDeviceRepository(prisma),
+            },
+          }
+        : {}),
+      // E-mail 2FA — enabled by flag + a real mailer; takes precedence over TOTP.
+      ...(env.EMAIL_2FA_ENABLED === "true" && env.MAILTRAP_API_TOKEN
+        ? {
+            email2fa: {
+              mailer,
               issuer: "Ingressos",
               trustedDevices: new PrismaTrustedDeviceRepository(prisma),
             },

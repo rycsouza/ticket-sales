@@ -38,6 +38,10 @@ const serverEnvSchema = z.object({
   MAILTRAP_API_TOKEN: z.string().min(1).optional(),
   MAILTRAP_SENDER_EMAIL: z.string().email().optional(),
 
+  // When "true" AND a mailer is configured, panel logins on untrusted devices
+  // require a one-time code sent by e-mail (takes precedence over TOTP).
+  EMAIL_2FA_ENABLED: z.enum(["true", "false"]).default("false"),
+
   // Cloudinary — PUBLIC event images only (never private data)
   CLOUDINARY_URL: z.string().min(1).optional(),
 
