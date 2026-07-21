@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
 import { Button, Field, Input, PhoneInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { isCompleteMobilePhone, isValidEmail } from "@/lib/format";
+import {
+  isCompleteMobilePhone,
+  isValidEmail,
+  isValidFullName,
+  sanitizeEmail,
+  sanitizeName,
+  titleCaseName,
+} from "@/lib/format";
 import type { PublicBatchView } from "@/lib/public-views";
 import { useCheckoutStep } from "./checkout-flow";
 
@@ -176,7 +183,7 @@ export function CheckoutForm({
   );
   const totalCents = netCents + feeCents;
 
-  const nameValid = name.trim().length >= 2;
+  const nameValid = isValidFullName(name);
   const emailValid = isValidEmail(email);
   // Only ask for name/e-mail after the phone lookup resolves without a match
   // (or when the buyer opts out of the found cadastro). Until then, only the
@@ -445,16 +452,25 @@ export function CheckoutForm({
                   <Field
                     label="Nome completo"
                     htmlFor="ck-name"
-                    error={touched.name && !nameValid ? "Informe seu nome completo." : undefined}
+                    error={
+                      touched.name && !nameValid
+                        ? "Informe nome e sobrenome (apenas letras)."
+                        : undefined
+                    }
                   >
                     <Input
                       id="ck-name"
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                      onChange={(e) => setName(sanitizeName(e.target.value))}
+                      onBlur={() => {
+                        setName((n) => titleCaseName(n));
+                        setTouched((t) => ({ ...t, name: true }));
+                      }}
                       aria-invalid={touched.name && !nameValid ? true : undefined}
                       autoComplete="name"
+                      autoCapitalize="words"
+                      maxLength={120}
                       placeholder="Como no seu documento"
                     />
                   </Field>
@@ -467,11 +483,12 @@ export function CheckoutForm({
                       id="ck-email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
                       onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                       aria-invalid={touched.email && !emailValid ? true : undefined}
                       autoComplete="email"
                       inputMode="email"
+                      maxLength={254}
                       placeholder="Seus ingressos chegam aqui"
                     />
                   </Field>
