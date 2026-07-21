@@ -327,6 +327,9 @@ export function BuyersClient({
                           <span className="block truncate text-small text-ink-muted" title={r.email}>
                             {r.email}
                           </span>
+                          {r.orderCount === 0 && (
+                            <Badge tone="info" className="mt-1">Lead</Badge>
+                          )}
                         </span>
                       </Link>
                     </td>
@@ -358,6 +361,9 @@ export function BuyersClient({
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">{r.name ?? "—"}</span>
                       <span className="block truncate text-small text-ink-muted">{r.email}</span>
+                      {r.orderCount === 0 && (
+                        <Badge tone="info" className="mt-1">Lead</Badge>
+                      )}
                     </span>
                   </Link>
                   <RowActions orgId={orgId} buyer={r} onComm={setCommTarget} />

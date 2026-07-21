@@ -69,6 +69,8 @@ export function ActionButton({
   variant = "primary",
   size = "sm",
   confirmText,
+  confirmTitle,
+  confirmLabel,
   leftIcon,
 }: {
   url: string;
@@ -77,24 +79,29 @@ export function ActionButton({
   children: ReactNode;
   variant?: "primary" | "secondary" | "danger";
   size?: "sm" | "md";
+  /** When set, clicking opens a custom confirmation dialog with this message. */
   confirmText?: string;
+  confirmTitle?: string;
+  confirmLabel?: string;
   leftIcon?: ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  async function run() {
-    if (confirmText && !window.confirm(confirmText)) return;
+  async function run(): Promise<{ ok: boolean; error?: string }> {
     setBusy(true);
     setError(null);
     try {
       const { ok, data } = await apiSend(url, method, body);
       if (!ok) {
-        setError(typeof data.error === "string" ? data.error : "Falha na operação.");
-        return;
+        const msg = typeof data.error === "string" ? data.error : "Falha na operação.";
+        setError(msg);
+        return { ok: false, error: msg };
       }
       router.refresh();
+      return { ok: true };
     } finally {
       setBusy(false);
     }
@@ -107,11 +114,22 @@ export function ActionButton({
         size={size}
         loading={busy}
         leftIcon={leftIcon}
-        onClick={() => void run()}
+        onClick={() => (confirmText ? setConfirmOpen(true) : void run())}
       >
         {children}
       </Button>
       {error && <span className="text-small text-danger">{error}</span>}
+      {confirmText && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          title={confirmTitle ?? "Confirmar ação"}
+          description={confirmText}
+          confirmLabel={confirmLabel ?? "Confirmar"}
+          tone={variant === "danger" ? "danger" : "primary"}
+          onConfirm={run}
+        />
+      )}
     </span>
   );
 }

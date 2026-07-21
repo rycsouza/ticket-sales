@@ -115,6 +115,8 @@ export function CheckoutForm({
 
   // On a real step change, jump to the top: advancing hides the blocks above
   // the checkout, so the next step must start from the top of the viewport.
+  // Fire the lead-capture once per session (best-effort, non-blocking).
+  const leadSent = useRef(false);
   const prevStep = useRef(step);
   useEffect(() => {
     if (prevStep.current !== step) {
@@ -261,6 +263,18 @@ export function CheckoutForm({
       return;
     }
     setError(null);
+    // Lead capture: persist a NEW contact as soon as they leave "Seus dados",
+    // even if they never pay (funnel base). Reuse buyers already exist; skip.
+    if (showIdentityFields && !leadSent.current && nameValid && emailValid && phoneComplete) {
+      leadSent.current = true;
+      void fetch(`/api/public/events/${eventId}/lead`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), phone }),
+      }).catch(() => {
+        leadSent.current = false; // allow a retry on the next attempt
+      });
+    }
     setStep(3);
   }
 

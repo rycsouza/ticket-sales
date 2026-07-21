@@ -205,3 +205,38 @@ describe("retention / anonymization (DEC-010, LGPD)", () => {
     ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
   });
 });
+
+describe("captureLead + includeLeads (funnel base)", () => {
+  it("captures a new contact without a purchase and never overwrites an existing one", async () => {
+    const s = await setup([{ buyerEmail: "buyer@x.com", orderCount: 1, totalCents: 5_000 }]);
+    await s.customers.upsert({ organizationId: ORG, email: "buyer@x.com", name: "Comprador" });
+
+    // New contact → created as a lead (no lastPurchaseAt).
+    await s.service.captureLead({ organizationId: ORG, email: "Lead@x.com", name: "Novo Lead", phone: "81999998888" });
+    const lead = await s.customers.findByEmail(ORG, "lead@x.com");
+    expect(lead?.name).toBe("Novo Lead");
+    expect(lead?.consentOrigin).toBe("checkout-lead");
+    expect(lead?.lastPurchaseAt).toBeNull();
+
+    // Existing contact → never overwritten from the (unauthenticated) lead path.
+    await s.service.captureLead({ organizationId: ORG, email: "buyer@x.com", name: "Nome Falso", phone: "0000" });
+    const buyer = await s.customers.findByEmail(ORG, "buyer@x.com");
+    expect(buyer?.name).toBe("Comprador");
+  });
+
+  it("includeLeads surfaces zero-order contacts; default hides them", async () => {
+    const s = await setup([{ buyerEmail: "buyer@x.com", orderCount: 1, totalCents: 5_000 }]);
+    await s.customers.upsert({ organizationId: ORG, email: "buyer@x.com", name: "Comprador" });
+    await s.service.captureLead({ organizationId: ORG, email: "lead@x.com", name: "Lead", phone: "81999998888" });
+
+    const buyersOnly = await s.service.getSegment(s.adminCtx, {});
+    expect(buyersOnly.customers.map((r) => r.email)).toEqual(["buyer@x.com"]);
+
+    const withLeads = await s.service.getSegment(s.adminCtx, { includeLeads: true });
+    const emails = withLeads.customers.map((r) => r.email).sort();
+    expect(emails).toEqual(["buyer@x.com", "lead@x.com"]);
+    const leadRow = withLeads.customers.find((r) => r.email === "lead@x.com");
+    expect(leadRow?.orderCount).toBe(0);
+    expect(leadRow?.totalSpentCents).toBe(0);
+  });
+});

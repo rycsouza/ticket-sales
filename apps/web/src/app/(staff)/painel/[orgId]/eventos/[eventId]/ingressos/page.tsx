@@ -139,7 +139,9 @@ export default async function EventInventory({
                                 body={{ action: "close" }}
                                 variant="secondary"
                                 leftIcon={<Lock className="size-4" />}
-                                confirmText={`Encerrar as vendas do lote "${b.name}"? Ingressos já vendidos continuam válidos. Você pode reabrir depois.`}
+                                confirmTitle="Encerrar vendas do lote?"
+                                confirmLabel="Encerrar vendas"
+                                confirmText={`As vendas do lote "${b.name}" serão encerradas. Ingressos já vendidos continuam válidos e você pode reabrir depois.`}
                               >
                                 Encerrar vendas
                               </ActionButton>

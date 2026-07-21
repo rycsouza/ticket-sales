@@ -30,6 +30,7 @@ import {
   Select,
   Textarea,
 } from "@/components/ui";
+import { ConfirmDialog } from "../../../../ui";
 
 interface EditorPage {
   brandColor: string | null;
@@ -132,6 +133,7 @@ export function PageEditor({
   });
   const [blocks, setBlocks] = useState<PageBlock[]>(initial.blocks);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -450,14 +452,9 @@ export function PageEditor({
                           type="button"
                           aria-label="Excluir bloco"
                           title="Excluir bloco"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Excluir a seção "${BLOCK_LABEL[block.type]}"? O conteúdo desta seção será perdido ao salvar.`,
-                              )
-                            )
-                              removeBlock(block.id);
-                          }}
+                          onClick={() =>
+                            setPendingDelete({ id: block.id, label: BLOCK_LABEL[block.type] })
+                          }
                           className="rounded p-1.5 text-danger transition-colors hover:bg-hover"
                         >
                           <Trash2 className="size-4" />
@@ -536,6 +533,24 @@ export function PageEditor({
           ) : null}
         </span>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        title="Excluir seção?"
+        description={
+          <>
+            A seção <strong className="text-ink">{pendingDelete?.label}</strong> e o seu conteúdo
+            serão removidos ao salvar a página.
+          </>
+        }
+        confirmLabel="Excluir seção"
+        tone="danger"
+        onConfirm={async () => {
+          if (pendingDelete) removeBlock(pendingDelete.id);
+          return { ok: true };
+        }}
+      />
     </div>
   );
 }

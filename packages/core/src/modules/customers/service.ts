@@ -96,6 +96,35 @@ export class CustomersService {
   }
 
   /**
+   * Capture a checkout LEAD — a person who entered contact data before paying
+   * (mid/bottom funnel). Never overwrites an existing contact (avoids
+   * unauthenticated tampering); only brand-new contacts are added, and no
+   * lastPurchaseAt is set (a lead is not a purchase). System method (no ctx):
+   * the organization is resolved from the published event at the edge.
+   */
+  async captureLead(input: {
+    organizationId: string;
+    email: string;
+    name: string;
+    phone: string | null;
+  }): Promise<void> {
+    const email = input.email.trim().toLowerCase();
+    if (!email) return;
+    const existing = await this.deps.customers.findByEmail(input.organizationId, email);
+    if (existing) return;
+    const phone = input.phone ? normalizePhone(input.phone) : "";
+    await this.deps.customers.upsert({
+      organizationId: input.organizationId,
+      email,
+      name: input.name.trim() || undefined,
+      phone: phone.length >= 8 ? phone : undefined,
+      consentVersion: CHECKOUT_CONSENT_VERSION,
+      consentAt: this.deps.clock.now(),
+      consentOrigin: "checkout-lead",
+    });
+  }
+
+  /**
    * Public checkout lookup by phone — returns ONLY a masked preview so an
    * unauthenticated caller can't harvest full contact data. The endpoint that
    * exposes this must be rate-limited (anti-enumeration).
@@ -241,20 +270,41 @@ export class CustomersService {
     );
     const customers = await this.deps.customers.listByOrganization(organizationId);
     const byEmail = new Map(customers.map((c) => [c.email, c]));
+    const aggByEmail = new Map(aggregates.map((a) => [a.buyerEmail, a]));
 
-    const rows = aggregates
-      .map((agg) => {
-        const customer = byEmail.get(agg.buyerEmail);
-        return {
-          email: agg.buyerEmail,
-          name: customer?.name ?? null,
-          phone: customer?.phone ?? null,
-          optedOut: customer?.optedOut ?? false,
-          orderCount: agg.orderCount,
-          totalSpentCents: agg.totalCents,
-          lastPurchaseAt: customer?.lastPurchaseAt ?? null,
-        };
-      })
+    // Default: paid buyers only. `includeLeads` (only without an event filter)
+    // also surfaces contacts with no paid order — checkout leads — with zeroed
+    // aggregates. Anonymized contacts are never listed.
+    const base =
+      filter.includeLeads && !filter.eventId
+        ? customers
+            .filter((c) => !c.anonymizedAt)
+            .map((c) => {
+              const agg = aggByEmail.get(c.email);
+              return {
+                email: c.email,
+                name: c.name,
+                phone: c.phone,
+                optedOut: c.optedOut,
+                orderCount: agg?.orderCount ?? 0,
+                totalSpentCents: agg?.totalCents ?? 0,
+                lastPurchaseAt: c.lastPurchaseAt,
+              };
+            })
+        : aggregates.map((agg) => {
+            const customer = byEmail.get(agg.buyerEmail);
+            return {
+              email: agg.buyerEmail,
+              name: customer?.name ?? null,
+              phone: customer?.phone ?? null,
+              optedOut: customer?.optedOut ?? false,
+              orderCount: agg.orderCount,
+              totalSpentCents: agg.totalCents,
+              lastPurchaseAt: customer?.lastPurchaseAt ?? null,
+            };
+          });
+
+    const rows = base
       .filter((row) => {
         if (!filter.includeOptedOut && row.optedOut) return false;
         if (filter.minOrders !== undefined && row.orderCount < filter.minOrders) return false;

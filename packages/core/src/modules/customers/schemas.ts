@@ -11,9 +11,21 @@ export const segmentFilterSchema = z
     minOrders: z.number().int().min(1).max(1000).optional(),
     minSpentCents: z.number().int().min(0).max(1_000_000_000).optional(),
     includeOptedOut: z.boolean().optional(),
+    /** Also include contacts with no paid order (checkout leads). No-op with eventId. */
+    includeLeads: z.boolean().optional(),
   })
   .strict();
 export type SegmentFilterInput = z.infer<typeof segmentFilterSchema>;
+
+// Public checkout — capture a lead (contact entered before paying).
+export const checkoutLeadSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    email: z.string().trim().toLowerCase().email().max(254),
+    phone: z.string().trim().min(8).max(20),
+  })
+  .strict();
+export type CheckoutLeadInput = z.infer<typeof checkoutLeadSchema>;
 
 // FR/LGPD — erasure request for one customer.
 export const anonymizeCustomerSchema = z

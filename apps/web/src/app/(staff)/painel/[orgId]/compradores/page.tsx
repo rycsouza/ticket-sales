@@ -16,22 +16,25 @@ export default async function CrmPage({
   searchParams,
 }: {
   params: Promise<{ orgId: string }>;
-  searchParams: Promise<{ evento?: string }>;
+  searchParams: Promise<{ evento?: string; leads?: string }>;
 }) {
   const { orgId } = await params;
-  const { evento } = await searchParams;
+  const { evento, leads } = await searchParams;
   const { userId } = await requireDashboardUser();
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
   const events = (await services.events.listEvents(ctx).catch(() => [])).map(toEventResponse);
   const eventId = evento && events.some((e) => e.id === evento) ? evento : undefined;
+  // Leads (contacts without a purchase) only make sense without an event scope.
+  const includeLeads = leads === "1" && !eventId;
 
   let segment;
   try {
     segment = await services.customers.getSegment(ctx, {
       includeOptedOut: true,
       ...(eventId ? { eventId } : {}),
+      ...(includeLeads ? { includeLeads: true } : {}),
     });
   } catch {
     return (
@@ -68,16 +71,26 @@ export default async function CrmPage({
         actions={<ExportBuyersDialog orgId={orgId} eventId={eventId} estimated={segment.count} />}
       />
 
-      {events.length > 0 && (
-        <div className="mb-4 sm:max-w-xs">
-          <EventFilterSelect
-            basePath={`/painel/${orgId}/compradores`}
-            events={events.map((e) => ({ id: e.id, title: e.title }))}
-            selected={eventId ?? ""}
-            ariaLabel="Filtrar compradores por evento"
-          />
-        </div>
-      )}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {events.length > 0 && !includeLeads ? (
+          <div className="sm:max-w-xs sm:flex-1">
+            <EventFilterSelect
+              basePath={`/painel/${orgId}/compradores`}
+              events={events.map((e) => ({ id: e.id, title: e.title }))}
+              selected={eventId ?? ""}
+              ariaLabel="Filtrar compradores por evento"
+            />
+          </div>
+        ) : (
+          <span />
+        )}
+        <Link
+          href={includeLeads ? `/painel/${orgId}/compradores` : `/painel/${orgId}/compradores?leads=1`}
+          className={buttonVariants({ variant: includeLeads ? "secondary" : "outline", size: "sm" })}
+        >
+          {includeLeads ? "Somente compradores" : "Incluir leads (sem compra)"}
+        </Link>
+      </div>
 
       {noBuyers ? (
         <Card>
