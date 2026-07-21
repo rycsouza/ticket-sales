@@ -1,6 +1,5 @@
 import { ExternalLink, MapPin } from "lucide-react";
 import type { PublicEventView } from "@/lib/public-views";
-import { LeafletMap } from "@/components/leaflet-map";
 
 type LocationConfig = {
   heading?: string | undefined;
@@ -27,14 +26,6 @@ export function LocationBlock({
     .filter(Boolean)
     .join(", ");
 
-  // Precise point set by the operator (Configurações). When present we render a
-  // real OpenStreetMap map centered on it; otherwise fall back to the keyless
-  // Google embed by address string.
-  const hasPoint = event.latitude !== null && event.longitude !== null;
-  const directionsHref = hasPoint
-    ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
-
   return (
     <section className="mb-6">
       <h2 className="mb-2 text-small font-semibold uppercase tracking-wide text-ink-muted">
@@ -52,27 +43,19 @@ export function LocationBlock({
         {config.note && (
           <p className="mt-3 whitespace-pre-line text-small text-ink-muted">{config.note}</p>
         )}
-        {config.showMap && (hasPoint || mapQuery) && (
+        {config.showMap && mapQuery && (
           <>
             <div className="mt-3 overflow-hidden rounded-lg border border-line">
-              {hasPoint ? (
-                <LeafletMap
-                  lat={event.latitude!}
-                  lng={event.longitude!}
-                  className="h-48 w-full"
-                />
-              ) : (
-                <iframe
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
-                  title="Mapa do local"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="h-48 w-full"
-                />
-              )}
+              <iframe
+                src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
+                title="Mapa do local"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="h-48 w-full"
+              />
             </div>
             <a
-              href={directionsHref}
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"

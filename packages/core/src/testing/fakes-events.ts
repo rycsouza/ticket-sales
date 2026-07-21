@@ -37,8 +37,6 @@ export class InMemoryEventRepository implements EventRepository, EventReader {
       addressLine: data.addressLine ?? null,
       city: data.city ?? null,
       state: data.state ?? null,
-      latitude: data.latitude ?? null,
-      longitude: data.longitude ?? null,
       timezone: data.timezone,
       startsAt: data.startsAt ?? null,
       endsAt: data.endsAt ?? null,
