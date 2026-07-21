@@ -124,9 +124,11 @@ export default async function PublicEventPage({
     <CheckoutFlowProvider>
       <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8" style={themeStyle}>
         {event.page.blocks.map((block) =>
-          // The tickets block (the checkout) stays mounted across steps; every
-          // other block is marketing and collapses once the buyer advances.
-          block.type === "tickets" ? (
+          // The hero (event identity: banner + title + date + venue) and the
+          // tickets block (the checkout itself) stay mounted across every step
+          // — the hero gives context for what's being bought. Every other block
+          // is promotional and collapses once the buyer advances past step 1.
+          block.type === "tickets" || block.type === "hero" ? (
             renderBlock(block, event)
           ) : (
             <StepOneOnly key={block.id}>{renderBlock(block, event)}</StepOneOnly>
