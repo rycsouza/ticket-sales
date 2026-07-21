@@ -235,6 +235,16 @@ export class PrismaPublicEventReader {
       select: eventSelect,
     });
   }
+
+  /** Public slugs for the sitemap — only PUBLISHED events have a live page. */
+  async listPublished(limit = 5000): Promise<{ slug: string; updatedAt: Date }[]> {
+    return this.prisma.event.findMany({
+      where: { status: "PUBLISHED" },
+      select: { slug: true, updatedAt: true },
+      orderBy: { startsAt: "desc" },
+      take: limit,
+    });
+  }
 }
 
 export class PrismaSectorRepository implements SectorRepository {
