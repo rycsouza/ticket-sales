@@ -35,6 +35,8 @@ export function toEventResponse(event: EventRecord) {
     addressLine: event.addressLine,
     city: event.city,
     state: event.state,
+    latitude: event.latitude,
+    longitude: event.longitude,
     timezone: event.timezone,
     startsAt: event.startsAt,
     endsAt: event.endsAt,

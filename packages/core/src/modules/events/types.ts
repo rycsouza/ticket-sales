@@ -32,6 +32,8 @@ export interface EventRecord {
   addressLine: string | null;
   city: string | null;
   state: string | null;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   startsAt: Date | null;
   endsAt: Date | null;

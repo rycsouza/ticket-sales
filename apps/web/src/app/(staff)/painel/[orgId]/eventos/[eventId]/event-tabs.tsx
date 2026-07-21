@@ -17,6 +17,7 @@ export function EventTabs({ base }: { base: string }) {
     { href: `${base}/promoters`, label: "Promotores e cupons" },
     { href: `${base}/financeiro`, label: "Financeiro" },
     { href: `${base}/pagina`, label: "Página do evento" },
+    { href: `${base}/configuracoes`, label: "Configurações" },
   ];
 
   return (

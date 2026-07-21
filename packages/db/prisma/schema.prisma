@@ -238,6 +238,8 @@ model Event {
   addressLine  String?
   city         String?
   state        String?
+  latitude     Float?
+  longitude    Float?
 
   // Times stored UTC; timezone is the IANA zone used for display
   timezone String  @default("America/Sao_Paulo")
