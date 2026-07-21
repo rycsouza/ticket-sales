@@ -6,7 +6,7 @@ import { getServices } from "@/lib/services";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { TicketQr } from "./ticket-qr";
 
-export const metadata = { title: "Seu ingresso — Ingressos" };
+export const metadata = { title: "Seu ingresso — Ingressos", robots: { index: false, follow: false } };
 
 const STATUS_VIEW: Record<string, { label: string; tone: BadgeTone; note?: string }> = {
   VALID: { label: "Válido", tone: "success" },

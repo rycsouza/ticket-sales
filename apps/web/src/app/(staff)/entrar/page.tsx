@@ -3,7 +3,10 @@ import { Ticket } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = { title: "Entrar — Ingressos" };
+export const metadata: Metadata = {
+  title: "Entrar — Ingressos",
+  robots: { index: false, follow: false },
+};
 
 const OAUTH_ERRORS: Record<string, string> = {
   google_indisponivel: "Login com Google não está disponível no momento.",

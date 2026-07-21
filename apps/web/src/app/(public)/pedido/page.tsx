@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { OrderTracker } from "./order-tracker";
 
-export const metadata = { title: "Meu pedido — Ingressos" };
+export const metadata = { title: "Meu pedido — Ingressos", robots: { index: false, follow: false } };
 
 // Read the public key at request time, not at build: this page must never be
 // prerendered (it depends on runtime env + client-side session), and reading

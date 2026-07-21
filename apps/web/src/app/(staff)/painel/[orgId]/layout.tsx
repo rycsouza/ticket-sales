@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
 import { PanelShell } from "../panel-shell";
+
+// The producer panel is private — keep it out of search indexes.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Shell for the whole producer panel: auth guard + org membership check run

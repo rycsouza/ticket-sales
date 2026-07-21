@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import type { PageBlock } from "@ingressos/core";
 import { brandTokens } from "@/lib/brand-theme";
-import { getPublicEventViewBySlug, type PublicEventView } from "@/lib/public-views";
+import { formatEventDate, getPublicEventViewBySlug, type PublicEventView } from "@/lib/public-views";
 import { CheckoutForm } from "./checkout-form";
 import { CheckoutFlowProvider, StepOneOnly } from "./checkout-flow";
 import { TicketsCta } from "./tickets-cta";
@@ -27,6 +27,27 @@ async function resolveEvent(slug: string): Promise<PublicEventView | null> {
   return getPublicEventViewBySlug(parsed.data);
 }
 
+/**
+ * Turn a Cloudinary banner into a 1200×630 social card (the size WhatsApp /
+ * Facebook / X expect). Non-Cloudinary URLs are used as-is.
+ */
+function socialImageUrl(url: string): string {
+  if (url.includes("res.cloudinary.com") && url.includes("/image/upload/")) {
+    return url.replace("/image/upload/", "/image/upload/c_fill,g_auto,w_1200,h_630,q_auto,f_jpg/");
+  }
+  return url;
+}
+
+function buildDescription(event: PublicEventView): string {
+  if (event.description) {
+    const clean = event.description.replace(/\s+/g, " ").trim();
+    return clean.length > 200 ? `${clean.slice(0, 197)}…` : clean;
+  }
+  const date = event.startsAt ? formatEventDate(event.startsAt, event.timezone) : null;
+  const place = [event.venueName, event.city].filter(Boolean).join(" · ");
+  return ["Garanta seu ingresso.", date, place].filter(Boolean).join(" · ");
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -36,18 +57,32 @@ export async function generateMetadata({
   const event = await resolveEvent(slug);
   if (!event) return {};
 
-  const description = event.description
-    ? event.description.slice(0, 160)
-    : `Ingressos para ${event.title}`;
+  const description = buildDescription(event);
+  const canonical = `/evento/${slug}`;
+  const banner = event.page.bannerUrl ?? event.page.logoUrl;
+  const images = banner
+    ? [{ url: socialImageUrl(banner), width: 1200, height: 630, alt: event.title }]
+    : undefined;
 
   return {
     title: event.title,
     description,
+    alternates: { canonical },
     ...(event.page.faviconUrl ? { icons: { icon: event.page.faviconUrl } } : {}),
     openGraph: {
+      type: "website",
+      siteName: "Ingressos",
+      locale: "pt_BR",
+      url: canonical,
       title: event.title,
       description,
-      ...(event.page.bannerUrl ? { images: [{ url: event.page.bannerUrl }] } : {}),
+      ...(images ? { images } : {}),
+    },
+    twitter: {
+      card: images ? "summary_large_image" : "summary",
+      title: event.title,
+      description,
+      ...(images ? { images: images.map((i) => i.url) } : {}),
     },
   };
 }

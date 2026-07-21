@@ -9,9 +9,33 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+// Absolute base for canonical + Open Graph URLs (set APP_BASE_URL in prod).
+const appUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+const DESCRIPTION =
+  "Plataforma de venda e gestão de ingressos para produtoras regionais — eventos, promoters, financeiro e portaria em um só lugar.";
+
 export const metadata: Metadata = {
-  title: "Ingressos",
-  description: "Plataforma de venda e gestão de ingressos para produtoras",
+  metadataBase: new URL(appUrl),
+  // No title template: existing pages already carry a "— Ingressos" suffix and
+  // the event page sets a clean, share-friendly title of its own.
+  title: "Ingressos — Venda e gestão de ingressos para produtoras",
+  description: DESCRIPTION,
+  applicationName: "Ingressos",
+  openGraph: {
+    type: "website",
+    siteName: "Ingressos",
+    locale: "pt_BR",
+    url: appUrl,
+    title: "Ingressos — Venda e gestão de ingressos para produtoras",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ingressos",
+    description: DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
+  formatDetection: { telephone: false },
 };
 
 // Mobile-first (NFR-UX-001)
