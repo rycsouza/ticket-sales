@@ -127,24 +127,30 @@ export default async function PublicEventPage({
 
   return (
     <CheckoutFlowProvider>
-      <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8" style={themeStyle}>
-        {event.page.blocks.map((block) =>
-          // The hero (event identity: banner + title + date + venue) and the
-          // tickets block (the checkout itself) stay mounted across every step
-          // — the hero gives context for what's being bought. Every other block
-          // is promotional and collapses once the buyer advances past step 1.
-          block.type === "tickets" || block.type === "hero" ? (
-            renderBlock(block, event, mpPublicKey)
-          ) : (
-            <StepOneOnly key={block.id}>{renderBlock(block, event, mpPublicKey)}</StepOneOnly>
-          ),
-        )}
-        {ticketsBlock && fromPriceCents !== null && (
-          <StepOneOnly>
-            <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
-          </StepOneOnly>
-        )}
-      </main>
+      <div className="min-h-dvh px-3 py-5 sm:px-4 sm:py-8">
+        <main
+          className="mx-auto max-w-lg space-y-4 rounded-2xl border border-line bg-surface p-3 shadow-sm sm:p-5"
+          style={themeStyle}
+        >
+          {event.page.blocks.map((block) => {
+            // The hero (event identity: banner + title + date + venue) and the
+            // tickets block (the checkout itself) stay mounted across every step;
+            // every other block is promotional and collapses once the buyer
+            // advances past step 1.
+            if (block.type === "tickets" || block.type === "hero") {
+              return renderBlock(block, event, mpPublicKey);
+            }
+            return (
+              <StepOneOnly key={block.id}>{renderBlock(block, event, mpPublicKey)}</StepOneOnly>
+            );
+          })}
+          {ticketsBlock && fromPriceCents !== null && (
+            <StepOneOnly>
+              <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
+            </StepOneOnly>
+          )}
+        </main>
+      </div>
     </CheckoutFlowProvider>
   );
 }

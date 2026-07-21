@@ -65,7 +65,7 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
 
   return (
     <header className="mb-6">
-      <div className="relative -mx-4 overflow-hidden sm:mx-0 sm:rounded-xl">
+      <div className="relative overflow-hidden rounded-xl">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={bannerUrl} alt="" className="aspect-[16/9] w-full object-cover" />
         {config.overlay !== "none" && (
