@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
 import { Button, Field, Input, PhoneInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { isCompleteMobilePhone, isValidEmail } from "@/lib/format";
 import type { PublicBatchView } from "@/lib/public-views";
+import { useCheckoutStep } from "./checkout-flow";
 
 function formatBRL(centsValue: number): string {
   return (centsValue / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -54,7 +55,9 @@ export function CheckoutForm({
   cancellationPolicy,
 }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
+  // Step lives in shared context so the surrounding marketing blocks can hide
+  // once the buyer advances past ticket selection (StepOneOnly in checkout-flow).
+  const { step, setStep } = useCheckoutStep();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
@@ -91,6 +94,16 @@ export function CheckoutForm({
     if (term) captured.term = term;
     setUtm(captured);
   }, []);
+
+  // On a real step change, jump to the top: advancing hides the blocks above
+  // the checkout, so the next step must start from the top of the viewport.
+  const prevStep = useRef(step);
+  useEffect(() => {
+    if (prevStep.current !== step) {
+      prevStep.current = step;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [step]);
 
   // `phone` holds digits only (PhoneInput handles the mask).
   const phoneComplete = isCompleteMobilePhone(phone);
@@ -373,11 +386,11 @@ export function CheckoutForm({
             </ul>
           </div>
           {errorBox}
-          <StickyBar>
-            <Button size="lg" className="w-full" disabled={totalQuantity === 0} onClick={goToData}>
-              {totalQuantity > 0 ? `Continuar — ${formatBRL(subtotalCents)}` : "Continuar"}
-            </Button>
-          </StickyBar>
+          {/* In-flow (not floating): step 1 is all about interacting with the
+              cart, so a sticky bar would overlap the quantity controls. */}
+          <Button size="lg" className="w-full" disabled={totalQuantity === 0} onClick={goToData}>
+            {totalQuantity > 0 ? `Continuar — ${formatBRL(subtotalCents)}` : "Continuar"}
+          </Button>
         </>
       )}
 

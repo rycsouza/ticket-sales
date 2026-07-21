@@ -6,6 +6,7 @@ import type { PageBlock } from "@ingressos/core";
 import { brandTokens } from "@/lib/brand-theme";
 import { getPublicEventViewBySlug, type PublicEventView } from "@/lib/public-views";
 import { CheckoutForm } from "./checkout-form";
+import { CheckoutFlowProvider, StepOneOnly } from "./checkout-flow";
 import { TicketsCta } from "./tickets-cta";
 import { CountdownBlock } from "./blocks/countdown-block";
 import { DescriptionBlock } from "./blocks/description-block";
@@ -120,11 +121,23 @@ export default async function PublicEventPage({
   const fromPriceCents = availablePrices.length > 0 ? Math.min(...availablePrices) : null;
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8" style={themeStyle}>
-      {event.page.blocks.map((block) => renderBlock(block, event))}
-      {ticketsBlock && fromPriceCents !== null && (
-        <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
-      )}
-    </main>
+    <CheckoutFlowProvider>
+      <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8" style={themeStyle}>
+        {event.page.blocks.map((block) =>
+          // The tickets block (the checkout) stays mounted across steps; every
+          // other block is marketing and collapses once the buyer advances.
+          block.type === "tickets" ? (
+            renderBlock(block, event)
+          ) : (
+            <StepOneOnly key={block.id}>{renderBlock(block, event)}</StepOneOnly>
+          ),
+        )}
+        {ticketsBlock && fromPriceCents !== null && (
+          <StepOneOnly>
+            <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
+          </StepOneOnly>
+        )}
+      </main>
+    </CheckoutFlowProvider>
   );
 }
