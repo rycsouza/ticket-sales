@@ -67,4 +67,4 @@ export interface OrderItemRecord {
 }
 
 /** How long a checkout holds inventory before expiring (FR-INV-005). */
-export const RESERVATION_TTL_MINUTES = 15;
+export const RESERVATION_TTL_MINUTES = 5;

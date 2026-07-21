@@ -265,6 +265,7 @@ export function OrderPayment({
                 getAccess={() => credentials.current}
                 onApproved={() => void track(credentials.current)}
                 onProcessing={() => setCardProcessing(true)}
+                payerEmail={email}
               />
             )
           )}
@@ -282,7 +283,7 @@ export function OrderPayment({
           </p>
           {showTicketsLink && (
             <Link href="/pedido" className={buttonVariants({ size: "lg", className: "mt-4 w-full" })}>
-              Ver meus pedidos e ingressos
+              Ver meus pedidos
             </Link>
           )}
           <Button

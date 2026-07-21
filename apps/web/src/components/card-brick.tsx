@@ -18,7 +18,17 @@ interface Props {
   onApproved: () => void;
   /** Called when the charge is accepted but still processing (async approval). */
   onProcessing: () => void;
+  /**
+   * Pre-fills the Brick's payer e-mail so its e-mail field is hidden — we
+   * already know the buyer (the charge uses the order's e-mail server-side).
+   * Absent (token/reuse path): a neutral placeholder still hides the field;
+   * it is discarded — the backend authoritative e-mail is never the client's.
+   */
+  payerEmail?: string | undefined;
 }
+
+// Discarded server-side; only used to suppress the Brick's redundant e-mail field.
+const PLACEHOLDER_EMAIL = "comprador@ingressos.app";
 
 const SDK_SRC = "https://sdk.mercadopago.com/js/v2";
 
@@ -73,7 +83,14 @@ function loadSdk(): Promise<MpConstructor> {
   });
 }
 
-export function CardBrick({ publicKey, amountCents, getAccess, onApproved, onProcessing }: Props) {
+export function CardBrick({
+  publicKey,
+  amountCents,
+  getAccess,
+  onApproved,
+  onProcessing,
+  payerEmail,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<MpBricksController | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +110,11 @@ export function CardBrick({ publicKey, amountCents, getAccess, onApproved, onPro
           "cardPayment",
           "cardPaymentBrick_container",
           {
-            initialization: { amount: amountCents / 100 },
+            initialization: {
+              amount: amountCents / 100,
+              // Providing the payer e-mail hides the Brick's e-mail field.
+              payer: { email: payerEmail || PLACEHOLDER_EMAIL },
+            },
             callbacks: {
               onReady: () => {
                 if (!cancelled) setLoading(false);

@@ -85,7 +85,7 @@ describe("createOrder", () => {
     expect(order.status).toBe("AWAITING_PAYMENT");
     expect(order.totalCents).toBe(30_000); // 3 × R$100 from the DB, not client
     expect(order.code).toHaveLength(12);
-    expect(expiresAt.getTime()).toBe(env.clock.now().getTime() + 15 * 60 * 1000);
+    expect(expiresAt.getTime()).toBe(env.clock.now().getTime() + 5 * 60 * 1000);
 
     const items = await env.orders.listItems(ORG, order.id);
     expect(items).toHaveLength(3);

@@ -259,7 +259,7 @@ export class PaymentsService {
     const idempotencyKey = `pix:${order.id}:${attempt}`;
 
     // Pix charge dies together with the inventory reservation (BR alignment)
-    const chargeExpiresAt = order.expiresAt ?? new Date(now.getTime() + 15 * 60 * 1000);
+    const chargeExpiresAt = order.expiresAt ?? new Date(now.getTime() + 5 * 60 * 1000);
 
     const charge = await this.deps.psp.createPixCharge({
       orderId: order.id,
