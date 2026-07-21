@@ -37,6 +37,7 @@ const IMAGE_LIMITS: Record<EventPageImageKind, { maxBytes: number }> = {
   logo: { maxBytes: 1 * 1024 * 1024 },
   favicon: { maxBytes: 1 * 1024 * 1024 },
   gallery: { maxBytes: 5 * 1024 * 1024 },
+  background: { maxBytes: 5 * 1024 * 1024 },
 };
 
 const ALLOWED_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -58,6 +59,7 @@ export class EventPageService {
         logoUrl: null,
         bannerUrl: null,
         faviconUrl: null,
+        backgroundUrl: null,
         blocks: defaultPageBlocks(),
       };
     }
@@ -178,6 +180,7 @@ function toRecord(row: EventPageRow): EventPageRecord {
     logoUrl: row.logoUrl,
     bannerUrl: row.bannerUrl,
     faviconUrl: row.faviconUrl,
+    backgroundUrl: row.backgroundUrl,
     blocks: parseStoredBlocks(row.blocks),
   };
 }

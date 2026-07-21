@@ -21,6 +21,7 @@ interface EditorPage {
   logoUrl: string | null;
   bannerUrl: string | null;
   faviconUrl: string | null;
+  backgroundUrl: string | null;
   blocks: PageBlock[];
 }
 
@@ -98,6 +99,7 @@ export function PageEditor({
     logoUrl: initial.logoUrl,
     bannerUrl: initial.bannerUrl,
     faviconUrl: initial.faviconUrl,
+    backgroundUrl: initial.backgroundUrl,
   });
   const [blocks, setBlocks] = useState<PageBlock[]>(initial.blocks);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -182,6 +184,7 @@ export function PageEditor({
           logoUrl: images.logoUrl,
           bannerUrl: images.bannerUrl,
           faviconUrl: images.faviconUrl,
+          backgroundUrl: images.backgroundUrl,
           blocks: cleaned,
         }),
       });
@@ -300,8 +303,20 @@ export function PageEditor({
             }}
             previewClass="size-8 rounded object-contain"
           />
+          <ImageUploader
+            label="Imagem de fundo (atrás do checkout)"
+            kind="background"
+            orgId={orgId}
+            eventId={eventId}
+            url={images.backgroundUrl}
+            onChange={(url) => {
+              setImages((prev) => ({ ...prev, backgroundUrl: url }));
+              setSaved(false);
+            }}
+            previewClass="h-16 w-auto rounded-lg object-cover"
+          />
           <p className="text-small text-ink-muted">
-            JPEG, PNG ou WebP · banner até 5 MB, logo e favicon até 1 MB. Lembre de salvar
+            JPEG, PNG ou WebP · banner e fundo até 5 MB, logo e favicon até 1 MB. Lembre de salvar
             a página após enviar.
           </p>
         </CardBody>
@@ -868,7 +883,7 @@ function ImageUploader({
   previewClass,
 }: {
   label: string;
-  kind: "logo" | "banner" | "favicon";
+  kind: "logo" | "banner" | "favicon" | "background";
   orgId: string;
   eventId: string;
   url: string | null;

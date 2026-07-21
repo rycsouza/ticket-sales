@@ -293,6 +293,7 @@ model EventPage {
   logoUrl    String? // Cloudinary — imagens públicas
   bannerUrl  String? // Cloudinary — também vira og:image
   faviconUrl String? // Cloudinary
+  backgroundUrl String? // Cloudinary — imagem de fundo atrás do checkout
 
   // Documento ordenado de blocos (discriminated union no core/event-page)
   blocks Json

@@ -127,7 +127,19 @@ export default async function PublicEventPage({
 
   return (
     <CheckoutFlowProvider>
-      <div className="min-h-dvh px-3 py-5 sm:px-4 sm:py-8">
+      <div className="relative min-h-dvh px-3 py-5 sm:px-4 sm:py-8">
+        {event.page.backgroundUrl && (
+          // Full-page background behind the checkout card. A dark scrim keeps
+          // the surrounding area calm and the white card readable. URL is
+          // Cloudinary-allowlisted on write, so it is safe in an inline style.
+          <div
+            aria-hidden
+            className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+            style={{
+              backgroundImage: `linear-gradient(rgba(15,23,42,0.55), rgba(15,23,42,0.55)), url("${event.page.backgroundUrl}")`,
+            }}
+          />
+        )}
         <main
           className="mx-auto max-w-lg space-y-4 rounded-2xl border border-line bg-surface p-3 shadow-sm sm:p-5"
           style={themeStyle}

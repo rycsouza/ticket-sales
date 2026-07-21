@@ -56,6 +56,7 @@ export function toEventPageResponse(page: EventPageRecord) {
     logoUrl: page.logoUrl,
     bannerUrl: page.bannerUrl,
     faviconUrl: page.faviconUrl,
+    backgroundUrl: page.backgroundUrl,
     blocks: page.blocks,
   };
 }

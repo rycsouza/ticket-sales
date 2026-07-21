@@ -30,6 +30,7 @@ export class InMemoryEventPageRepository implements EventPageRepository {
       if (data.logoUrl !== undefined) existing.logoUrl = data.logoUrl;
       if (data.bannerUrl !== undefined) existing.bannerUrl = data.bannerUrl;
       if (data.faviconUrl !== undefined) existing.faviconUrl = data.faviconUrl;
+      if (data.backgroundUrl !== undefined) existing.backgroundUrl = data.backgroundUrl;
       if (data.blocks !== undefined) existing.blocks = data.blocks;
       return existing;
     }
@@ -40,6 +41,7 @@ export class InMemoryEventPageRepository implements EventPageRepository {
       logoUrl: data.logoUrl ?? null,
       bannerUrl: data.bannerUrl ?? null,
       faviconUrl: data.faviconUrl ?? null,
+      backgroundUrl: data.backgroundUrl ?? null,
       blocks: data.blocks ?? defaultBlocks,
     };
     this.pages.push(row);

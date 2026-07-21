@@ -248,13 +248,20 @@ export const updateEventPageSchema = z
     logoUrl: assetUrlSchema.nullable().optional(),
     bannerUrl: assetUrlSchema.nullable().optional(),
     faviconUrl: assetUrlSchema.nullable().optional(),
+    backgroundUrl: assetUrlSchema.nullable().optional(),
     blocks: eventPageBlocksSchema.optional(),
   })
   .strict();
 
 export type UpdateEventPageInput = z.infer<typeof updateEventPageSchema>;
 
-export const eventPageImageKindSchema = z.enum(["logo", "banner", "favicon", "gallery"]);
+export const eventPageImageKindSchema = z.enum([
+  "logo",
+  "banner",
+  "favicon",
+  "gallery",
+  "background",
+]);
 
 /**
  * Página default — reproduz exatamente o layout público atual (hero textual,

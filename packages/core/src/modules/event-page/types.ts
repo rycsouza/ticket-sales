@@ -12,8 +12,10 @@ export interface EventPageRecord {
   logoUrl: string | null;
   bannerUrl: string | null;
   faviconUrl: string | null;
+  /** Full-page background image shown behind the checkout card. */
+  backgroundUrl: string | null;
   blocks: PageBlock[];
 }
 
 /** Tipos de imagem aceitos pelo upload da página. */
-export type EventPageImageKind = "logo" | "banner" | "favicon" | "gallery";
+export type EventPageImageKind = "logo" | "banner" | "favicon" | "gallery" | "background";

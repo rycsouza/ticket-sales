@@ -95,6 +95,7 @@ describe("getPage", () => {
       logoUrl: null,
       bannerUrl: null,
       faviconUrl: null,
+      backgroundUrl: null,
       blocks: { totally: "broken" },
     });
 
