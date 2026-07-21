@@ -42,6 +42,11 @@ const serverEnvSchema = z.object({
   // require a one-time code sent by e-mail (takes precedence over TOTP).
   EMAIL_2FA_ENABLED: z.enum(["true", "false"]).default("false"),
 
+  // Google OAuth (optional) — social login is enabled only when both are set.
+  // Redirect URI is derived from APP_BASE_URL: <base>/api/auth/google/callback.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+
   // Cloudinary — PUBLIC event images only (never private data)
   CLOUDINARY_URL: z.string().min(1).optional(),
 

@@ -111,6 +111,38 @@ export class AuthService {
   }
 
   /**
+   * Federated login (e.g. Google OAuth). Links to an existing account by
+   * VERIFIED e-mail or provisions a password-less user, then issues a session.
+   * The OAuth flow is itself the strong factor, so no second factor is applied
+   * ("se não for login social"). The caller must have validated the provider
+   * response (state/CSRF + token exchange) before calling this.
+   */
+  async loginWithFederatedIdentity(
+    input: { email: string; name: string; emailVerified: boolean },
+    meta: RequestMeta,
+  ): Promise<{ rawToken: string; expiresAt: Date; userId: string }> {
+    const email = input.email.trim().toLowerCase();
+    if (!input.emailVerified || email.length === 0) {
+      throw new UnauthenticatedError("Unverified e-mail");
+    }
+    let user = await this.deps.users.findByEmail(email);
+    if (!user) {
+      user = await this.deps.users.create({ email, name: input.name.trim() || email });
+      await this.deps.audit.append({
+        actorUserId: user.id,
+        action: "user.registered",
+        resourceType: "user",
+        resourceId: user.id,
+        correlationId: meta.correlationId,
+        ip: meta.ip,
+      });
+    }
+    if (user.status !== "ACTIVE") throw new UnauthenticatedError();
+    const session = await this.issueSession(user, meta);
+    return { rawToken: session.rawToken, expiresAt: session.expiresAt, userId: user.id };
+  }
+
+  /**
    * FR-AUTH-001/006 — rate-limited login with a single generic failure error
    * (no user-exists oracle) and audit for success and failure (§14 rules).
    */

@@ -71,7 +71,11 @@ export interface InviteRepository {
 export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(userId: string): Promise<UserRecord | null>;
-  create(data: { email: string; name: string; passwordHash: string }): Promise<UserRecord>;
+  create(data: {
+    email: string;
+    name: string;
+    passwordHash?: string | null | undefined;
+  }): Promise<UserRecord>;
   /** Store the pending (not-yet-enabled) TOTP secret during enrollment. */
   setMfaPendingSecret(userId: string, secretEnc: string): Promise<void>;
   /** Enable MFA once the first code is confirmed, storing backup code hashes. */
@@ -304,8 +308,11 @@ export class PrismaUserRepository implements UserRepository {
     return this.prisma.user.findUnique({ where: { id: userId }, select: userSelect });
   }
 
-  async create(data: { email: string; name: string; passwordHash: string }) {
-    return this.prisma.user.create({ data, select: userSelect });
+  async create(data: { email: string; name: string; passwordHash?: string | null | undefined }) {
+    return this.prisma.user.create({
+      data: { email: data.email, name: data.name, passwordHash: data.passwordHash ?? null },
+      select: userSelect,
+    });
   }
 
   async setMfaPendingSecret(userId: string, secretEnc: string) {

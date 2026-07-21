@@ -166,7 +166,11 @@ export class InMemoryUserRepository implements UserRepository {
     return this.users.find((user) => user.id === userId) ?? null;
   }
 
-  async create(data: { email: string; name: string; passwordHash: string }): Promise<UserRecord> {
+  async create(data: {
+    email: string;
+    name: string;
+    passwordHash?: string | null | undefined;
+  }): Promise<UserRecord> {
     if (this.users.some((user) => user.email === data.email)) {
       throw new Error("unique constraint: email");
     }
@@ -175,7 +179,7 @@ export class InMemoryUserRepository implements UserRepository {
       email: data.email,
       name: data.name,
       status: "ACTIVE",
-      passwordHash: data.passwordHash,
+      passwordHash: data.passwordHash ?? null,
       mfaEnabled: false,
       mfaSecretEnc: null,
       mfaBackupCodes: [],

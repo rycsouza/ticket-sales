@@ -5,8 +5,22 @@ import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Entrar — Ingressos" };
 
+const OAUTH_ERRORS: Record<string, string> = {
+  google_indisponivel: "Login com Google não está disponível no momento.",
+  google_falhou: "Não foi possível entrar com o Google. Tente novamente.",
+};
+
 /** Staff login (FR-AUTH-001). Shared entry point for dashboard/checkin/finance. */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ erro?: string }>;
+}) {
+  const { erro } = await searchParams;
+  // Read raw (not via loadServerEnv) so it never throws at build.
+  const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
+  const oauthError = erro ? OAUTH_ERRORS[erro] : undefined;
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
       <header className="text-center">
@@ -20,7 +34,7 @@ export default function LoginPage() {
       </header>
       <Card>
         <CardBody>
-          <LoginForm />
+          <LoginForm googleEnabled={googleEnabled} oauthError={oauthError} />
         </CardBody>
       </Card>
     </main>
