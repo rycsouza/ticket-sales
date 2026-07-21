@@ -6,7 +6,8 @@ import { toEventResponse } from "@/lib/serializers";
 import { Badge, Card, CardBody, EmptyState, PageHeader, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
 import { whatsappUrl } from "@/lib/format";
-import { CrmExportButton, EventFilter, OptOutButton } from "./crm-client";
+import { EventFilterSelect } from "../../ui";
+import { CrmExportButton, OptOutButton } from "./crm-client";
 
 export const metadata: Metadata = { title: "Compradores — Ingressos" };
 
@@ -61,7 +62,12 @@ export default async function CrmPage({
 
       {events.length > 0 && (
         <div className="mb-4 sm:max-w-xs">
-          <EventFilter orgId={orgId} events={events.map((e) => ({ id: e.id, title: e.title }))} selected={eventId ?? ""} />
+          <EventFilterSelect
+            basePath={`/painel/${orgId}/compradores`}
+            events={events.map((e) => ({ id: e.id, title: e.title }))}
+            selected={eventId ?? ""}
+            ariaLabel="Filtrar compradores por evento"
+          />
         </div>
       )}
 

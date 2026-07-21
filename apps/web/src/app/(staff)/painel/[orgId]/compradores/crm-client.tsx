@@ -3,38 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
-import { Button, Select } from "@/components/ui";
-
-export function EventFilter({
-  orgId,
-  events,
-  selected,
-}: {
-  orgId: string;
-  events: { id: string; title: string }[];
-  selected: string;
-}) {
-  const router = useRouter();
-  return (
-    <Select
-      aria-label="Filtrar compradores por evento"
-      value={selected}
-      onChange={(e) => {
-        const value = e.target.value;
-        router.push(
-          value ? `/painel/${orgId}/compradores?evento=${value}` : `/painel/${orgId}/compradores`,
-        );
-      }}
-    >
-      <option value="">Todos os eventos</option>
-      {events.map((ev) => (
-        <option key={ev.id} value={ev.id}>
-          {ev.title}
-        </option>
-      ))}
-    </Select>
-  );
-}
+import { Button } from "@/components/ui";
 
 export function CrmExportButton({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState(false);

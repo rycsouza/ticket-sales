@@ -3,7 +3,41 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
-import { Button, Field, Modal, Textarea, type ButtonVariant } from "@/components/ui";
+import { Button, Field, Modal, Select, Textarea, type ButtonVariant } from "@/components/ui";
+
+/** Reusable "filter by event" dropdown that drives navigation via the query string. */
+export function EventFilterSelect({
+  basePath,
+  events,
+  selected,
+  allLabel = "Todos os eventos",
+  ariaLabel = "Filtrar por evento",
+}: {
+  basePath: string;
+  events: { id: string; title: string }[];
+  selected: string;
+  allLabel?: string;
+  ariaLabel?: string;
+}) {
+  const router = useRouter();
+  return (
+    <Select
+      aria-label={ariaLabel}
+      value={selected}
+      onChange={(e) => {
+        const value = e.target.value;
+        router.push(value ? `${basePath}?evento=${value}` : basePath);
+      }}
+    >
+      <option value="">{allLabel}</option>
+      {events.map((ev) => (
+        <option key={ev.id} value={ev.id}>
+          {ev.title}
+        </option>
+      ))}
+    </Select>
+  );
+}
 
 export async function apiSend(
   url: string,

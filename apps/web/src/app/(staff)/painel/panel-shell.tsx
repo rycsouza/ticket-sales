@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
+  BarChart3,
   Users,
   LifeBuoy,
   ScanLine,
@@ -33,6 +34,12 @@ function navItems(orgId: string): NavItem[] {
       label: "Eventos",
       icon: CalendarDays,
       match: (p) => p === base || p.startsWith(`${base}/eventos`),
+    },
+    {
+      href: `${base}/relatorio`,
+      label: "Relatório",
+      icon: BarChart3,
+      match: (p) => p.startsWith(`${base}/relatorio`),
     },
     {
       href: `${base}/compradores`,
