@@ -497,16 +497,14 @@ export function CheckoutForm({
             </div>
           </div>
           {errorBox}
-          <StickyBar>
-            <div className="flex gap-2">
-              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
-                Voltar
-              </Button>
-              <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
-                Continuar
-              </Button>
-            </div>
-          </StickyBar>
+          <div className="flex gap-2">
+            <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
+              Voltar
+            </Button>
+            <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
+              Continuar
+            </Button>
+          </div>
         </>
       )}
 
@@ -619,25 +617,19 @@ export function CheckoutForm({
           )}
 
           {errorBox}
-          <StickyBar>
-            <div className="flex gap-2">
-              <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(2)}>
-                Voltar
-              </Button>
-              <Button size="lg" className="flex-1" loading={submitting} onClick={submit}>
-                Finalizar — {formatBRL(totalCents)}
-              </Button>
-            </div>
-            <p className="mt-2 text-center text-small text-ink-muted">
-              Ao finalizar, você concorda com os termos do evento e a política de privacidade.
-            </p>
-          </StickyBar>
+          <div className="flex gap-2">
+            <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(2)}>
+              Voltar
+            </Button>
+            <Button size="lg" className="flex-1" loading={submitting} onClick={submit}>
+              Finalizar — {formatBRL(totalCents)}
+            </Button>
+          </div>
+          <p className="mt-2 text-center text-small text-ink-muted">
+            Ao finalizar, você concorda com os termos do evento e a política de privacidade.
+          </p>
         </>
       )}
     </section>
   );
-}
-
-function StickyBar({ children }: { children: React.ReactNode }) {
-  return <div className="sticky bottom-4">{children}</div>;
 }
