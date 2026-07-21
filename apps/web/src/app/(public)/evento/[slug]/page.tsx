@@ -53,7 +53,7 @@ export async function generateMetadata({
 }
 
 /** Mapeia o documento de blocos (já validado no server) para as seções. */
-function renderBlock(block: PageBlock, event: PublicEventView) {
+function renderBlock(block: PageBlock, event: PublicEventView, mpPublicKey: string | null) {
   if (!block.visible) return null;
   switch (block.type) {
     case "hero":
@@ -96,6 +96,7 @@ function renderBlock(block: PageBlock, event: PublicEventView) {
             feeMode={event.feeMode}
             eventTerms={event.eventTerms}
             cancellationPolicy={event.cancellationPolicy}
+            mpPublicKey={mpPublicKey}
           />
         </section>
       );
@@ -115,6 +116,10 @@ export default async function PublicEventPage({
   // (hex inválido → {} → tema padrão). Componentes não mudam nada.
   const themeStyle = brandTokens(event.page.brandColor) as CSSProperties;
 
+  // Public key for the card Brick on the in-flow Pagamento step. Read raw (not
+  // via loadServerEnv) so it can't throw at build; absent → Pix only.
+  const mpPublicKey = process.env.MERCADOPAGO_PUBLIC_KEY || null;
+
   // CTA fixo "comprar ingressos": menor preço entre lotes compráveis agora.
   const availablePrices = event.batches.filter((b) => b.available).map((b) => b.priceCents);
   const ticketsBlock = event.page.blocks.find((b) => b.type === "tickets");
@@ -129,9 +134,9 @@ export default async function PublicEventPage({
           // — the hero gives context for what's being bought. Every other block
           // is promotional and collapses once the buyer advances past step 1.
           block.type === "tickets" || block.type === "hero" ? (
-            renderBlock(block, event)
+            renderBlock(block, event, mpPublicKey)
           ) : (
-            <StepOneOnly key={block.id}>{renderBlock(block, event)}</StepOneOnly>
+            <StepOneOnly key={block.id}>{renderBlock(block, event, mpPublicKey)}</StepOneOnly>
           ),
         )}
         {ticketsBlock && fromPriceCents !== null && (

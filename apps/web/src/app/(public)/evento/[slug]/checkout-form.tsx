@@ -14,6 +14,7 @@ import {
   titleCaseName,
 } from "@/lib/format";
 import type { PublicBatchView } from "@/lib/public-views";
+import { OrderPayment, type OrderAccess } from "@/components/order-payment";
 import { useCheckoutStep } from "./checkout-flow";
 
 function formatBRL(centsValue: number): string {
@@ -28,6 +29,8 @@ interface Props {
   feeMode: "BUYER" | "PRODUCER";
   eventTerms: string | null;
   cancellationPolicy: string | null;
+  /** Public key for the card Brick (Pagamento step). Absent → Pix only. */
+  mpPublicKey: string | null;
 }
 
 interface Utm {
@@ -50,7 +53,7 @@ type Lookup =
 
 const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
-const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão"];
+const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão", "Pagamento"];
 
 export function CheckoutForm({
   eventId,
@@ -60,8 +63,11 @@ export function CheckoutForm({
   feeMode,
   eventTerms,
   cancellationPolicy,
+  mpPublicKey,
 }: Props) {
   const router = useRouter();
+  // Set once the order is created — drives the in-flow Pagamento step (4).
+  const [access, setAccess] = useState<OrderAccess | null>(null);
   // Step lives in shared context so the surrounding marketing blocks can hide
   // once the buyer advances past ticket selection (StepOneOnly in checkout-flow).
   const { step, setStep } = useCheckoutStep();
@@ -292,16 +298,30 @@ export function CheckoutForm({
         return;
       }
 
-      // Prefer the access token (Print 4): the order page tracks + generates the
-      // Pix automatically, with no e-mail re-entry — works for reuse buyers too.
-      // Fall back to code+e-mail only when a token was not issued.
+      // Prefer the access token (Print 4): resolves the order without re-asking
+      // the e-mail — works for reuse buyers too. Store it so /pedido can reopen
+      // the order later, and advance to the in-flow Pagamento step (4).
+      const buyerEmail = email.trim().toLowerCase();
       const stored = data.accessToken
         ? { code: data.code, token: data.accessToken }
         : reuseActive
           ? { code: data.code }
-          : { code: data.code, email: email.trim().toLowerCase() };
+          : { code: data.code, email: buyerEmail };
       sessionStorage.setItem("ingressos:last-order", JSON.stringify(stored));
-      router.push("/pedido");
+
+      const nextAccess: OrderAccess | null = data.accessToken
+        ? { token: data.accessToken }
+        : reuseActive
+          ? null // no client-side credential without a token (should not happen in prod)
+          : { code: data.code, email: buyerEmail };
+
+      if (nextAccess) {
+        setAccess(nextAccess);
+        setStep(4);
+      } else {
+        // Degraded fallback: no in-flow credential — hand off to /pedido.
+        router.push("/pedido");
+      }
     } catch {
       setError("Falha de conexão. Verifique sua internet e tente novamente.");
     } finally {
@@ -338,7 +358,7 @@ export function CheckoutForm({
           ))}
         </div>
         <p className="mt-2 text-small font-medium text-ink-muted">
-          Passo {step} de 3 · {STEP_LABELS[step - 1]}
+          Passo {step} de {STEP_LABELS.length} · {STEP_LABELS[step - 1]}
         </p>
       </div>
 
@@ -629,6 +649,16 @@ export function CheckoutForm({
             Ao finalizar, você concorda com os termos do evento e a política de privacidade.
           </p>
         </>
+      )}
+
+      {/* Step 4 — Pagamento (dentro do próprio checkout) */}
+      {step === 4 && access && (
+        <OrderPayment
+          access={access}
+          mpPublicKey={mpPublicKey}
+          email={reuseActive ? undefined : email.trim().toLowerCase()}
+          showTicketsLink
+        />
       )}
     </section>
   );
