@@ -13,6 +13,7 @@ import {
   sanitizeName,
   titleCaseName,
 } from "@/lib/format";
+import { getStoredPhone, setStoredPhone } from "@/lib/prefs";
 import type { PublicBatchView } from "@/lib/public-views";
 import { OrderPayment, type OrderAccess } from "@/components/order-payment";
 import { useCheckoutStep } from "./checkout-flow";
@@ -106,6 +107,10 @@ export function CheckoutForm({
     if (content) captured.content = content;
     if (term) captured.term = term;
     setUtm(captured);
+    // Prefill the WhatsApp from a previous purchase on this device (triggers
+    // the returning-buyer lookup automatically). The buyer can always edit it.
+    const savedPhone = getStoredPhone();
+    if (savedPhone) setPhone(savedPhone);
   }, []);
 
   // On a real step change, jump to the top: advancing hides the blocks above
@@ -297,6 +302,9 @@ export function CheckoutForm({
         setError(data.error ?? "Não foi possível criar o pedido. Tente novamente.");
         return;
       }
+
+      // Remember the WhatsApp on this device so the next purchase skips typing.
+      setStoredPhone(phone);
 
       // Prefer the access token (Print 4): resolves the order without re-asking
       // the e-mail — works for reuse buyers too. Store it so /pedido can reopen
