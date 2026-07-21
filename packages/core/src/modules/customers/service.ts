@@ -6,7 +6,13 @@ import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { CustomerRepository } from "./repository";
 import type { SegmentFilterInput, SetOptOutInput } from "./schemas";
-import { CRM_ROLES, RETENTION_MONTHS, type CustomerRecord, type SegmentResult } from "./types";
+import {
+  CRM_ROLES,
+  LEAD_RETENTION_MONTHS,
+  RETENTION_MONTHS,
+  type CustomerRecord,
+  type SegmentResult,
+} from "./types";
 
 /** Paid-order aggregate + anonymization (implemented by OrderRepository). */
 export interface CrmOrderReader {
@@ -164,14 +170,26 @@ export class CustomersService {
    * The financial ledger is untouched (it references orderId, not PII).
    */
   async runRetention(now: Date, limit = 200): Promise<number> {
-    const cutoff = new Date(now);
-    cutoff.setMonth(cutoff.getMonth() - RETENTION_MONTHS);
-    const candidates = await this.deps.customers.listAnonymizationCandidates(cutoff, limit);
+    const buyerCutoff = new Date(now);
+    buyerCutoff.setMonth(buyerCutoff.getMonth() - RETENTION_MONTHS);
+    const buyers = await this.deps.customers.listAnonymizationCandidates(buyerCutoff, limit);
 
     let anonymized = 0;
-    for (const customer of candidates) {
+    for (const customer of buyers) {
       await this.anonymizeRecord(customer, now, "retention");
       anonymized += 1;
+    }
+
+    // Leads (no purchase) age out faster — 12 months from consent capture.
+    const remaining = limit - anonymized;
+    if (remaining > 0) {
+      const leadCutoff = new Date(now);
+      leadCutoff.setMonth(leadCutoff.getMonth() - LEAD_RETENTION_MONTHS);
+      const leads = await this.deps.customers.listLeadAnonymizationCandidates(leadCutoff, remaining);
+      for (const lead of leads) {
+        await this.anonymizeRecord(lead, now, "retention");
+        anonymized += 1;
+      }
     }
     return anonymized;
   }

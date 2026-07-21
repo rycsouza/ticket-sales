@@ -187,6 +187,29 @@ describe("retention / anonymization (DEC-010, LGPD)", () => {
     expect(await s.service.runRetention(now, 100)).toBe(0);
   });
 
+  it("anonymizes leads (no purchase) after 12 months from consent; keeps recent leads", async () => {
+    const s = await setup([]);
+    const now = new Date("2026-07-18T00:00:00Z");
+    // Lead captured 13 months ago (no lastPurchaseAt) → past the 12-month window.
+    await s.customers.upsert({
+      organizationId: ORG,
+      email: "oldlead@x.com",
+      name: "Lead Antigo",
+      consentAt: new Date("2025-06-01T00:00:00Z"),
+    });
+    // Lead captured 3 months ago → still within the window.
+    await s.customers.upsert({
+      organizationId: ORG,
+      email: "newlead@x.com",
+      name: "Lead Novo",
+      consentAt: new Date("2026-04-01T00:00:00Z"),
+    });
+
+    expect(await s.service.runRetention(now, 100)).toBe(1);
+    expect(await s.customers.findByEmail(ORG, "oldlead@x.com")).toBeNull();
+    expect((await s.customers.findByEmail(ORG, "newlead@x.com"))?.anonymizedAt).toBeNull();
+  });
+
   it("erases a customer on request (audited); denies non-CRM", async () => {
     const s = await setup([]);
     await s.customers.upsert({ organizationId: ORG, email: "erase@x.com", name: "Apagar" });

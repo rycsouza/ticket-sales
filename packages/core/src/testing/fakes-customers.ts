@@ -58,6 +58,18 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       .slice(0, limit);
   }
 
+  async listLeadAnonymizationCandidates(cutoff: Date, limit: number) {
+    return this.customers
+      .filter(
+        (c) =>
+          c.anonymizedAt === null &&
+          c.lastPurchaseAt === null &&
+          c.consentAt !== null &&
+          c.consentAt.getTime() < cutoff.getTime(),
+      )
+      .slice(0, limit);
+  }
+
   async anonymize(
     organizationId: string,
     id: string,

@@ -21,6 +21,8 @@ export interface CustomerRepository {
   setOptOut(organizationId: string, email: string, optedOut: boolean): Promise<CustomerRecord>;
   /** DEC-010 — active buyers whose last purchase predates the cutoff. */
   listAnonymizationCandidates(cutoff: Date, limit: number): Promise<CustomerRecord[]>;
+  /** Leads (no purchase) whose consent capture predates the cutoff. */
+  listLeadAnonymizationCandidates(cutoff: Date, limit: number): Promise<CustomerRecord[]>;
   /** Replaces PII with a pseudonym; stamps anonymizedAt (idempotent). */
   anonymize(
     organizationId: string,
@@ -94,6 +96,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
       select: customerSelect,
       take: limit,
       orderBy: { lastPurchaseAt: "asc" },
+    });
+  }
+
+  async listLeadAnonymizationCandidates(cutoff: Date, limit: number) {
+    return this.prisma.customer.findMany({
+      where: { anonymizedAt: null, lastPurchaseAt: null, consentAt: { not: null, lt: cutoff } },
+      select: customerSelect,
+      take: limit,
+      orderBy: { consentAt: "asc" },
     });
   }
 
