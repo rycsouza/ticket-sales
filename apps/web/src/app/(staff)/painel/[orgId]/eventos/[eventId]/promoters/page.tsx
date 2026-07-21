@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { Link2, Ticket, UserPlus } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import {
@@ -10,12 +9,12 @@ import {
   toPromoterLinkResponse,
   toPromoterSummaryResponse,
 } from "@/lib/serializers";
-import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
-import { fmtBRL } from "@/lib/status";
+import { Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { commissionBaseLabel, discountValueLabel, fmtBRL } from "@/lib/status";
 import { ActionButton, CopyButton } from "../../../../ui";
 import { NewCouponForm, NewRuleForm } from "./promoter-forms";
 
-export const metadata: Metadata = { title: "Promoters — Ingressos" };
+export const metadata: Metadata = { title: "Promotores e cupons — Ingressos" };
 
 const short = (id: string) => id.slice(0, 8);
 
@@ -38,38 +37,40 @@ export default async function PromotersPage({
     s.identity.listMembers(ctx),
     s.events.getEvent(ctx, eventId).catch(() => null),
   ]);
-  // Prefer the pretty /evento/<slug> link; fall back to the legacy id permalink.
   const eventPath = event ? `/evento/${event.slug}` : `/e/${eventId}`;
   const promoterMembers = members.filter((m) => m.role === "PROMOTER" && m.status === "ACTIVE");
   const linkByMember = new Map(links.map((l) => [l.membershipId, l]));
   const api = `/api/orgs/${orgId}/events/${eventId}`;
-  const unassigned = promoterMembers.filter(
-    (m) => !assignments.some((a) => a.membershipId === m.id),
-  );
+  const unassigned = promoterMembers.filter((m) => !assignments.some((a) => a.membershipId === m.id));
+  const activeRules = rules.filter((r) => r.active);
 
   return (
-    <>
-      <Link
-        href={`/painel/${orgId}/eventos/${eventId}`}
-        className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
-      >
-        <ArrowLeft className="size-4" />
-        Evento
-      </Link>
-      <PageHeader
-        title="Promoters & cupons"
-        description="Atribua promoters, gere links rastreáveis, crie cupons e regras de comissão."
-      />
+    <div className="space-y-1">
+      <div className="mb-5">
+        <h2 className="text-h2 text-ink">Promotores e cupons</h2>
+        <p className="mt-0.5 text-small text-ink-muted">
+          Atribua promotores, gere links rastreáveis, crie cupons e defina regras de comissão.
+        </p>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Assigned promoters + links */}
+        {/* Promoters + links */}
         <Card>
-          <CardHeader title="Promoters do evento" />
+          <CardHeader title="Promotores do evento" />
           {assignments.length === 0 ? (
-            <EmptyState
-              title="Nenhum promoter atribuído"
-              description="Atribua membros com papel PROMOTER abaixo."
-            />
+            promoterMembers.length === 0 ? (
+              <EmptyState
+                icon={<UserPlus className="size-5" />}
+                title="Nenhum promotor atribuído"
+                description="Você ainda não possui membros com o papel de promotor. Convide membros da equipe com esse papel para atribuí-los aqui."
+              />
+            ) : (
+              <EmptyState
+                icon={<UserPlus className="size-5" />}
+                title="Nenhum promotor atribuído"
+                description="Adicione membros da equipe para acompanhar vendas e comissões individuais. Use os botões abaixo."
+              />
+            )
           ) : (
             <ul className="divide-y divide-line">
               {assignments.map((a) => {
@@ -77,15 +78,13 @@ export default async function PromotersPage({
                 return (
                   <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <span className="min-w-0 text-body">
-                      <span className="block font-mono text-small text-ink-muted">
-                        #{short(a.membershipId)}
-                      </span>
+                      <span className="block font-medium text-ink">Promotor #{short(a.membershipId)}</span>
                       {link ? (
-                        <span className="text-small text-ink-soft">
-                          ?p={link.code} · {link.clickCount} cliques
+                        <span className="text-small text-ink-muted">
+                          Link ativo · {link.clickCount} clique(s)
                         </span>
                       ) : (
-                        <span className="text-small text-ink-muted">sem link</span>
+                        <span className="text-small text-ink-faint">Sem link de divulgação</span>
                       )}
                     </span>
                     {link ? (
@@ -107,9 +106,9 @@ export default async function PromotersPage({
           <CardBody className="border-t border-line">
             {promoterMembers.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-small text-ink-muted">Atribuir promoter (papel PROMOTER):</p>
+                <p className="text-small text-ink-muted">Atribuir promotor ao evento:</p>
                 {unassigned.length === 0 ? (
-                  <p className="text-small text-ink-faint">Todos já atribuídos.</p>
+                  <p className="text-small text-ink-faint">Todos os promotores já foram atribuídos.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {unassigned.map((m) => (
@@ -118,8 +117,9 @@ export default async function PromotersPage({
                         url={`${api}/promoters`}
                         body={{ membershipId: m.id }}
                         variant="secondary"
+                        leftIcon={<UserPlus className="size-4" />}
                       >
-                        + #{short(m.id)}
+                        Promotor #{short(m.id)}
                       </ActionButton>
                     ))}
                   </div>
@@ -127,7 +127,7 @@ export default async function PromotersPage({
               </div>
             ) : (
               <p className="text-small text-ink-muted">
-                Convide promoters pela gestão de equipe (papel PROMOTER) para atribuí-los aqui.
+                Convide membros com o papel de promotor pela gestão de equipe para atribuí-los aqui.
               </p>
             )}
           </CardBody>
@@ -137,16 +137,26 @@ export default async function PromotersPage({
         <Card>
           <CardHeader title="Cupons" />
           {coupons.length === 0 ? (
-            <EmptyState title="Nenhum cupom" description="Crie o primeiro cupom abaixo." />
+            <EmptyState
+              icon={<Ticket className="size-5" />}
+              title="Nenhum cupom criado"
+              description="Crie descontos para campanhas, parceiros ou compradores específicos usando o formulário abaixo."
+            />
           ) : (
             <ul className="divide-y divide-line">
               {coupons.map((c) => (
-                <li key={c.id} className="flex items-center justify-between px-5 py-2.5 text-body">
-                  <span className="font-mono font-medium text-ink">{c.code}</span>
-                  <span className="text-small text-ink-muted">
-                    {c.type === "PERCENT" ? `${c.value / 100}%` : fmtBRL(c.value)} · {c.redemptions}{" "}
-                    usos
-                    {c.membershipId ? ` · #${short(c.membershipId)}` : ""}
+                <li key={c.id} className="flex items-center justify-between gap-3 px-5 py-3 text-body">
+                  <span className="min-w-0">
+                    <span className="block font-mono font-medium text-ink">{c.code}</span>
+                    <span className="text-small text-ink-muted">
+                      {c.membershipId ? `Promotor #${short(c.membershipId)}` : "Cupom da organização"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right text-small">
+                    <span className="block font-medium text-ink">
+                      {discountValueLabel(c.type, c.value)} de desconto
+                    </span>
+                    <span className="text-ink-muted">{c.redemptions} uso(s)</span>
                   </span>
                 </li>
               ))}
@@ -159,27 +169,31 @@ export default async function PromotersPage({
 
         {/* Commission rules + ranking */}
         <Card className="lg:col-span-2">
-          <CardHeader title="Comissão" />
-          {rules.filter((r) => r.active).length === 0 ? (
+          <CardHeader title="Comissão" description="Como a comissão dos promotores é calculada." />
+          {activeRules.length === 0 ? (
             <EmptyState
               title="Nenhuma regra de comissão"
-              description="Defina uma regra para acumular comissões automaticamente."
+              description="Defina uma regra para acumular comissões automaticamente a cada venda atribuída a um promotor."
             />
           ) : (
             <ul className="divide-y divide-line">
-              {rules
-                .filter((r) => r.active)
-                .map((r) => (
-                  <li key={r.id} className="flex items-center justify-between px-5 py-2.5 text-body">
-                    <span className="text-ink">
-                      {r.type === "PERCENT" ? `${r.value / 100}%` : fmtBRL(r.value)}
-                      {r.membershipId ? ` · #${short(r.membershipId)}` : " · todos"}
+              {activeRules.map((r) => (
+                <li key={r.id} className="px-5 py-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-ink">
+                      {r.membershipId ? "Comissão específica" : "Comissão padrão"}
                     </span>
-                    <Badge tone="neutral">
-                      {r.base === "AFTER_DISCOUNT" ? "após desconto" : "nominal"}
-                    </Badge>
-                  </li>
-                ))}
+                    <Badge tone="brand">{discountValueLabel(r.type, r.value)}</Badge>
+                  </div>
+                  <p className="mt-1 text-small text-ink-muted">
+                    {discountValueLabel(r.type, r.value)}{" "}
+                    {r.type === "PERCENT" ? commissionBaseLabel(r.base) : "por ingresso vendido"} ·{" "}
+                    {r.membershipId
+                      ? `aplicada ao promotor #${short(r.membershipId)}`
+                      : "aplicada a todos os promotores"}
+                  </p>
+                </li>
+              ))}
             </ul>
           )}
           <CardBody className="space-y-4 border-t border-line">
@@ -187,16 +201,14 @@ export default async function PromotersPage({
             {ranking.length > 0 && (
               <div className="border-t border-line pt-4">
                 <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-ink-faint">
-                  Ranking
+                  Ranking de promotores
                 </p>
                 <ul className="space-y-1">
                   {ranking.map((r) => (
                     <li key={r.membershipId} className="flex justify-between text-body">
-                      <span className="font-mono text-small text-ink-muted">
-                        #{short(r.membershipId)}
-                      </span>
+                      <span className="text-ink-soft">Promotor #{short(r.membershipId)}</span>
                       <span className="text-ink">
-                        {r.quantity} ing. ·{" "}
+                        {r.quantity} ingresso(s) ·{" "}
                         <strong className="tabular-nums">{fmtBRL(r.amountCents)}</strong>
                       </span>
                     </li>
@@ -207,6 +219,6 @@ export default async function PromotersPage({
           </CardBody>
         </Card>
       </div>
-    </>
+    </div>
   );
 }

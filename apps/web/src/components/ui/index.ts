@@ -11,3 +11,6 @@ export { EmptyState } from "./empty-state";
 export { Stat } from "./stat";
 export { Spinner } from "./spinner";
 export { Modal } from "./modal";
+export { Menu, MenuItem, MenuLabel } from "./menu";
+export { Alert, type AlertTone } from "./alert";
+export { MoneyInput } from "./money-input";

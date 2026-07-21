@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { toEventPageResponse, toEventResponse } from "@/lib/serializers";
-import { PageHeader } from "@/components/ui";
 import { PageEditor } from "./page-editor";
 
-export const metadata: Metadata = { title: "Personalizar página — Ingressos" };
+export const metadata: Metadata = { title: "Página do evento — Ingressos" };
 
 export default async function EventPageCustomizer({
   params,
@@ -29,39 +26,20 @@ export default async function EventPageCustomizer({
     redirect(`/painel/${orgId}`);
   }
 
-  const isPublished = event.status === "PUBLISHED";
+  const isPublished = ["PUBLISHED", "SALES_PAUSED", "SALES_CLOSED"].includes(event.status);
 
   return (
-    <>
-      <Link
-        href={`/painel/${orgId}/eventos/${eventId}`}
-        className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
-      >
-        <ArrowLeft className="size-4" />
-        {event.title}
-      </Link>
-
-      <PageHeader
-        title="Personalizar página"
-        description={
-          isPublished ? (
-            <Link
-              href={`/evento/${event.slug}`}
-              target="_blank"
-              className="inline-flex items-center gap-1 text-small text-brand hover:underline"
-            >
-              Ver página publicada
-              <ExternalLink className="size-3.5" />
-            </Link>
-          ) : (
-            <span className="text-ink-muted">
-              A página fica visível ao público após publicar o evento.
-            </span>
-          )
-        }
-      />
+    <div>
+      <div className="mb-5">
+        <h2 className="text-h2 text-ink">Página do evento</h2>
+        <p className="mt-0.5 text-small text-ink-muted">
+          {isPublished
+            ? "As alterações vão ao ar assim que você salvar."
+            : "A página fica visível ao público após publicar o evento."}
+        </p>
+      </div>
 
       <PageEditor orgId={orgId} eventId={eventId} initial={page} />
-    </>
+    </div>
   );
 }

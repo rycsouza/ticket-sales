@@ -54,12 +54,40 @@ export const EVENT_STATUS: Record<string, StatusMeta> = {
 export const BATCH_STATUS: Record<string, StatusMeta> = {
   SCHEDULED: { label: "Agendado", tone: "info" },
   OPEN: { label: "Aberto", tone: "success" },
-  CLOSED: { label: "Fechado", tone: "neutral" },
+  CLOSED: { label: "Encerrado", tone: "neutral" },
   SOLD_OUT: { label: "Esgotado", tone: "warning" },
+};
+
+/**
+ * Ticket-type pricing category (schema TicketTypeKind). The producer-facing UI
+ * must never surface the raw enum (FULL/HALF/…): always render via this map.
+ */
+export const TICKET_KIND: Record<string, StatusMeta> = {
+  FULL: { label: "Inteira", tone: "neutral" },
+  HALF: { label: "Meia-entrada", tone: "info" },
+  PROMOTIONAL: { label: "Promocional", tone: "brand" },
+  COURTESY: { label: "Cortesia", tone: "success" },
+  CUSTOM: { label: "Personalizada", tone: "neutral" },
 };
 
 export function statusMeta(map: Record<string, StatusMeta>, key: string): StatusMeta {
   return map[key] ?? { label: key, tone: "neutral" };
+}
+
+/** Human label for a ticket-type kind (falls back to the raw value). */
+export function ticketKindLabel(kind: string): string {
+  return TICKET_KIND[kind]?.label ?? kind;
+}
+
+/** Coupon / commission discount type (schema PERCENT | FIXED) → value string. */
+export function discountValueLabel(type: string, value: number): string {
+  // PERCENT values are stored in basis-of-100 (1000 = 10%); FIXED in cents.
+  return type === "PERCENT" ? `${value / 100}%` : fmtBRL(value);
+}
+
+/** Commission calculation base (schema NOMINAL | AFTER_DISCOUNT) → pt-BR. */
+export function commissionBaseLabel(base: string): string {
+  return base === "AFTER_DISCOUNT" ? "sobre o valor com desconto" : "sobre o valor cheio";
 }
 
 /** Money in cents → pt-BR BRL. */

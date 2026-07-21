@@ -167,13 +167,13 @@ export function NewRuleForm({
               placeholder={form.type === "PERCENT" ? "10" : "R$"}
             />
           </Field>
-          <Field label="Base">
+          <Field label="Base de cálculo">
             <Select
               value={form.base}
               onChange={(e) => setForm((f) => ({ ...f, base: e.target.value }))}
             >
-              <option value="NOMINAL">Nominal</option>
-              <option value="AFTER_DISCOUNT">Após desconto</option>
+              <option value="NOMINAL">Sobre o valor cheio</option>
+              <option value="AFTER_DISCOUNT">Sobre o valor com desconto</option>
             </Select>
           </Field>
         </div>

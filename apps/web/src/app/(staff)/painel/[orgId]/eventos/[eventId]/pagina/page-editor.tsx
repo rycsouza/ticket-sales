@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ChevronDown,
@@ -14,7 +15,21 @@ import {
 } from "lucide-react";
 import type { PageBlock, PageBlockType } from "@ingressos/core";
 import { brandTokens } from "@/lib/brand-theme";
-import { Button, Card, CardBody, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Field,
+  Input,
+  Menu,
+  MenuItem,
+  MenuLabel,
+  Select,
+  Textarea,
+} from "@/components/ui";
 
 interface EditorPage {
   brandColor: string | null;
@@ -38,18 +53,32 @@ const BLOCK_LABEL: Record<PageBlockType, string> = {
   countdown: "Contagem regressiva",
 };
 
-/** Blocos opcionais que o produtor pode adicionar (tickets é fixo). */
-const ADDABLE: PageBlockType[] = [
-  "hero",
-  "countdown",
-  "description",
-  "lineup",
-  "gallery",
-  "video",
-  "location",
-  "faq",
-  "organizer",
+/** Blocos opcionais agrupados para o menu "Adicionar seção" (tickets é fixo). */
+const ADD_GROUPS: { label: string; types: PageBlockType[] }[] = [
+  { label: "Destaque", types: ["hero", "countdown"] },
+  { label: "Conteúdo", types: ["description", "lineup", "faq"] },
+  { label: "Mídia", types: ["gallery", "video"] },
+  { label: "Informações do evento", types: ["location", "organizer"] },
 ];
+
+const DEFAULT_BRAND = "#2563eb";
+
+/** WCAG relative luminance of a #rrggbb color. */
+function hexLuminance(hex: string): number {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return 1;
+  const int = Number.parseInt(match[1]!, 16);
+  const channels = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+}
+
+/** Contrast ratio of white text over the given background color. */
+function contrastWithWhite(hex: string): number {
+  return 1.05 / (hexLuminance(hex) + 0.05);
+}
 
 function newBlock(type: PageBlockType, existing: PageBlock[]): PageBlock {
   let id = type as string;
@@ -109,6 +138,27 @@ export function PageEditor({
 
   const colorValid = brandColor === "" || /^#[0-9a-fA-F]{6}$/.test(brandColor);
   const preview = brandTokens(colorValid && brandColor ? brandColor : null);
+  const lowContrast = colorValid && brandColor !== "" && contrastWithWhite(brandColor) < 4.5;
+
+  // Dirty tracking: compare the whole editable state against the last-saved
+  // baseline so the UI can report "Alterações não salvas" vs "salvas".
+  const [baseline, setBaseline] = useState(() =>
+    JSON.stringify({
+      brandColor: initial.brandColor ?? "",
+      images: {
+        logoUrl: initial.logoUrl,
+        bannerUrl: initial.bannerUrl,
+        faviconUrl: initial.faviconUrl,
+        backgroundUrl: initial.backgroundUrl,
+      },
+      blocks: initial.blocks,
+    }),
+  );
+  const current = useMemo(
+    () => JSON.stringify({ brandColor, images, blocks }),
+    [brandColor, images, blocks],
+  );
+  const dirty = current !== baseline;
 
   function move(index: number, delta: -1 | 1) {
     setBlocks((prev) => {
@@ -194,6 +244,7 @@ export function PageEditor({
         return;
       }
       setBlocks(cleaned!);
+      setBaseline(JSON.stringify({ brandColor, images, blocks: cleaned }));
       setSaved(true);
       router.refresh();
     } finally {
@@ -237,13 +288,19 @@ export function PageEditor({
                     setSaved(false);
                   }}
                 >
-                  Limpar
+                  Restaurar cor padrão
                 </Button>
               )}
             </div>
           </Field>
           {!colorValid && (
             <p className="text-small text-danger">Use o formato #rrggbb (ex.: #16a34a).</p>
+          )}
+          {lowContrast && (
+            <Alert tone="warning" icon={<AlertTriangle className="size-5" />}>
+              Essa cor pode deixar o texto branco dos botões difícil de ler. Considere um tom mais
+              escuro para manter a página acessível.
+            </Alert>
           )}
 
           {/* Amostra do tema aplicado */}
@@ -268,7 +325,8 @@ export function PageEditor({
           </div>
 
           <ImageUploader
-            label="Banner (capa da página, 16:9)"
+            label="Banner (capa da página)"
+            hint="Proporção 16:9 · recomendado 1600×900 px · JPEG, PNG ou WebP · até 5 MB."
             kind="banner"
             orgId={orgId}
             eventId={eventId}
@@ -281,6 +339,7 @@ export function PageEditor({
           />
           <ImageUploader
             label="Logo"
+            hint="Fundo transparente (PNG) · recomendado 400×400 px · até 1 MB."
             kind="logo"
             orgId={orgId}
             eventId={eventId}
@@ -293,6 +352,7 @@ export function PageEditor({
           />
           <ImageUploader
             label="Favicon (ícone da aba)"
+            hint="Quadrado · recomendado 64×64 px · PNG ou WebP · até 1 MB."
             kind="favicon"
             orgId={orgId}
             eventId={eventId}
@@ -305,6 +365,7 @@ export function PageEditor({
           />
           <ImageUploader
             label="Imagem de fundo (atrás do checkout)"
+            hint="Imagem ampla · recomendado 1920×1080 px · JPEG, PNG ou WebP · até 5 MB."
             kind="background"
             orgId={orgId}
             eventId={eventId}
@@ -316,8 +377,7 @@ export function PageEditor({
             previewClass="h-16 w-auto rounded-lg object-cover"
           />
           <p className="text-small text-ink-muted">
-            JPEG, PNG ou WebP · banner e fundo até 5 MB, logo e favicon até 1 MB. Lembre de salvar
-            a página após enviar.
+            As imagens vão ao ar quando você salvar a página.
           </p>
         </CardBody>
       </Card>
@@ -344,11 +404,16 @@ export function PageEditor({
                     )}
                     <span
                       className={`truncate text-body font-medium ${
-                        block.visible ? "text-ink" : "text-ink-faint line-through"
+                        block.visible || isTickets ? "text-ink" : "text-ink-faint"
                       }`}
                     >
                       {BLOCK_LABEL[block.type]}
                     </span>
+                    {isTickets ? (
+                      <Badge tone="brand">Obrigatório</Badge>
+                    ) : !block.visible ? (
+                      <Badge tone="neutral">Oculto</Badge>
+                    ) : null}
                   </button>
                   <span className="flex shrink-0 items-center gap-1">
                     <button
@@ -383,8 +448,16 @@ export function PageEditor({
                         </button>
                         <button
                           type="button"
-                          aria-label="Remover bloco"
-                          onClick={() => removeBlock(block.id)}
+                          aria-label="Excluir bloco"
+                          title="Excluir bloco"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Excluir a seção "${BLOCK_LABEL[block.type]}"? O conteúdo desta seção será perdido ao salvar.`,
+                              )
+                            )
+                              removeBlock(block.id);
+                          }}
                           className="rounded p-1.5 text-danger transition-colors hover:bg-hover"
                         >
                           <Trash2 className="size-4" />
@@ -408,28 +481,60 @@ export function PageEditor({
             );
           })}
         </ul>
-        <CardBody className="flex flex-wrap items-center gap-2 border-t border-line">
-          {ADDABLE.filter((type) => !blocks.some((b) => b.type === type)).map((type) => (
-            <Button
-              key={type}
-              variant="outline"
-              size="sm"
-              leftIcon={<Plus className="size-4" />}
-              onClick={() => addBlock(type)}
-            >
-              {BLOCK_LABEL[type]}
-            </Button>
-          ))}
+        <CardBody className="border-t border-line">
+          {(() => {
+            const groups = ADD_GROUPS.map((g) => ({
+              ...g,
+              types: g.types.filter((t) => !blocks.some((b) => b.type === t)),
+            })).filter((g) => g.types.length > 0);
+            if (groups.length === 0) {
+              return <p className="text-small text-ink-muted">Todas as seções já foram adicionadas.</p>;
+            }
+            return (
+              <Menu
+                triggerContent={
+                  <>
+                    <Plus className="size-4" />
+                    Adicionar seção
+                    <ChevronDown className="size-4" />
+                  </>
+                }
+                triggerVariant="outline"
+                triggerSize="md"
+                align="start"
+              >
+                {groups.map((g) => (
+                  <div key={g.label}>
+                    <MenuLabel>{g.label}</MenuLabel>
+                    {g.types.map((t) => (
+                      <MenuItem key={t} onSelect={() => addBlock(t)}>
+                        {BLOCK_LABEL[t]}
+                      </MenuItem>
+                    ))}
+                  </div>
+                ))}
+              </Menu>
+            );
+          })()}
         </CardBody>
       </Card>
 
       {/* Salvar */}
-      <div className="flex items-center gap-3 lg:col-span-2">
-        <Button loading={busy} disabled={!colorValid} onClick={() => void save()}>
-          Salvar página
+      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-3 rounded-t-xl border-t border-line bg-surface/95 px-1 py-3 backdrop-blur lg:col-span-2">
+        <Button loading={busy} disabled={!colorValid || !dirty} onClick={() => void save()}>
+          {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
-        {saved && <span className="text-small font-medium text-success">Página salva.</span>}
-        {error && <span className="text-small text-danger">{error}</span>}
+        <span className="text-small" role="status" aria-live="polite">
+          {busy ? (
+            <span className="text-ink-muted">Salvando…</span>
+          ) : error ? (
+            <span className="text-danger">Erro ao salvar: {error}</span>
+          ) : dirty ? (
+            <span className="text-warning-text">Alterações não salvas</span>
+          ) : saved ? (
+            <span className="font-medium text-success-text">Alterações salvas</span>
+          ) : null}
+        </span>
       </div>
     </div>
   );
@@ -875,6 +980,7 @@ function GalleryUpload({
 
 function ImageUploader({
   label,
+  hint,
   kind,
   orgId,
   eventId,
@@ -883,6 +989,7 @@ function ImageUploader({
   previewClass,
 }: {
   label: string;
+  hint?: string;
   kind: "logo" | "banner" | "favicon" | "background";
   orgId: string;
   eventId: string;
@@ -917,7 +1024,9 @@ function ImageUploader({
 
   return (
     <div>
-      <p className="mb-1.5 text-small font-medium text-ink-soft">{label}</p>
+      <p className="text-small font-medium text-ink-soft">{label}</p>
+      {hint && <p className="mb-1.5 text-caption text-ink-muted">{hint}</p>}
+      {!hint && <div className="mb-1.5" />}
       {url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className={`mb-2 border border-line bg-subtle ${previewClass}`} />
