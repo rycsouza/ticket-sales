@@ -252,6 +252,7 @@ export class CustomersService {
           optedOut: customer?.optedOut ?? false,
           orderCount: agg.orderCount,
           totalSpentCents: agg.totalCents,
+          lastPurchaseAt: customer?.lastPurchaseAt ?? null,
         };
       })
       .filter((row) => {

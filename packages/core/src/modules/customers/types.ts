@@ -29,6 +29,7 @@ export interface CustomerSegmentRow {
   optedOut: boolean;
   orderCount: number;
   totalSpentCents: number;
+  lastPurchaseAt: Date | null;
 }
 
 export interface SegmentResult {

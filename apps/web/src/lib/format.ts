@@ -7,6 +7,11 @@ export function onlyDigits(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** pt-BR pluralization: pluralize(1,"comprador","compradores") → "1 comprador". */
+export function pluralize(count: number, singular: string, plural: string): string {
+  return `${count.toLocaleString("pt-BR")} ${count === 1 ? singular : plural}`;
+}
+
 /**
  * BR phone mask: (XX) XXXXX-XXXX (mobile, 11 digits) or (XX) XXXX-XXXX
  * (landline, 10). Progressive — formats partial input as the user types.
