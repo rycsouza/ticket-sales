@@ -6,7 +6,7 @@ import { getServices } from "./services";
 
 export const SESSION_COOKIE = "session";
 export const TRUSTED_DEVICE_COOKIE = "mfa_device";
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // mirrors AuthService TTL
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // mirrors AuthService TTL (30d, sliding)
 const TRUSTED_DEVICE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // mirrors DEC-012 window
 
 export function setTrustedDeviceCookie(response: NextResponse, rawToken: string): void {

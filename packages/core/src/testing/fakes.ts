@@ -403,8 +403,12 @@ export class InMemorySessionRepository implements SessionRepository {
     return this.sessions.find((session) => session.tokenHash === tokenHash) ?? null;
   }
 
-  async touch(): Promise<void> {
-    // lastUsedAt is not part of SessionRecord — no-op in the fake
+  async touch(sessionId: string, _lastUsedAt: Date, expiresAt?: Date): Promise<void> {
+    // lastUsedAt is not part of SessionRecord; reflect the sliding-window renewal.
+    if (expiresAt) {
+      const session = this.sessions.find((entry) => entry.id === sessionId);
+      if (session) session.expiresAt = expiresAt;
+    }
   }
 
   async revoke(sessionId: string, revokedAt: Date): Promise<void> {

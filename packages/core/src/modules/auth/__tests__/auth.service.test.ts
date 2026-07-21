@@ -146,9 +146,21 @@ describe("sessions", () => {
 
   it("rejects an expired session", async () => {
     const { service, login, clock } = await withSession();
-    clock.advance(8 * 24 * HOUR_MS);
+    // Session TTL is 30 days (sliding); advance well past it without any
+    // intervening validation so the window is never renewed.
+    clock.advance(31 * 24 * HOUR_MS);
 
     await expect(service.validateSession(login.rawToken)).rejects.toThrow(UnauthenticatedError);
+  });
+
+  it("slides the expiry while the session is used", async () => {
+    const { service, login, clock } = await withSession();
+    // Use it after 20 days (renews to +30d), then 20 more days: still valid.
+    clock.advance(20 * 24 * HOUR_MS);
+    await service.validateSession(login.rawToken);
+    clock.advance(20 * 24 * HOUR_MS);
+    const result = await service.validateSession(login.rawToken);
+    expect(result.userId).toBe(login.userId);
   });
 
   it("rejects a revoked session (logout)", async () => {

@@ -17,7 +17,8 @@ export interface SessionRepository {
     userAgent?: string | undefined;
   }): Promise<SessionRecord>;
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
-  touch(sessionId: string, lastUsedAt: Date): Promise<void>;
+  /** Updates lastUsedAt; extends expiresAt too when `expiresAt` is given (sliding window). */
+  touch(sessionId: string, lastUsedAt: Date, expiresAt?: Date): Promise<void>;
   revoke(sessionId: string, revokedAt: Date): Promise<void>;
   revokeAllForUser(userId: string, revokedAt: Date): Promise<number>;
 }
@@ -95,8 +96,11 @@ export class PrismaSessionRepository implements SessionRepository {
     return this.prisma.session.findUnique({ where: { tokenHash }, select: sessionSelect });
   }
 
-  async touch(sessionId: string, lastUsedAt: Date) {
-    await this.prisma.session.update({ where: { id: sessionId }, data: { lastUsedAt } });
+  async touch(sessionId: string, lastUsedAt: Date, expiresAt?: Date) {
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: expiresAt ? { lastUsedAt, expiresAt } : { lastUsedAt },
+    });
   }
 
   async revoke(sessionId: string, revokedAt: Date) {

@@ -12,7 +12,8 @@ import type { UserRecord } from "../identity/types";
 import type { SessionRepository, TrustedDeviceRepository } from "./repository";
 import type { LoginInput, RegisterInput } from "./schemas";
 
-const SESSION_TTL_HOURS = 24 * 7; // 7 days, revocable (FR-AUTH-003)
+const SESSION_TTL_HOURS = 24 * 30; // 30 days, sliding + revocable (FR-AUTH-003)
+const SESSION_RENEW_THRESHOLD_MS = 60 * 60 * 1000; // renew at most ~hourly
 const LOGIN_MAX_ATTEMPTS = 10; // per identifier per window (FR-AUTH-006)
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
@@ -237,7 +238,13 @@ export class AuthService {
       throw new UnauthenticatedError();
     }
 
-    await this.deps.sessions.touch(session.id, now);
+    // Sliding window: keep an active session alive without a write on every
+    // request (renew at most ~hourly). Revocation/expiry are still enforced
+    // above, so this never resurrects a killed session.
+    const renewedExpiry = new Date(now.getTime() + SESSION_TTL_HOURS * 60 * 60 * 1000);
+    const shouldRenew =
+      renewedExpiry.getTime() - session.expiresAt.getTime() > SESSION_RENEW_THRESHOLD_MS;
+    await this.deps.sessions.touch(session.id, now, shouldRenew ? renewedExpiry : undefined);
     return { userId: session.userId, sessionId: session.id };
   }
 

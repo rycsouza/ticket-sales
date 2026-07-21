@@ -25,6 +25,18 @@ export function isCompleteMobilePhone(digits: string): boolean {
   return onlyDigits(digits).length === 11;
 }
 
+/**
+ * wa.me deep link for a stored (digits-only) phone. BR numbers are stored
+ * without a country code, so prepend 55 for local 10/11-digit numbers.
+ * Returns null when the number is too short to be dialable.
+ */
+export function whatsappUrl(phone: string | null | undefined): string | null {
+  const d = onlyDigits(phone ?? "");
+  if (d.length < 10) return null;
+  const withCountry = d.startsWith("55") && d.length >= 12 ? d : `55${d}`;
+  return `https://wa.me/${withCountry}`;
+}
+
 export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
