@@ -7,6 +7,7 @@ import {
   CalendarDays,
   BarChart3,
   Users,
+  Megaphone,
   LifeBuoy,
   ScanLine,
   LogOut,
@@ -49,6 +50,12 @@ function navItems(orgId: string): NavItem[] {
       label: "Clientes",
       icon: Users,
       match: (p) => p.startsWith(`${base}/clientes`),
+    },
+    {
+      href: `${base}/afiliados`,
+      label: "Afiliados",
+      icon: Megaphone,
+      match: (p) => p.startsWith(`${base}/afiliados`),
     },
     {
       href: `${base}/suporte`,
