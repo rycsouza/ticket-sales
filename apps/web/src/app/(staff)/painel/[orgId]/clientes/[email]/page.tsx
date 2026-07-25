@@ -10,7 +10,7 @@ import { ORDER_STATUS, fmtBRL, fmtDate, fmtDateTime, statusMeta } from "@/lib/st
 import { pluralize, whatsappUrl } from "@/lib/format";
 import { CommunicationButton } from "./detail-client";
 
-export const metadata: Metadata = { title: "Comprador — Ingressos" };
+export const metadata: Metadata = { title: "Cliente — Ingressos" };
 
 export default async function BuyerDetailPage({
   params,
@@ -22,11 +22,11 @@ export default async function BuyerDetailPage({
   const { userId } = await requireDashboardUser();
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
-  const backHref = `/painel/${orgId}/compradores`;
+  const backHref = `/painel/${orgId}/clientes`;
 
   let segment;
   try {
-    segment = await services.customers.getSegment(ctx, { includeOptedOut: true });
+    segment = await services.customers.getSegment(ctx, { includeOptedOut: true, includeLeads: true });
   } catch {
     redirect(backHref);
   }
@@ -38,8 +38,8 @@ export default async function BuyerDetailPage({
         <BackLink href={backHref} />
         <Card>
           <EmptyState
-            title="Comprador não encontrado"
-            description="Este comprador não está mais na base ou o endereço está incorreto."
+            title="Cliente não encontrado"
+            description="Este cliente não está mais na base ou o endereço está incorreto."
           />
         </Card>
       </>
@@ -121,12 +121,12 @@ export default async function BuyerDetailPage({
         {!ordersResult.ok ? (
           <CardBody>
             <Alert tone="neutral">
-              Não foi possível carregar os pedidos deste comprador com o seu nível de acesso.
+              Não foi possível carregar os pedidos deste cliente com o seu nível de acesso.
             </Alert>
           </CardBody>
         ) : orders.length === 0 ? (
           <CardBody>
-            <p className="text-small text-ink-muted">Nenhum pedido encontrado para este comprador.</p>
+            <p className="text-small text-ink-muted">Nenhum pedido encontrado para este cliente.</p>
           </CardBody>
         ) : (
           <div className="overflow-x-auto">
@@ -183,7 +183,7 @@ function BackLink({ href }: { href: string }) {
       className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-ink-muted transition-colors hover:text-ink"
     >
       <ArrowLeft className="size-4" />
-      Voltar para compradores
+      Voltar para clientes
     </Link>
   );
 }

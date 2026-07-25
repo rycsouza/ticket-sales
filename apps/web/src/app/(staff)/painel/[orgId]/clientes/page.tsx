@@ -9,7 +9,7 @@ import { EventFilterSelect } from "../../ui";
 import { ExportBuyersDialog } from "./crm-client";
 import { BuyersClient, type BuyerRow } from "./buyers-client";
 
-export const metadata: Metadata = { title: "Compradores — Ingressos" };
+export const metadata: Metadata = { title: "Clientes — Ingressos" };
 
 export default async function CrmPage({
   params,
@@ -26,8 +26,9 @@ export default async function CrmPage({
 
   const events = (await services.events.listEvents(ctx).catch(() => [])).map(toEventResponse);
   const eventId = evento && events.some((e) => e.id === evento) ? evento : undefined;
-  // Leads (contacts without a purchase) only make sense without an event scope.
-  const includeLeads = leads === "1" && !eventId;
+  // Clientes shows leads (contacts without a purchase) BY DEFAULT. Leads only
+  // make sense without an event scope; `?leads=0` narrows to buyers only.
+  const includeLeads = !eventId && leads !== "0";
 
   let segment;
   try {
@@ -39,11 +40,11 @@ export default async function CrmPage({
   } catch {
     return (
       <>
-        <PageHeader title="Compradores" />
+        <PageHeader title="Clientes" />
         <Card>
           <CardBody>
             <Alert tone="neutral">
-              Você não tem permissão para ver os compradores desta organização.
+              Você não tem permissão para ver os clientes desta organização.
             </Alert>
           </CardBody>
         </Card>
@@ -61,43 +62,45 @@ export default async function CrmPage({
     lastPurchaseAt: c.lastPurchaseAt ? c.lastPurchaseAt.toISOString() : null,
   }));
 
-  const noBuyers = rows.length === 0 && !eventId;
+  const noClients = rows.length === 0 && !eventId;
 
   return (
     <>
       <PageHeader
-        title="Compradores"
-        description="Pessoas que realizaram pedidos pagos nos eventos da sua produtora."
+        title="Clientes"
+        description="Compradores e leads capturados nos eventos da sua produtora."
         actions={<ExportBuyersDialog orgId={orgId} eventId={eventId} estimated={segment.count} />}
       />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {events.length > 0 && !includeLeads ? (
+        {events.length > 0 ? (
           <div className="sm:max-w-xs sm:flex-1">
             <EventFilterSelect
-              basePath={`/painel/${orgId}/compradores`}
+              basePath={`/painel/${orgId}/clientes`}
               events={events.map((e) => ({ id: e.id, title: e.title }))}
               selected={eventId ?? ""}
-              ariaLabel="Filtrar compradores por evento"
+              ariaLabel="Filtrar clientes por evento"
             />
           </div>
         ) : (
           <span />
         )}
-        <Link
-          href={includeLeads ? `/painel/${orgId}/compradores` : `/painel/${orgId}/compradores?leads=1`}
-          className={buttonVariants({ variant: includeLeads ? "secondary" : "outline", size: "sm" })}
-        >
-          {includeLeads ? "Somente compradores" : "Incluir leads (sem compra)"}
-        </Link>
+        {!eventId && (
+          <Link
+            href={includeLeads ? `/painel/${orgId}/clientes?leads=0` : `/painel/${orgId}/clientes`}
+            className={buttonVariants({ variant: includeLeads ? "outline" : "secondary", size: "sm" })}
+          >
+            {includeLeads ? "Somente compradores" : "Incluir leads (sem compra)"}
+          </Link>
+        )}
       </div>
 
-      {noBuyers ? (
+      {noClients ? (
         <Card>
           <EmptyState
             icon={<Users className="size-5" />}
-            title="Nenhum comprador ainda"
-            description="Os compradores aparecerão aqui automaticamente após a confirmação dos primeiros pedidos pagos."
+            title="Nenhum cliente ainda"
+            description="Compradores e leads aparecerão aqui automaticamente conforme as pessoas avançam no checkout dos seus eventos."
             action={
               <Link href={`/painel/${orgId}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                 <CalendarDays className="size-4" />
@@ -113,11 +116,11 @@ export default async function CrmPage({
       <div className="mt-6 flex items-start gap-3 rounded-xl border border-line bg-subtle p-4 text-small text-ink-muted">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-ink-faint" />
         <div>
-          <p className="font-medium text-ink">Privacidade dos compradores</p>
+          <p className="font-medium text-ink">Privacidade dos clientes</p>
           <p className="mt-0.5">
             Os dados e as preferências de comunicação são administrados conforme as configurações de
-            privacidade da plataforma. Compradores sem compras há mais de 24 meses são anonimizados
-            automaticamente.
+            privacidade da plataforma. Compradores sem compras há mais de 24 meses e leads sem compra
+            há mais de 12 meses são anonimizados automaticamente.
           </p>
         </div>
       </div>

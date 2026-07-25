@@ -10,10 +10,10 @@ import {
   LifeBuoy,
   ScanLine,
   LogOut,
-  Menu,
   X,
   Ticket,
   ArrowLeftRight,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -24,6 +24,8 @@ interface NavItem {
   label: string;
   icon: typeof CalendarDays;
   match: (pathname: string) => boolean;
+  /** external app link (e.g. Portaria) — not part of the bottom tabs */
+  external?: boolean;
 }
 
 function navItems(orgId: string): NavItem[] {
@@ -42,10 +44,10 @@ function navItems(orgId: string): NavItem[] {
       match: (p) => p.startsWith(`${base}/relatorio`),
     },
     {
-      href: `${base}/compradores`,
-      label: "Compradores",
+      href: `${base}/clientes`,
+      label: "Clientes",
       icon: Users,
-      match: (p) => p.startsWith(`${base}/compradores`),
+      match: (p) => p.startsWith(`${base}/clientes`),
     },
     {
       href: `${base}/suporte`,
@@ -54,6 +56,13 @@ function navItems(orgId: string): NavItem[] {
       match: (p) => p.startsWith(`${base}/suporte`),
     },
   ];
+}
+
+/** Primary tabs shown in the mobile bottom bar (the rest go under "Mais"). */
+const BOTTOM_TAB_COUNT = 3;
+
+async function logoutRequest(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" });
 }
 
 export function PanelShell({
@@ -65,55 +74,26 @@ export function PanelShell({
   multiOrg: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
     <div className="min-h-dvh bg-page">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
-        <SidebarContent org={org} multiOrg={multiOrg} onNavigate={() => undefined} />
+        <SidebarContent org={org} multiOrg={multiOrg} />
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur lg:hidden">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Abrir menu"
-          className="rounded-lg p-2 text-ink-soft transition-colors hover:bg-hover"
-        >
-          <Menu className="size-5" />
-        </button>
+      {/* Mobile top bar (brand + org context) */}
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur lg:hidden">
         <BrandMark />
         <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
       </header>
 
-      {/* Mobile drawer */}
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="absolute inset-0"
-            style={{ background: "var(--overlay)" }}
-            onClick={() => setOpen(false)}
-          />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-line bg-surface">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Fechar menu"
-              className="absolute right-3 top-3 rounded-lg p-2 text-ink-muted transition-colors hover:bg-hover"
-            >
-              <X className="size-5" />
-            </button>
-            <SidebarContent org={org} multiOrg={multiOrg} onNavigate={() => setOpen(false)} />
-          </aside>
-        </div>
-      )}
-
-      {/* Content */}
+      {/* Content — extra bottom padding on mobile clears the bottom nav */}
       <div className="lg:pl-60">
-        <main className="mx-auto max-w-6xl px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-8">{children}</main>
       </div>
+
+      {/* Mobile bottom nav */}
+      <MobileBottomNav org={org} multiOrg={multiOrg} />
     </div>
   );
 }
@@ -129,21 +109,157 @@ function BrandMark() {
   );
 }
 
-function SidebarContent({
-  org,
-  multiOrg,
-  onNavigate,
-}: {
-  org: NavOrg;
-  multiOrg: boolean;
-  onNavigate: () => void;
-}) {
+function MobileBottomNav({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const items = navItems(org.id);
+  const tabs = items.slice(0, BOTTOM_TAB_COUNT);
+  const overflow = items.slice(BOTTOM_TAB_COUNT);
+  const moreActive = overflow.some((i) => i.match(pathname));
+
+  async function logout() {
+    setMoreOpen(false);
+    await logoutRequest();
+    router.push("/entrar");
+  }
+
+  return (
+    <>
+      <nav
+        aria-label="Navegação"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <ul className="mx-auto flex max-w-lg items-stretch">
+          {tabs.map((item) => {
+            const active = item.match(pathname);
+            const Icon = item.icon;
+            return (
+              <li key={item.href} className="flex-1">
+                <Link
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
+                    active ? "text-brand" : "text-ink-muted",
+                  )}
+                >
+                  <Icon className="size-5" strokeWidth={active ? 2 : 1.75} />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+          <li className="flex-1">
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              className={cn(
+                "flex w-full flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
+                moreActive || moreOpen ? "text-brand" : "text-ink-muted",
+              )}
+            >
+              <MoreHorizontal className="size-5" strokeWidth={moreActive || moreOpen ? 2 : 1.75} />
+              Mais
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      {/* "Mais" sheet */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-label="Mais opções">
+          <div
+            className="absolute inset-0"
+            style={{ background: "var(--overlay)" }}
+            onClick={() => setMoreOpen(false)}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-surface p-3"
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="mb-1 flex items-center justify-between px-2 py-1">
+              <span className="text-small font-semibold text-ink">Mais</span>
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                aria-label="Fechar"
+                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-hover"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <ul className="space-y-1">
+              {overflow.map((item) => {
+                const Icon = item.icon;
+                const active = item.match(pathname);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium transition-colors",
+                        active ? "bg-brand-soft text-brand" : "text-ink-soft hover:bg-hover",
+                      )}
+                    >
+                      <Icon className="size-5 shrink-0" strokeWidth={active ? 2 : 1.75} />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+              <li>
+                <Link
+                  href="/checkin"
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                >
+                  <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
+                  Portaria
+                </Link>
+              </li>
+              {multiOrg && (
+                <li>
+                  <Link
+                    href="/painel"
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                  >
+                    <ArrowLeftRight className="size-5 shrink-0" strokeWidth={1.75} />
+                    Trocar organização
+                  </Link>
+                </li>
+              )}
+              <li>
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-muted transition-colors hover:bg-hover hover:text-ink"
+                >
+                  <LogOut className="size-5 shrink-0" strokeWidth={1.75} />
+                  Sair
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SidebarContent({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const items = navItems(org.id);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await logoutRequest();
     router.push("/entrar");
   }
 
@@ -157,7 +273,6 @@ function SidebarContent({
           {multiOrg && (
             <Link
               href="/painel"
-              onClick={onNavigate}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-caption font-medium text-brand transition-colors hover:bg-brand-soft"
             >
               <ArrowLeftRight className="size-3.5" />
@@ -179,13 +294,10 @@ function SidebarContent({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium transition-colors",
-                active
-                  ? "bg-brand-soft text-brand"
-                  : "text-ink-soft hover:bg-hover hover:text-ink",
+                active ? "bg-brand-soft text-brand" : "text-ink-soft hover:bg-hover hover:text-ink",
               )}
             >
               <Icon className="size-5 shrink-0" strokeWidth={active ? 2 : 1.75} />
@@ -199,7 +311,6 @@ function SidebarContent({
         </p>
         <Link
           href="/checkin"
-          onClick={onNavigate}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
         >
           <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />

@@ -47,8 +47,8 @@ export function CommunicationButton({
         title={optedOut ? "Reativar comunicações promocionais?" : "Desativar comunicações promocionais?"}
         description={
           optedOut
-            ? "O comprador voltará a poder receber campanhas e mensagens promocionais."
-            : "O comprador deixará de receber campanhas e mensagens promocionais."
+            ? "O cliente voltará a poder receber campanhas e mensagens promocionais."
+            : "O cliente deixará de receber campanhas e mensagens promocionais."
         }
         confirmLabel={optedOut ? "Reativar comunicações" : "Desativar comunicações"}
         tone={optedOut ? "primary" : "danger"}

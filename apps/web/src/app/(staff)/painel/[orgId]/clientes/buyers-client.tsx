@@ -175,7 +175,7 @@ export function BuyersClient({
     <div className="space-y-4">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Compradores" value={kpis.buyers.toLocaleString("pt-BR")} icon={<Users className="size-4" />} />
+        <Stat label="Clientes" value={kpis.buyers.toLocaleString("pt-BR")} icon={<Users className="size-4" />} />
         <Stat label="Pedidos pagos" value={kpis.orders.toLocaleString("pt-BR")} icon={<Receipt className="size-4" />} />
         <Stat label="Valor total comprado" value={fmtBRL(kpis.total)} icon={<TrendingUp className="size-4" />} />
         <Stat
@@ -275,7 +275,7 @@ export function BuyersClient({
       {/* Result count + clear */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-small text-ink-muted" role="status" aria-live="polite">
-          {pluralize(filtered.length, "comprador encontrado", "compradores encontrados")}
+          {pluralize(filtered.length, "cliente encontrado", "clientes encontrados")}
           {eventScoped ? " neste evento" : ""}
         </p>
         {activeFilters > 0 && (
@@ -287,7 +287,7 @@ export function BuyersClient({
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
-          <p className="text-h3 text-ink">Nenhum comprador encontrado</p>
+          <p className="text-h3 text-ink">Nenhum cliente encontrado</p>
           <p className="mt-1 text-body text-ink-muted">Revise os termos pesquisados ou remova alguns filtros.</p>
           {activeFilters > 0 && (
             <Button variant="outline" size="sm" className="mt-3" onClick={resetFilters}>
@@ -300,10 +300,10 @@ export function BuyersClient({
           {/* Desktop table */}
           <div className="hidden overflow-hidden rounded-xl border border-line bg-surface md:block">
             <table className="w-full text-body">
-              <caption className="sr-only">Lista de compradores</caption>
+              <caption className="sr-only">Lista de clientes</caption>
               <thead>
                 <tr className="border-b border-line text-left text-small text-ink-muted">
-                  <th scope="col" className="px-4 py-2.5 font-medium">Comprador</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">Cliente</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-medium">Pedidos</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-medium">Total comprado</th>
                   <th scope="col" className="px-4 py-2.5 font-medium">Última compra</th>
@@ -316,7 +316,7 @@ export function BuyersClient({
                   <tr key={r.email} className="hover:bg-hover">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/painel/${orgId}/compradores/${encodeURIComponent(r.email)}`}
+                        href={`/painel/${orgId}/clientes/${encodeURIComponent(r.email)}`}
                         className="flex items-center gap-3 rounded-md focus-visible:outline-2"
                       >
                         <Avatar name={r.name} email={r.email} />
@@ -354,7 +354,7 @@ export function BuyersClient({
               <li key={r.email} className="rounded-xl border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-2">
                   <Link
-                    href={`/painel/${orgId}/compradores/${encodeURIComponent(r.email)}`}
+                    href={`/painel/${orgId}/clientes/${encodeURIComponent(r.email)}`}
                     className="flex min-w-0 items-center gap-3"
                   >
                     <Avatar name={r.name} email={r.email} />
@@ -413,8 +413,8 @@ export function BuyersClient({
         }
         description={
           commTarget?.optedOut
-            ? "O comprador voltará a poder receber campanhas e mensagens promocionais."
-            : "O comprador deixará de receber campanhas e mensagens promocionais."
+            ? "O cliente voltará a poder receber campanhas e mensagens promocionais."
+            : "O cliente deixará de receber campanhas e mensagens promocionais."
         }
         confirmLabel={commTarget?.optedOut ? "Reativar comunicações" : "Desativar comunicações"}
         tone={commTarget?.optedOut ? "primary" : "danger"}
@@ -441,8 +441,8 @@ function RowActions({
       triggerVariant="ghost"
       triggerClassName="px-1.5"
     >
-      <MenuItem href={`/painel/${orgId}/compradores/${encodeURIComponent(buyer.email)}`}>
-        Ver comprador
+      <MenuItem href={`/painel/${orgId}/clientes/${encodeURIComponent(buyer.email)}`}>
+        Ver cliente
       </MenuItem>
       {wa && !buyer.optedOut && (
         <MenuItem icon={<MessageCircle className="size-4" />} href={wa} external>
