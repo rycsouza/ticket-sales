@@ -2,20 +2,44 @@ import { z } from "zod";
 
 /**
  * Staff inputs — strict allowlists (CLAUDE_SECURITY_RULES §19). organizationId,
- * eventId and status are NEVER taken from the body; they come from the route
- * scope and the caller's verified membership.
+ * eventId, promoterId scope and status are NEVER taken from the body when they
+ * come from the route/verified membership; only ids the caller legitimately
+ * selects (which promoter, which membership to link) are accepted here.
  */
 
-export const assignPromoterSchema = z
+// Create a lightweight promoter (no login). contact* are optional.
+export const createPromoterSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    contactEmail: z.string().trim().email().max(254).optional(),
+    contactPhone: z
+      .string()
+      .trim()
+      .regex(/^\d{8,20}$/, "phone must be 8-20 digits")
+      .optional(),
+  })
+  .strict();
+export type CreatePromoterInput = z.infer<typeof createPromoterSchema>;
+
+// Promote a lightweight promoter to a login account (link a PROMOTER membership).
+export const promoteToLoginSchema = z
   .object({
     membershipId: z.string().uuid(),
   })
   .strict();
-export type AssignPromoterInput = z.infer<typeof assignPromoterSchema>;
+export type PromoteToLoginInput = z.infer<typeof promoteToLoginSchema>;
+
+// Link an existing promoter to an event.
+export const linkPromoterSchema = z
+  .object({
+    promoterId: z.string().uuid(),
+  })
+  .strict();
+export type LinkPromoterInput = z.infer<typeof linkPromoterSchema>;
 
 export const createPromoterLinkSchema = z
   .object({
-    membershipId: z.string().uuid(),
+    promoterId: z.string().uuid(),
   })
   .strict();
 export type CreatePromoterLinkInput = z.infer<typeof createPromoterLinkSchema>;
@@ -34,7 +58,7 @@ export const createCouponSchema = z
     type: z.enum(["PERCENT", "FIXED"]),
     // PERCENT: basis points (1..10000). FIXED: cents (>= 1).
     value: z.number().int().min(1).max(10_000_000),
-    membershipId: z.string().uuid().optional(),
+    promoterId: z.string().uuid().optional(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
     maxRedemptions: z.number().int().min(1).max(1_000_000).optional(),
@@ -60,7 +84,7 @@ export type CouponPreviewInput = z.infer<typeof couponPreviewSchema>;
 
 export const createCommissionRuleSchema = z
   .object({
-    membershipId: z.string().uuid().optional(),
+    promoterId: z.string().uuid().optional(),
     ticketTypeId: z.string().uuid().optional(),
     type: z.enum(["PERCENT", "FIXED"]),
     value: z.number().int().min(0).max(10_000_000),
@@ -72,3 +96,15 @@ export const createCommissionRuleSchema = z
     path: ["value"],
   });
 export type CreateCommissionRuleInput = z.infer<typeof createCommissionRuleSchema>;
+
+// Register a promoter commission payout (FINANCE). eventId optional (null =
+// across all events for that promoter).
+export const promoterPayoutSchema = z
+  .object({
+    promoterId: z.string().uuid(),
+    eventId: z.string().uuid().optional(),
+    amountCents: z.number().int().min(1).max(1_000_000_000),
+    memo: z.string().trim().max(280).optional(),
+  })
+  .strict();
+export type PromoterPayoutInput = z.infer<typeof promoterPayoutSchema>;

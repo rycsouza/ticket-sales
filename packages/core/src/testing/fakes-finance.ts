@@ -27,7 +27,7 @@ export class InMemoryLedgerRepository implements LedgerRepository {
         account: e.account,
         type: e.type,
         amountCents: e.amountCents,
-        membershipId: e.membershipId ?? null,
+        promoterId: e.promoterId ?? null,
         memo: e.memo ?? null,
         createdAt: new Date(),
       });
@@ -42,7 +42,7 @@ export class InMemoryLedgerRepository implements LedgerRepository {
     account: LedgerAccount;
     type: LedgerEntryType;
     amountCents: number;
-    membershipId?: string | undefined;
+    promoterId?: string | undefined;
     memo?: string | undefined;
     correlationId: string;
   }): Promise<LedgerEntryRecord> {
@@ -54,7 +54,7 @@ export class InMemoryLedgerRepository implements LedgerRepository {
       account: data.account,
       type: data.type,
       amountCents: data.amountCents,
-      membershipId: data.membershipId ?? null,
+      promoterId: data.promoterId ?? null,
       memo: data.memo ?? null,
       createdAt: new Date(),
     };

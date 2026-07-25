@@ -35,7 +35,7 @@ export interface LedgerCommissionReader {
   getAccruedCommission(
     organizationId: string,
     orderId: string,
-  ): Promise<{ membershipId: string; amountCents: number } | null>;
+  ): Promise<{ promoterId: string; amountCents: number } | null>;
 }
 export interface LedgerPspCostReader {
   getOrderPspCostCents(organizationId: string, orderId: string): Promise<number>;
@@ -95,13 +95,13 @@ export class FinanceService {
         account: "PRODUCER",
         type: "COMMISSION",
         amountCents: -commission.amountCents,
-        membershipId: commission.membershipId,
+        promoterId: commission.promoterId,
       });
       entries.push({
         account: "PROMOTER",
         type: "COMMISSION",
         amountCents: commission.amountCents,
-        membershipId: commission.membershipId,
+        promoterId: commission.promoterId,
       });
     }
 
@@ -127,23 +127,23 @@ export class FinanceService {
     const existing = await this.deps.ledger.listByOrder(organizationId, orderId);
     if (existing.length === 0) return;
 
-    const balances = new Map<LedgerAccount, { amount: number; membershipId: string | null }>();
+    const balances = new Map<LedgerAccount, { amount: number; promoterId: string | null }>();
     for (const entry of existing) {
       if (entry.type === "REFUND") return; // already reversed (idempotent)
-      const current = balances.get(entry.account) ?? { amount: 0, membershipId: null };
+      const current = balances.get(entry.account) ?? { amount: 0, promoterId: null };
       current.amount += entry.amountCents;
-      if (entry.membershipId) current.membershipId = entry.membershipId;
+      if (entry.promoterId) current.promoterId = entry.promoterId;
       balances.set(entry.account, current);
     }
 
     const entries: LedgerPostEntry[] = [];
-    for (const [account, { amount, membershipId }] of balances) {
+    for (const [account, { amount, promoterId }] of balances) {
       if (amount === 0) continue;
       entries.push({
         account,
         type: "REFUND",
         amountCents: -amount,
-        ...(membershipId ? { membershipId } : {}),
+        ...(promoterId ? { promoterId } : {}),
         memo: "reversal",
       });
     }

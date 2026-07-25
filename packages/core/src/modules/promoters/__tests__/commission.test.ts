@@ -13,7 +13,7 @@ function rule(overrides: Partial<CommissionRuleRecord>): CommissionRuleRecord {
     id: overrides.id ?? "rule",
     organizationId: "org",
     eventId: "evt",
-    membershipId: null,
+    promoterId: null,
     ticketTypeId: null,
     type: "PERCENT",
     value: 1000, // 10%
@@ -28,15 +28,15 @@ describe("resolveRuleForUnit — specificity (FR-PRM-009)", () => {
     const rules = [
       rule({ id: "event-wide" }),
       rule({ id: "by-tt", ticketTypeId: TT_A }),
-      rule({ id: "by-member", membershipId: PROMOTER }),
-      rule({ id: "by-both", membershipId: PROMOTER, ticketTypeId: TT_A }),
+      rule({ id: "by-member", promoterId: PROMOTER }),
+      rule({ id: "by-both", promoterId: PROMOTER, ticketTypeId: TT_A }),
     ];
     expect(resolveRuleForUnit(rules, PROMOTER, TT_A)?.id).toBe("by-both");
   });
 
   it("ignores rules scoped to another promoter or ticket type", () => {
     const rules = [
-      rule({ id: "other-member", membershipId: OTHER }),
+      rule({ id: "other-member", promoterId: OTHER }),
       rule({ id: "other-tt", ticketTypeId: TT_B }),
       rule({ id: "event-wide" }),
     ];
@@ -119,7 +119,7 @@ describe("coupon validation & discount (FR-CHK-008)", () => {
       type: "PERCENT",
       value: 1000,
       active: true,
-      membershipId: null,
+      promoterId: null,
       startsAt: null,
       endsAt: null,
       maxRedemptions: null,

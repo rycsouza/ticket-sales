@@ -22,22 +22,27 @@ export interface CommissionComputation {
 }
 
 /**
- * Picks the most specific ACTIVE rule for a unit (FR-PRM-009). Specificity:
- * membership+ticketType > membership > ticketType > event-wide. A rule is a
- * candidate only when its narrowing fields either match or are unset.
+ * Picks the most specific ACTIVE rule for a unit (FR-PRM-009). Hierarchy
+ * affiliate > event > organization: an event-specific rule outranks an
+ * org-default one (eventId null), a promoter-specific rule outranks a broad one,
+ * ticket-type narrows further. A rule is a candidate only when its narrowing
+ * fields either match or are unset. Callers pass event-scoped + org-default rules.
  */
 export function resolveRuleForUnit(
   rules: CommissionRuleRecord[],
-  promoterMembershipId: string,
+  promoterId: string,
   ticketTypeId: string,
 ): CommissionRuleRecord | null {
   let best: CommissionRuleRecord | null = null;
   let bestScore = -1;
   for (const rule of rules) {
     if (!rule.active) continue;
-    if (rule.membershipId !== null && rule.membershipId !== promoterMembershipId) continue;
+    if (rule.promoterId !== null && rule.promoterId !== promoterId) continue;
     if (rule.ticketTypeId !== null && rule.ticketTypeId !== ticketTypeId) continue;
-    const score = (rule.membershipId !== null ? 2 : 0) + (rule.ticketTypeId !== null ? 1 : 0);
+    const score =
+      (rule.eventId !== null ? 4 : 0) +
+      (rule.promoterId !== null ? 2 : 0) +
+      (rule.ticketTypeId !== null ? 1 : 0);
     if (score > bestScore) {
       best = rule;
       bestScore = score;
@@ -74,7 +79,7 @@ function unitBase(
 export function computeCommission(
   units: EligibleUnit[],
   rules: CommissionRuleRecord[],
-  promoterMembershipId: string,
+  promoterId: string,
   order: { subtotalCents: number; discountCents: number },
 ): CommissionComputation {
   let quantity = 0;
@@ -83,7 +88,7 @@ export function computeCommission(
   const usedRules = new Map<string, CommissionRuleSnapshot>();
 
   for (const unit of units) {
-    const rule = resolveRuleForUnit(rules, promoterMembershipId, unit.ticketTypeId);
+    const rule = resolveRuleForUnit(rules, promoterId, unit.ticketTypeId);
     if (!rule) continue;
 
     const base = unitBase(

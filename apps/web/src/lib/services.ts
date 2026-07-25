@@ -20,6 +20,7 @@ import {
   PrismaCouponRepository,
   PrismaOrderAttributionRepository,
   PrismaOrderNoteRepository,
+  PrismaPromoterRepository,
   PrismaPromoterAssignmentRepository,
   PrismaPromoterLinkRepository,
   SupportService,
@@ -155,6 +156,7 @@ function buildServices() {
   const paymentRepo = new PrismaPaymentRepository(prisma);
   const paymentEventRepo = new PrismaPaymentEventRepository(prisma);
   const notificationRepo = new PrismaNotificationRepository(prisma);
+  const promoterRepo = new PrismaPromoterRepository(prisma);
   const promoterAssignments = new PrismaPromoterAssignmentRepository(prisma);
   const promoterLinks = new PrismaPromoterLinkRepository(prisma);
   const couponRepo = new PrismaCouponRepository(prisma);
@@ -175,6 +177,7 @@ function buildServices() {
   // Built before OrdersService so it can be injected as the checkout resolver
   // (coupon discount + attribution). It depends on repositories, not services.
   const promotersService = new PromotersService({
+    promoters: promoterRepo,
     assignments: promoterAssignments,
     links: promoterLinks,
     coupons: couponRepo,
@@ -232,7 +235,7 @@ function buildServices() {
           orderId,
           "ACCRUAL",
         );
-        return entry ? { membershipId: entry.membershipId, amountCents: entry.amountCents } : null;
+        return entry ? { promoterId: entry.promoterId, amountCents: entry.amountCents } : null;
       },
     },
     pspCost: { getOrderPspCostCents: async () => 0 },

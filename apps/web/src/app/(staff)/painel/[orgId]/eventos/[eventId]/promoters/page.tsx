@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Link2, Ticket, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { Link2, Ticket, UserPlus, Users } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import {
@@ -7,16 +8,15 @@ import {
   toCouponResponse,
   toPromoterAssignmentResponse,
   toPromoterLinkResponse,
+  toPromoterResponse,
   toPromoterSummaryResponse,
 } from "@/lib/serializers";
-import { Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, EmptyState, buttonVariants } from "@/components/ui";
 import { commissionBaseLabel, discountValueLabel, fmtBRL } from "@/lib/status";
 import { ActionButton, CopyButton } from "../../../../ui";
 import { NewCouponForm, NewRuleForm } from "./promoter-forms";
 
 export const metadata: Metadata = { title: "Promotores e cupons — Ingressos" };
-
-const short = (id: string) => id.slice(0, 8);
 
 export default async function PromotersPage({
   params,
@@ -28,29 +28,40 @@ export default async function PromotersPage({
   const ctx = dashboardCtx(orgId, userId);
   const s = getServices();
 
-  const [assignments, links, coupons, rules, ranking, members, event] = await Promise.all([
-    s.promoters.listPromoters(ctx, eventId).then((r) => r.map(toPromoterAssignmentResponse)),
+  const [assignments, links, coupons, rules, ranking, orgPromoters, event] = await Promise.all([
+    s.promoters.listEventAssignments(ctx, eventId).then((r) => r.map(toPromoterAssignmentResponse)),
     s.promoters.listLinks(ctx, eventId).then((r) => r.map(toPromoterLinkResponse)),
     s.promoters.listCoupons(ctx, eventId).then((r) => r.map(toCouponResponse)),
     s.promoters.listCommissionRules(ctx, eventId).then((r) => r.map(toCommissionRuleResponse)),
     s.promoters.eventRanking(ctx, eventId).then((r) => r.map(toPromoterSummaryResponse)),
-    s.identity.listMembers(ctx),
+    s.promoters.listPromoters(ctx).then((r) => r.map(toPromoterResponse)),
     s.events.getEvent(ctx, eventId).catch(() => null),
   ]);
   const eventPath = event ? `/evento/${event.slug}` : `/e/${eventId}`;
-  const promoterMembers = members.filter((m) => m.role === "PROMOTER" && m.status === "ACTIVE");
-  const linkByMember = new Map(links.map((l) => [l.membershipId, l]));
+  const nameOf = (id: string | null) =>
+    (id && orgPromoters.find((p) => p.id === id)?.name) || "Promotor";
+  const linkByPromoter = new Map(links.map((l) => [l.promoterId, l]));
   const api = `/api/orgs/${orgId}/events/${eventId}`;
-  const unassigned = promoterMembers.filter((m) => !assignments.some((a) => a.membershipId === m.id));
+  const unassigned = orgPromoters.filter((p) => !assignments.some((a) => a.promoterId === p.id));
+  const promoterOptions = orgPromoters.map((p) => ({ id: p.id, name: p.name }));
   const activeRules = rules.filter((r) => r.active);
 
   return (
     <div className="space-y-1">
-      <div className="mb-5">
-        <h2 className="text-h2 text-ink">Promotores e cupons</h2>
-        <p className="mt-0.5 text-small text-ink-muted">
-          Atribua promotores, gere links rastreáveis, crie cupons e defina regras de comissão.
-        </p>
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-h2 text-ink">Promotores e cupons</h2>
+          <p className="mt-0.5 text-small text-ink-muted">
+            Vincule afiliados a este evento, gere links, e crie cupons/regras específicas do evento.
+          </p>
+        </div>
+        <Link
+          href={`/painel/${orgId}/afiliados`}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <Users className="size-4" />
+          Gerenciar afiliados
+        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -58,27 +69,23 @@ export default async function PromotersPage({
         <Card>
           <CardHeader title="Promotores do evento" />
           {assignments.length === 0 ? (
-            promoterMembers.length === 0 ? (
-              <EmptyState
-                icon={<UserPlus className="size-5" />}
-                title="Nenhum promotor atribuído"
-                description="Você ainda não possui membros com o papel de promotor. Convide membros da equipe com esse papel para atribuí-los aqui."
-              />
-            ) : (
-              <EmptyState
-                icon={<UserPlus className="size-5" />}
-                title="Nenhum promotor atribuído"
-                description="Adicione membros da equipe para acompanhar vendas e comissões individuais. Use os botões abaixo."
-              />
-            )
+            <EmptyState
+              icon={<UserPlus className="size-5" />}
+              title="Nenhum promotor vinculado"
+              description={
+                orgPromoters.length === 0
+                  ? "Cadastre afiliados na seção Afiliados da organização e vincule-os aqui."
+                  : "Vincule afiliados da organização a este evento usando os botões abaixo."
+              }
+            />
           ) : (
             <ul className="divide-y divide-line">
               {assignments.map((a) => {
-                const link = linkByMember.get(a.membershipId);
+                const link = linkByPromoter.get(a.promoterId);
                 return (
                   <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <span className="min-w-0 text-body">
-                      <span className="block font-medium text-ink">Promotor #{short(a.membershipId)}</span>
+                      <span className="block font-medium text-ink">{nameOf(a.promoterId)}</span>
                       {link ? (
                         <span className="text-small text-ink-muted">
                           Link ativo · {link.clickCount} clique(s)
@@ -92,7 +99,7 @@ export default async function PromotersPage({
                     ) : (
                       <ActionButton
                         url={`${api}/promoters/links`}
-                        body={{ membershipId: a.membershipId }}
+                        body={{ promoterId: a.promoterId }}
                         leftIcon={<Link2 className="size-4" />}
                       >
                         Gerar link
@@ -104,43 +111,47 @@ export default async function PromotersPage({
             </ul>
           )}
           <CardBody className="border-t border-line">
-            {promoterMembers.length > 0 ? (
+            {orgPromoters.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-small text-ink-muted">Atribuir promotor ao evento:</p>
+                <p className="text-small text-ink-muted">Vincular afiliado ao evento:</p>
                 {unassigned.length === 0 ? (
-                  <p className="text-small text-ink-faint">Todos os promotores já foram atribuídos.</p>
+                  <p className="text-small text-ink-faint">Todos os afiliados já foram vinculados.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {unassigned.map((m) => (
+                    {unassigned.map((p) => (
                       <ActionButton
-                        key={m.id}
+                        key={p.id}
                         url={`${api}/promoters`}
-                        body={{ membershipId: m.id }}
+                        body={{ promoterId: p.id }}
                         variant="secondary"
                         leftIcon={<UserPlus className="size-4" />}
                       >
-                        Promotor #{short(m.id)}
+                        {p.name}
                       </ActionButton>
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-small text-ink-muted">
-                Convide membros com o papel de promotor pela gestão de equipe para atribuí-los aqui.
-              </p>
+              <Link
+                href={`/painel/${orgId}/afiliados`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Users className="size-4" />
+                Cadastrar afiliados
+              </Link>
             )}
           </CardBody>
         </Card>
 
         {/* Coupons */}
         <Card>
-          <CardHeader title="Cupons" />
+          <CardHeader title="Cupons do evento" />
           {coupons.length === 0 ? (
             <EmptyState
               icon={<Ticket className="size-5" />}
               title="Nenhum cupom criado"
-              description="Crie descontos para campanhas, parceiros ou compradores específicos usando o formulário abaixo."
+              description="Crie descontos específicos deste evento. Cupons da organização inteira ficam na seção Afiliados."
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -149,7 +160,7 @@ export default async function PromotersPage({
                   <span className="min-w-0">
                     <span className="block font-mono font-medium text-ink">{c.code}</span>
                     <span className="text-small text-ink-muted">
-                      {c.membershipId ? `Promotor #${short(c.membershipId)}` : "Cupom da organização"}
+                      {c.promoterId ? nameOf(c.promoterId) : "Cupom do evento"}
                     </span>
                   </span>
                   <span className="shrink-0 text-right text-small">
@@ -163,17 +174,17 @@ export default async function PromotersPage({
             </ul>
           )}
           <CardBody className="border-t border-line">
-            <NewCouponForm apiBase={api} promoterMembers={promoterMembers.map((m) => m.id)} />
+            <NewCouponForm apiBase={api} promoters={promoterOptions} />
           </CardBody>
         </Card>
 
         {/* Commission rules + ranking */}
         <Card className="lg:col-span-2">
-          <CardHeader title="Comissão" description="Como a comissão dos promotores é calculada." />
+          <CardHeader title="Comissão" description="Como a comissão dos promotores é calculada neste evento." />
           {activeRules.length === 0 ? (
             <EmptyState
               title="Nenhuma regra de comissão"
-              description="Defina uma regra para acumular comissões automaticamente a cada venda atribuída a um promotor."
+              description="Defina uma regra para acumular comissões automaticamente a cada venda atribuída a um promotor. Regras da organização também se aplicam."
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -181,15 +192,15 @@ export default async function PromotersPage({
                 <li key={r.id} className="px-5 py-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-ink">
-                      {r.membershipId ? "Comissão específica" : "Comissão padrão"}
+                      {r.promoterId ? "Comissão específica" : "Comissão padrão"}
                     </span>
                     <Badge tone="brand">{discountValueLabel(r.type, r.value)}</Badge>
                   </div>
                   <p className="mt-1 text-small text-ink-muted">
                     {discountValueLabel(r.type, r.value)}{" "}
                     {r.type === "PERCENT" ? commissionBaseLabel(r.base) : "por ingresso vendido"} ·{" "}
-                    {r.membershipId
-                      ? `aplicada ao promotor #${short(r.membershipId)}`
+                    {r.promoterId
+                      ? `aplicada a ${nameOf(r.promoterId)}`
                       : "aplicada a todos os promotores"}
                   </p>
                 </li>
@@ -197,7 +208,7 @@ export default async function PromotersPage({
             </ul>
           )}
           <CardBody className="space-y-4 border-t border-line">
-            <NewRuleForm apiBase={api} promoterMembers={promoterMembers.map((m) => m.id)} />
+            <NewRuleForm apiBase={api} promoters={promoterOptions} />
             {ranking.length > 0 && (
               <div className="border-t border-line pt-4">
                 <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-ink-faint">
@@ -205,8 +216,8 @@ export default async function PromotersPage({
                 </p>
                 <ul className="space-y-1">
                   {ranking.map((r) => (
-                    <li key={r.membershipId} className="flex justify-between text-body">
-                      <span className="text-ink-soft">Promotor #{short(r.membershipId)}</span>
+                    <li key={r.promoterId} className="flex justify-between text-body">
+                      <span className="text-ink-soft">{nameOf(r.promoterId)}</span>
                       <span className="text-ink">
                         {r.quantity} ingresso(s) ·{" "}
                         <strong className="tabular-nums">{fmtBRL(r.amountCents)}</strong>

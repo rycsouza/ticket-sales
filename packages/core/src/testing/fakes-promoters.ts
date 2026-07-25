@@ -1,6 +1,7 @@
 // In-memory fakes for the promoters module. They reproduce the invariants that
 // matter for correctness: coupon redemption cap, one active rule per scope,
-// and append-only commission entries idempotent per (orderId, type).
+// hierarchical resolution, and append-only commission entries idempotent per
+// (orderId, type).
 
 import type {
   CommissionEntryRepository,
@@ -8,7 +9,9 @@ import type {
   CouponRepository,
   OrderAttributionRepository,
   PromoterAssignmentRepository,
+  PromoterEventSummaryRow,
   PromoterLinkRepository,
+  PromoterRepository,
   PromoterSummaryRow,
 } from "../modules/promoters/repository";
 import type {
@@ -19,15 +22,88 @@ import type {
   OrderAttributionRecord,
   PromoterAssignmentRecord,
   PromoterLinkRecord,
+  PromoterRecord,
 } from "../modules/promoters/types";
 import { nextId } from "./fakes";
+
+export class InMemoryPromoterRepository implements PromoterRepository {
+  readonly promoters: (PromoterRecord & { reportTokenHash: string })[] = [];
+
+  async create(data: {
+    organizationId: string;
+    name: string;
+    contactEmail?: string | undefined;
+    contactPhone?: string | undefined;
+    reportTokenHash: string;
+  }) {
+    const record: PromoterRecord & { reportTokenHash: string } = {
+      id: nextId("prm"),
+      organizationId: data.organizationId,
+      name: data.name,
+      contactEmail: data.contactEmail ?? null,
+      contactPhone: data.contactPhone ?? null,
+      membershipId: null,
+      active: true,
+      reportTokenHash: data.reportTokenHash,
+    };
+    this.promoters.push(record);
+    return this.strip(record);
+  }
+
+  async findById(organizationId: string, id: string) {
+    const p = this.promoters.find((x) => x.id === id && x.organizationId === organizationId);
+    return p ? this.strip(p) : null;
+  }
+
+  async findByMembership(organizationId: string, membershipId: string) {
+    const p = this.promoters.find(
+      (x) => x.organizationId === organizationId && x.membershipId === membershipId,
+    );
+    return p ? this.strip(p) : null;
+  }
+
+  async findByReportTokenHash(reportTokenHash: string) {
+    const p = this.promoters.find((x) => x.reportTokenHash === reportTokenHash);
+    return p ? this.strip(p) : null;
+  }
+
+  async listByOrganization(organizationId: string) {
+    return this.promoters
+      .filter((x) => x.organizationId === organizationId)
+      .map((x) => this.strip(x));
+  }
+
+  async attachMembership(organizationId: string, id: string, membershipId: string) {
+    const p = this.promoters.find((x) => x.id === id && x.organizationId === organizationId);
+    if (!p) throw new Error("Promoter not found in organization scope");
+    p.membershipId = membershipId;
+  }
+
+  async updateReportTokenHash(organizationId: string, id: string, reportTokenHash: string) {
+    const p = this.promoters.find((x) => x.id === id && x.organizationId === organizationId);
+    if (!p) throw new Error("Promoter not found in organization scope");
+    p.reportTokenHash = reportTokenHash;
+  }
+
+  async setActive(organizationId: string, id: string, active: boolean) {
+    const p = this.promoters.find((x) => x.id === id && x.organizationId === organizationId);
+    if (!p) throw new Error("Promoter not found in organization scope");
+    p.active = active;
+  }
+
+  private strip(p: PromoterRecord & { reportTokenHash: string }): PromoterRecord {
+    const { reportTokenHash: _omit, ...rest } = p;
+    void _omit;
+    return { ...rest };
+  }
+}
 
 export class InMemoryPromoterAssignmentRepository implements PromoterAssignmentRepository {
   readonly assignments: PromoterAssignmentRecord[] = [];
 
-  async create(data: { organizationId: string; eventId: string; membershipId: string }) {
+  async create(data: { organizationId: string; eventId: string; promoterId: string }) {
     const existing = this.assignments.find(
-      (a) => a.eventId === data.eventId && a.membershipId === data.membershipId,
+      (a) => a.eventId === data.eventId && a.promoterId === data.promoterId,
     );
     if (existing) {
       existing.active = true;
@@ -37,24 +113,20 @@ export class InMemoryPromoterAssignmentRepository implements PromoterAssignmentR
       id: nextId("pas"),
       organizationId: data.organizationId,
       eventId: data.eventId,
-      membershipId: data.membershipId,
+      promoterId: data.promoterId,
       active: true,
     };
     this.assignments.push(record);
     return record;
   }
 
-  async findByEventAndMembership(
-    organizationId: string,
-    eventId: string,
-    membershipId: string,
-  ) {
+  async findByEventAndPromoter(organizationId: string, eventId: string, promoterId: string) {
     return (
       this.assignments.find(
         (a) =>
           a.organizationId === organizationId &&
           a.eventId === eventId &&
-          a.membershipId === membershipId,
+          a.promoterId === promoterId,
       ) ?? null
     );
   }
@@ -62,6 +134,12 @@ export class InMemoryPromoterAssignmentRepository implements PromoterAssignmentR
   async listByEvent(organizationId: string, eventId: string) {
     return this.assignments.filter(
       (a) => a.organizationId === organizationId && a.eventId === eventId,
+    );
+  }
+
+  async listByPromoter(organizationId: string, promoterId: string) {
+    return this.assignments.filter(
+      (a) => a.organizationId === organizationId && a.promoterId === promoterId,
     );
   }
 }
@@ -72,14 +150,14 @@ export class InMemoryPromoterLinkRepository implements PromoterLinkRepository {
   async create(data: {
     organizationId: string;
     eventId: string;
-    membershipId: string;
+    promoterId: string;
     code: string;
   }) {
     const record: PromoterLinkRecord = {
       id: nextId("plk"),
       organizationId: data.organizationId,
       eventId: data.eventId,
-      membershipId: data.membershipId,
+      promoterId: data.promoterId,
       code: data.code,
       active: true,
       clickCount: 0,
@@ -92,17 +170,13 @@ export class InMemoryPromoterLinkRepository implements PromoterLinkRepository {
     return this.links.find((l) => l.code === code) ?? null;
   }
 
-  async findByEventAndMembership(
-    organizationId: string,
-    eventId: string,
-    membershipId: string,
-  ) {
+  async findByEventAndPromoter(organizationId: string, eventId: string, promoterId: string) {
     return (
       this.links.find(
         (l) =>
           l.organizationId === organizationId &&
           l.eventId === eventId &&
-          l.membershipId === membershipId,
+          l.promoterId === promoterId,
       ) ?? null
     );
   }
@@ -111,6 +185,12 @@ export class InMemoryPromoterLinkRepository implements PromoterLinkRepository {
     return this.links.filter(
       (l) => l.organizationId === organizationId && l.eventId === eventId,
     );
+  }
+
+  async sumClicksByPromoter(organizationId: string, promoterId: string) {
+    return this.links
+      .filter((l) => l.organizationId === organizationId && l.promoterId === promoterId)
+      .reduce((sum, l) => sum + l.clickCount, 0);
   }
 
   async incrementClick(id: string) {
@@ -124,11 +204,11 @@ export class InMemoryCouponRepository implements CouponRepository {
 
   async create(data: {
     organizationId: string;
-    eventId: string;
+    eventId?: string | null | undefined;
     code: string;
     type: CouponRecord["type"];
     value: number;
-    membershipId?: string | undefined;
+    promoterId?: string | undefined;
     startsAt?: Date | undefined;
     endsAt?: Date | undefined;
     maxRedemptions?: number | undefined;
@@ -136,12 +216,12 @@ export class InMemoryCouponRepository implements CouponRepository {
     const record: CouponRecord = {
       id: nextId("cpn"),
       organizationId: data.organizationId,
-      eventId: data.eventId,
+      eventId: data.eventId ?? null,
       code: data.code,
       type: data.type,
       value: data.value,
       active: true,
-      membershipId: data.membershipId ?? null,
+      promoterId: data.promoterId ?? null,
       startsAt: data.startsAt ?? null,
       endsAt: data.endsAt ?? null,
       maxRedemptions: data.maxRedemptions ?? null,
@@ -151,11 +231,22 @@ export class InMemoryCouponRepository implements CouponRepository {
     return record;
   }
 
-  async findByEventAndCode(organizationId: string, eventId: string, code: string) {
+  async resolveByCode(organizationId: string, eventId: string, code: string) {
+    const scoped = this.coupons.find(
+      (c) => c.organizationId === organizationId && c.eventId === eventId && c.code === code,
+    );
+    if (scoped) return scoped;
     return (
       this.coupons.find(
-        (c) =>
-          c.organizationId === organizationId && c.eventId === eventId && c.code === code,
+        (c) => c.organizationId === organizationId && c.eventId === null && c.code === code,
+      ) ?? null
+    );
+  }
+
+  async findByCode(organizationId: string, eventId: string | null, code: string) {
+    return (
+      this.coupons.find(
+        (c) => c.organizationId === organizationId && c.eventId === eventId && c.code === code,
       ) ?? null
     );
   }
@@ -164,6 +255,10 @@ export class InMemoryCouponRepository implements CouponRepository {
     return this.coupons.filter(
       (c) => c.organizationId === organizationId && c.eventId === eventId,
     );
+  }
+
+  async listByOrganization(organizationId: string) {
+    return this.coupons.filter((c) => c.organizationId === organizationId);
   }
 
   async tryIncrementRedemption(organizationId: string, couponId: string): Promise<boolean> {
@@ -185,20 +280,21 @@ export class InMemoryCommissionRuleRepository implements CommissionRuleRepositor
 
   async createSuperseding(data: {
     organizationId: string;
-    eventId: string;
-    membershipId?: string | undefined;
+    eventId?: string | null | undefined;
+    promoterId?: string | undefined;
     ticketTypeId?: string | undefined;
     type: CommissionRuleRecord["type"];
     value: number;
     base: CommissionRuleRecord["base"];
   }) {
-    const membershipId = data.membershipId ?? null;
+    const eventId = data.eventId ?? null;
+    const promoterId = data.promoterId ?? null;
     const ticketTypeId = data.ticketTypeId ?? null;
     for (const rule of this.rules) {
       if (
         rule.organizationId === data.organizationId &&
-        rule.eventId === data.eventId &&
-        rule.membershipId === membershipId &&
+        rule.eventId === eventId &&
+        rule.promoterId === promoterId &&
         rule.ticketTypeId === ticketTypeId &&
         rule.active
       ) {
@@ -208,8 +304,8 @@ export class InMemoryCommissionRuleRepository implements CommissionRuleRepositor
     const record: CommissionRuleRecord & { createdAt: number } = {
       id: nextId("crl"),
       organizationId: data.organizationId,
-      eventId: data.eventId,
-      membershipId,
+      eventId,
+      promoterId,
       ticketTypeId,
       type: data.type,
       value: data.value,
@@ -223,13 +319,22 @@ export class InMemoryCommissionRuleRepository implements CommissionRuleRepositor
 
   async listActiveByEvent(organizationId: string, eventId: string) {
     return this.rules.filter(
-      (r) => r.organizationId === organizationId && r.eventId === eventId && r.active,
+      (r) =>
+        r.organizationId === organizationId &&
+        r.active &&
+        (r.eventId === eventId || r.eventId === null),
     );
   }
 
   async listByEvent(organizationId: string, eventId: string) {
     return this.rules
       .filter((r) => r.organizationId === organizationId && r.eventId === eventId)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async listByOrganization(organizationId: string) {
+    return this.rules
+      .filter((r) => r.organizationId === organizationId)
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 }
@@ -242,7 +347,7 @@ export class InMemoryOrderAttributionRepository implements OrderAttributionRepos
     orderId: string;
     eventId: string;
     mechanism: OrderAttributionRecord["mechanism"];
-    membershipId?: string | undefined;
+    promoterId?: string | undefined;
     couponId?: string | undefined;
     linkId?: string | undefined;
     utmSource?: string | undefined;
@@ -257,7 +362,7 @@ export class InMemoryOrderAttributionRepository implements OrderAttributionRepos
       orderId: data.orderId,
       eventId: data.eventId,
       mechanism: data.mechanism,
-      membershipId: data.membershipId ?? null,
+      promoterId: data.promoterId ?? null,
       couponId: data.couponId ?? null,
       linkId: data.linkId ?? null,
       utmSource: data.utmSource ?? null,
@@ -278,6 +383,12 @@ export class InMemoryOrderAttributionRepository implements OrderAttributionRepos
       ) ?? null
     );
   }
+
+  async countByPromoter(organizationId: string, promoterId: string) {
+    return this.attributions.filter(
+      (a) => a.organizationId === organizationId && a.promoterId === promoterId,
+    ).length;
+  }
 }
 
 export class InMemoryCommissionEntryRepository implements CommissionEntryRepository {
@@ -286,7 +397,7 @@ export class InMemoryCommissionEntryRepository implements CommissionEntryReposit
   async create(data: {
     organizationId: string;
     eventId: string;
-    membershipId: string;
+    promoterId: string;
     orderId: string;
     type: CommissionEntryType;
     quantity: number;
@@ -302,7 +413,7 @@ export class InMemoryCommissionEntryRepository implements CommissionEntryReposit
       id: nextId("cme"),
       organizationId: data.organizationId,
       eventId: data.eventId,
-      membershipId: data.membershipId,
+      promoterId: data.promoterId,
       orderId: data.orderId,
       type: data.type,
       quantity: data.quantity,
@@ -330,8 +441,8 @@ export class InMemoryCommissionEntryRepository implements CommissionEntryReposit
     const map = new Map<string, PromoterSummaryRow>();
     for (const e of this.entries) {
       if (e.organizationId !== organizationId || e.eventId !== eventId) continue;
-      const row = map.get(e.membershipId) ?? {
-        membershipId: e.membershipId,
+      const row = map.get(e.promoterId) ?? {
+        promoterId: e.promoterId,
         quantity: 0,
         baseCents: 0,
         amountCents: 0,
@@ -339,22 +450,44 @@ export class InMemoryCommissionEntryRepository implements CommissionEntryReposit
       row.quantity += e.quantity;
       row.baseCents += e.baseCents;
       row.amountCents += e.amountCents;
-      map.set(e.membershipId, row);
+      map.set(e.promoterId, row);
     }
     return [...map.values()];
   }
 
   async summaryForPromoter(
     organizationId: string,
-    membershipId: string,
+    promoterId: string,
   ): Promise<PromoterSummaryRow> {
-    const row: PromoterSummaryRow = { membershipId, quantity: 0, baseCents: 0, amountCents: 0 };
+    const row: PromoterSummaryRow = { promoterId, quantity: 0, baseCents: 0, amountCents: 0 };
     for (const e of this.entries) {
-      if (e.organizationId !== organizationId || e.membershipId !== membershipId) continue;
+      if (e.organizationId !== organizationId || e.promoterId !== promoterId) continue;
       row.quantity += e.quantity;
       row.baseCents += e.baseCents;
       row.amountCents += e.amountCents;
     }
     return row;
+  }
+
+  async summaryForPromoterByEvent(
+    organizationId: string,
+    promoterId: string,
+  ): Promise<PromoterEventSummaryRow[]> {
+    const map = new Map<string, PromoterEventSummaryRow>();
+    for (const e of this.entries) {
+      if (e.organizationId !== organizationId || e.promoterId !== promoterId) continue;
+      const row = map.get(e.eventId) ?? {
+        eventId: e.eventId,
+        promoterId,
+        quantity: 0,
+        baseCents: 0,
+        amountCents: 0,
+      };
+      row.quantity += e.quantity;
+      row.baseCents += e.baseCents;
+      row.amountCents += e.amountCents;
+      map.set(e.eventId, row);
+    }
+    return [...map.values()];
   }
 }

@@ -22,7 +22,7 @@ export interface LedgerEntryRecord {
   account: LedgerAccount;
   type: LedgerEntryType;
   amountCents: number;
-  membershipId: string | null;
+  promoterId: string | null;
   memo: string | null;
   createdAt: Date;
 }

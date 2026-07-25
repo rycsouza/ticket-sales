@@ -13,11 +13,23 @@ export const PROMOTER_MANAGER_ROLES: readonly MembershipRole[] = [
   "EVENT_MANAGER",
 ];
 
+/** A first-class affiliate/promoter (org-scoped). Lightweight by default; may be
+ * linked to a login account (membershipId) and always has a private report token. */
+export interface PromoterRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  membershipId: string | null;
+  active: boolean;
+}
+
 export interface PromoterAssignmentRecord {
   id: string;
   organizationId: string;
   eventId: string;
-  membershipId: string;
+  promoterId: string;
   active: boolean;
 }
 
@@ -25,7 +37,7 @@ export interface PromoterLinkRecord {
   id: string;
   organizationId: string;
   eventId: string;
-  membershipId: string;
+  promoterId: string;
   code: string;
   active: boolean;
   clickCount: number;
@@ -34,12 +46,13 @@ export interface PromoterLinkRecord {
 export interface CouponRecord {
   id: string;
   organizationId: string;
-  eventId: string;
+  /** null = organization-wide default coupon (applies to any event). */
+  eventId: string | null;
   code: string;
   type: CouponType;
   value: number;
   active: boolean;
-  membershipId: string | null;
+  promoterId: string | null;
   startsAt: Date | null;
   endsAt: Date | null;
   maxRedemptions: number | null;
@@ -49,8 +62,9 @@ export interface CouponRecord {
 export interface CommissionRuleRecord {
   id: string;
   organizationId: string;
-  eventId: string;
-  membershipId: string | null;
+  /** null = organization-wide default rule (applies to any event). */
+  eventId: string | null;
+  promoterId: string | null;
   ticketTypeId: string | null;
   type: CommissionType;
   value: number;
@@ -64,7 +78,7 @@ export interface OrderAttributionRecord {
   orderId: string;
   eventId: string;
   mechanism: AttributionMechanism;
-  membershipId: string | null;
+  promoterId: string | null;
   couponId: string | null;
   linkId: string | null;
   utmSource: string | null;
@@ -78,7 +92,7 @@ export interface CommissionEntryRecord {
   id: string;
   organizationId: string;
   eventId: string;
-  membershipId: string;
+  promoterId: string;
   orderId: string;
   type: CommissionEntryType;
   quantity: number;

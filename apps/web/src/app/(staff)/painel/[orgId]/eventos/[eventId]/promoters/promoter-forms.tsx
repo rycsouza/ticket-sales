@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button, Field, Input, Select } from "@/components/ui";
 
-const short = (id: string) => id.slice(0, 8);
+type PromoterOption = { id: string; name: string };
 
 const summaryClass =
   "inline-flex cursor-pointer list-none items-center gap-1.5 text-small font-semibold text-brand [&::-webkit-details-marker]:hidden";
@@ -39,12 +39,12 @@ function useSubmit(reset: () => void) {
 
 export function NewCouponForm({
   apiBase,
-  promoterMembers,
+  promoters,
 }: {
   apiBase: string;
-  promoterMembers: string[];
+  promoters: PromoterOption[];
 }) {
-  const [form, setForm] = useState({ code: "", type: "PERCENT", value: "", membershipId: "" });
+  const [form, setForm] = useState({ code: "", type: "PERCENT", value: "", promoterId: "" });
   const { busy, error, send } = useSubmit(() => setForm((f) => ({ ...f, code: "", value: "" })));
 
   return (
@@ -62,7 +62,7 @@ export function NewCouponForm({
             type: form.type,
             value: Math.round(Number(form.value) * 100),
           };
-          if (form.membershipId) body.membershipId = form.membershipId;
+          if (form.promoterId) body.promoterId = form.promoterId;
           void send(`${apiBase}/coupons`, body);
         }}
       >
@@ -94,16 +94,16 @@ export function NewCouponForm({
             />
           </Field>
         </div>
-        {promoterMembers.length > 0 && (
+        {promoters.length > 0 && (
           <Field label="Promoter (opcional)">
             <Select
-              value={form.membershipId}
-              onChange={(e) => setForm((f) => ({ ...f, membershipId: e.target.value }))}
+              value={form.promoterId}
+              onChange={(e) => setForm((f) => ({ ...f, promoterId: e.target.value }))}
             >
               <option value="">Cupom da organização (sem promoter)</option>
-              {promoterMembers.map((id) => (
-                <option key={id} value={id}>
-                  Promoter #{short(id)}
+              {promoters.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </Select>
@@ -120,12 +120,12 @@ export function NewCouponForm({
 
 export function NewRuleForm({
   apiBase,
-  promoterMembers,
+  promoters,
 }: {
   apiBase: string;
-  promoterMembers: string[];
+  promoters: PromoterOption[];
 }) {
-  const [form, setForm] = useState({ type: "PERCENT", value: "", base: "NOMINAL", membershipId: "" });
+  const [form, setForm] = useState({ type: "PERCENT", value: "", base: "NOMINAL", promoterId: "" });
   const { busy, error, send } = useSubmit(() => setForm((f) => ({ ...f, value: "" })));
 
   return (
@@ -143,7 +143,7 @@ export function NewRuleForm({
             value: Math.round(Number(form.value) * 100),
             base: form.base,
           };
-          if (form.membershipId) body.membershipId = form.membershipId;
+          if (form.promoterId) body.promoterId = form.promoterId;
           void send(`${apiBase}/commission-rules`, body);
         }}
       >
@@ -177,16 +177,16 @@ export function NewRuleForm({
             </Select>
           </Field>
         </div>
-        {promoterMembers.length > 0 && (
+        {promoters.length > 0 && (
           <Field label="Aplicar a">
             <Select
-              value={form.membershipId}
-              onChange={(e) => setForm((f) => ({ ...f, membershipId: e.target.value }))}
+              value={form.promoterId}
+              onChange={(e) => setForm((f) => ({ ...f, promoterId: e.target.value }))}
             >
               <option value="">Todos os promoters</option>
-              {promoterMembers.map((id) => (
-                <option key={id} value={id}>
-                  Só promoter #{short(id)}
+              {promoters.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Só {p.name}
                 </option>
               ))}
             </Select>

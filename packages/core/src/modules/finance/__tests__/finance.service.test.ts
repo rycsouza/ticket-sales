@@ -42,7 +42,7 @@ function build(order: OrderShape, commissionCents = 0, pspCostCents = 0) {
   const events: LedgerEventReader = { findByIdScoped: async () => ({ id: EVENT }) };
   const commission: LedgerCommissionReader = {
     getAccruedCommission: async () =>
-      commissionCents > 0 ? { membershipId: PROMOTER, amountCents: commissionCents } : null,
+      commissionCents > 0 ? { promoterId: PROMOTER, amountCents: commissionCents } : null,
   };
   const pspCost: LedgerPspCostReader = { getOrderPspCostCents: async () => pspCostCents };
 

@@ -13,6 +13,7 @@ import type {
   OrderSearchRow,
   OrderTimeline,
   PaymentRecord,
+  PromoterRecord,
   PromoterAssignmentRecord,
   PromoterLinkRecord,
   PromoterSummaryRow,
@@ -87,14 +88,25 @@ export function toBatchResponse(batch: SalesBatchRecord) {
   };
 }
 
+export function toPromoterResponse(p: PromoterRecord) {
+  return {
+    id: p.id,
+    name: p.name,
+    contactEmail: p.contactEmail,
+    contactPhone: p.contactPhone,
+    hasLogin: p.membershipId !== null,
+    active: p.active,
+  };
+}
+
 export function toPromoterAssignmentResponse(a: PromoterAssignmentRecord) {
-  return { id: a.id, eventId: a.eventId, membershipId: a.membershipId, active: a.active };
+  return { id: a.id, eventId: a.eventId, promoterId: a.promoterId, active: a.active };
 }
 
 export function toPromoterLinkResponse(link: PromoterLinkRecord) {
   return {
     id: link.id,
-    membershipId: link.membershipId,
+    promoterId: link.promoterId,
     code: link.code,
     active: link.active,
     clickCount: link.clickCount,
@@ -104,11 +116,12 @@ export function toPromoterLinkResponse(link: PromoterLinkRecord) {
 export function toCouponResponse(coupon: CouponRecord) {
   return {
     id: coupon.id,
+    eventId: coupon.eventId,
     code: coupon.code,
     type: coupon.type,
     value: coupon.value,
     active: coupon.active,
-    membershipId: coupon.membershipId,
+    promoterId: coupon.promoterId,
     startsAt: coupon.startsAt,
     endsAt: coupon.endsAt,
     maxRedemptions: coupon.maxRedemptions,
@@ -119,7 +132,8 @@ export function toCouponResponse(coupon: CouponRecord) {
 export function toCommissionRuleResponse(rule: CommissionRuleRecord) {
   return {
     id: rule.id,
-    membershipId: rule.membershipId,
+    eventId: rule.eventId,
+    promoterId: rule.promoterId,
     ticketTypeId: rule.ticketTypeId,
     type: rule.type,
     value: rule.value,
@@ -130,7 +144,7 @@ export function toCommissionRuleResponse(rule: CommissionRuleRecord) {
 
 export function toPromoterSummaryResponse(row: PromoterSummaryRow) {
   return {
-    membershipId: row.membershipId,
+    promoterId: row.promoterId,
     quantity: row.quantity,
     baseCents: row.baseCents,
     amountCents: row.amountCents,
@@ -252,7 +266,7 @@ export function toLedgerEntryResponse(entry: LedgerEntryRecord) {
     account: entry.account,
     type: entry.type,
     amountCents: entry.amountCents,
-    membershipId: entry.membershipId,
+    promoterId: entry.promoterId,
     memo: entry.memo,
     createdAt: entry.createdAt,
   };

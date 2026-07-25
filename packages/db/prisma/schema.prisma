@@ -732,21 +732,42 @@ enum CommissionEntryType {
   REVERSAL
 }
 
-// FR-PRM-003 — a promoter (Membership with role PROMOTER) is bound to specific
-// events; only assigned events attribute sales to them.
+// First-class affiliate/promoter, org-scoped. Exists as a LIGHTWEIGHT record
+// (name + contact, no login) or linked to a login account (membershipId).
+// `reportTokenHash` backs a tokenized private report link (only the hash is
+// stored; the raw token is shown once and never persisted).
+model Promoter {
+  id              String  @id @default(uuid(7))
+  organizationId  String
+  name            String
+  contactEmail    String?
+  contactPhone    String?
+  membershipId    String? @unique // optional login account (PROMOTER membership)
+  reportTokenHash String  @unique
+  active          Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, active])
+}
+
+// FR-PRM-003 — a promoter is bound to specific events; only assigned events
+// attribute sales to them.
 model PromoterAssignment {
   id             String  @id @default(uuid(7))
   organizationId String
   eventId        String
-  membershipId   String
+  promoterId     String
   active         Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([eventId, membershipId])
+  @@unique([eventId, promoterId])
   @@index([organizationId, eventId])
-  @@index([membershipId])
+  @@index([promoterId])
 }
 
 // FR-PRM-004 — one trackable link per promoter per event. `code` is a short,
@@ -755,7 +776,7 @@ model PromoterLink {
   id             String  @id @default(uuid(7))
   organizationId String
   eventId        String
-  membershipId   String
+  promoterId     String
   code           String  @unique
   active         Boolean @default(true)
   clickCount     Int     @default(0)
@@ -763,9 +784,9 @@ model PromoterLink {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([eventId, membershipId])
+  @@unique([eventId, promoterId])
   @@index([organizationId, eventId])
-  @@index([membershipId])
+  @@index([promoterId])
 }
 
 // FR-PRM-005 / FR-CHK-008 — individual (membershipId set) or shared coupon.
@@ -773,13 +794,13 @@ model PromoterLink {
 model Coupon {
   id             String     @id @default(uuid(7))
   organizationId String
-  eventId        String
+  eventId        String? // null = organization-wide default coupon
   code           String
   type           CouponType
   value          Int
   active         Boolean    @default(true)
 
-  membershipId String? // owning promoter, if individual
+  promoterId String? // owning promoter, if individual
 
   startsAt       DateTime?
   endsAt         DateTime?
@@ -789,8 +810,12 @@ model Coupon {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Event-scoped uniqueness. Org-default (eventId NULL) uniqueness is enforced
+  // by a partial unique index (organizationId, code) WHERE eventId IS NULL,
+  // created in raw SQL in the migration (Prisma can't express partial indexes).
   @@unique([eventId, code])
   @@index([organizationId, eventId])
+  @@index([promoterId])
 }
 
 // FR-PRM-008/009/015, BR-PRM-006 — versioned commission rule. A change creates
@@ -800,8 +825,8 @@ model Coupon {
 model CommissionRule {
   id             String         @id @default(uuid(7))
   organizationId String
-  eventId        String
-  membershipId   String? // narrows to one promoter
+  eventId        String? // null = organization-wide default rule
+  promoterId     String? // narrows to one promoter
   ticketTypeId   String? // narrows to one ticket type
   type           CommissionType
   value          Int
@@ -812,7 +837,8 @@ model CommissionRule {
   createdAt    DateTime  @default(now())
 
   @@index([organizationId, eventId, active])
-  @@index([eventId, membershipId, active])
+  @@index([organizationId, promoterId, active])
+  @@index([eventId, promoterId, active])
 }
 
 // FR-CHK-009/010, FR-PRM-007, BR-PRM-001 — attribution captured at checkout and
@@ -823,7 +849,7 @@ model OrderAttribution {
   orderId        String               @unique
   eventId        String
   mechanism      AttributionMechanism @default(NONE)
-  membershipId   String? // attributed promoter
+  promoterId     String? // attributed promoter
   couponId       String?
   linkId         String?
 
@@ -836,7 +862,7 @@ model OrderAttribution {
   capturedAt DateTime @default(now())
 
   @@index([organizationId, eventId])
-  @@index([membershipId])
+  @@index([promoterId])
 }
 
 // FR-FIN-001/002/007 — append-only financial ledger. Never UPDATE/DELETE;
@@ -873,7 +899,7 @@ model LedgerEntry {
   // is the plain SUM of amountCents.
   amountCents    Int
   // Owning promoter for PROMOTER/COMMISSION entries.
-  membershipId   String?
+  promoterId     String?
   memo           String?
 
   correlationId String
@@ -884,7 +910,7 @@ model LedgerEntry {
   @@unique([orderId, account, type])
   @@index([organizationId, eventId])
   @@index([organizationId, account])
-  @@index([membershipId])
+  @@index([promoterId])
 }
 
 // Check-in / portaria (EP-09) — Fase 6
@@ -983,7 +1009,7 @@ model CommissionEntry {
   id             String              @id @default(uuid(7))
   organizationId String
   eventId        String
-  membershipId   String
+  promoterId     String
   orderId        String
   type           CommissionEntryType
 
@@ -998,6 +1024,6 @@ model CommissionEntry {
 
   // Exactly one ACCRUAL and one REVERSAL per order → idempotent hooks.
   @@unique([orderId, type])
-  @@index([organizationId, eventId, membershipId])
-  @@index([membershipId, createdAt])
+  @@index([organizationId, eventId, promoterId])
+  @@index([promoterId, createdAt])
 }

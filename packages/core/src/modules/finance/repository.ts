@@ -5,7 +5,7 @@ export interface LedgerPostEntry {
   account: LedgerAccount;
   type: LedgerEntryType;
   amountCents: number;
-  membershipId?: string | undefined;
+  promoterId?: string | undefined;
   memo?: string | undefined;
 }
 
@@ -29,7 +29,7 @@ export interface LedgerRepository {
     account: LedgerAccount;
     type: LedgerEntryType;
     amountCents: number;
-    membershipId?: string | undefined;
+    promoterId?: string | undefined;
     memo?: string | undefined;
     correlationId: string;
   }): Promise<LedgerEntryRecord>;
@@ -45,7 +45,7 @@ const entrySelect = {
   account: true,
   type: true,
   amountCents: true,
-  membershipId: true,
+  promoterId: true,
   memo: true,
   createdAt: true,
 } as const;
@@ -70,7 +70,7 @@ export class PrismaLedgerRepository implements LedgerRepository {
         account: e.account,
         type: e.type,
         amountCents: e.amountCents,
-        membershipId: e.membershipId ?? null,
+        promoterId: e.promoterId ?? null,
         memo: e.memo ?? null,
         correlationId: data.correlationId,
       })),
@@ -85,7 +85,7 @@ export class PrismaLedgerRepository implements LedgerRepository {
     account: LedgerAccount;
     type: LedgerEntryType;
     amountCents: number;
-    membershipId?: string | undefined;
+    promoterId?: string | undefined;
     memo?: string | undefined;
     correlationId: string;
   }): Promise<LedgerEntryRecord> {
@@ -96,7 +96,7 @@ export class PrismaLedgerRepository implements LedgerRepository {
         account: data.account,
         type: data.type,
         amountCents: data.amountCents,
-        membershipId: data.membershipId ?? null,
+        promoterId: data.promoterId ?? null,
         memo: data.memo ?? null,
         correlationId: data.correlationId,
       },

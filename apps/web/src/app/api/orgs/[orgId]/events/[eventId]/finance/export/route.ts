@@ -18,7 +18,7 @@ export const GET = route<{ orgId: string; eventId: string }>(
         e.type,
         e.amountCents,
         e.orderId,
-        e.membershipId,
+        e.promoterId,
         e.memo,
       ]),
     );
