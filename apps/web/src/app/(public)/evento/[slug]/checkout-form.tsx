@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
+import { ArrowLeft, Check, CreditCard, Minus, Plus, QrCode } from "lucide-react";
 import { Button, Field, Input, PhoneInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import {
@@ -78,6 +78,11 @@ export function CheckoutForm({
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Payment method chosen on the review step (3). Card is only offered when the
+  // MP public key is present; otherwise Pix is the only option. The order's
+  // payment is generated for this method only (step 4 can still switch).
+  const cardAvailable = mpPublicKey !== null;
+  const [payMethod, setPayMethod] = useState<"pix" | "card">("pix");
 
   // Returning-buyer lookup by phone (masked preview only).
   const [lookup, setLookup] = useState<Lookup>({ status: "idle" });
@@ -121,7 +126,9 @@ export function CheckoutForm({
   useEffect(() => {
     if (prevStep.current !== step) {
       prevStep.current = step;
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      // Instant (not smooth): advancing collapses the blocks above the checkout,
+      // and a smooth animation fights the height change — reads as janky on mobile.
+      window.scrollTo({ top: 0 });
     }
   }, [step]);
 
@@ -369,20 +376,8 @@ export function CheckoutForm({
   );
 
   return (
-    <section className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2">
-          {STEP_LABELS.map((label, i) => (
-            <div
-              key={label}
-              className={cn("h-1.5 flex-1 rounded-full", i + 1 <= step ? "bg-brand" : "bg-hover")}
-            />
-          ))}
-        </div>
-        <p className="mt-2 text-small font-medium text-ink-muted">
-          Passo {step} de {STEP_LABELS.length} · {STEP_LABELS[step - 1]}
-        </p>
-      </div>
+    <section className="space-y-4 pb-24 sm:pb-0">
+      <StepIndicator current={step} />
 
       {/* Step 1 — Ingressos */}
       {step === 1 && (
@@ -435,11 +430,6 @@ export function CheckoutForm({
             </ul>
           </div>
           {errorBox}
-          {/* In-flow (not floating): step 1 is all about interacting with the
-              cart, so a sticky bar would overlap the quantity controls. */}
-          <Button size="lg" className="w-full" disabled={totalQuantity === 0} onClick={goToData}>
-            {totalQuantity > 0 ? `Continuar — ${formatBRL(subtotalCents)}` : "Continuar"}
-          </Button>
         </>
       )}
 
@@ -473,8 +463,8 @@ export function CheckoutForm({
               )}
 
               {reuseActive && lookup.status === "found" && (
-                <div className="rounded-lg border border-success-border bg-success-bg p-3">
-                  <p className="flex items-center gap-1.5 text-small font-semibold text-success-text">
+                <div className="rounded-lg border border-brand-border bg-brand-soft p-3">
+                  <p className="flex items-center gap-1.5 text-small font-semibold text-brand">
                     <Check className="size-4" /> Cadastro encontrado
                   </p>
                   <p className="mt-1 text-body text-ink">{lookup.maskedName}</p>
@@ -482,7 +472,7 @@ export function CheckoutForm({
                   <button
                     type="button"
                     onClick={() => setUseOther(true)}
-                    className="mt-2 text-small font-medium text-success-text underline"
+                    className="mt-2 text-small font-medium text-brand underline"
                   >
                     Usar outros dados
                   </button>
@@ -539,14 +529,6 @@ export function CheckoutForm({
             </div>
           </div>
           {errorBox}
-          <div className="flex gap-2">
-            <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(1)}>
-              Voltar
-            </Button>
-            <Button size="lg" className="flex-1" disabled={!dataStepValid} onClick={goToReview}>
-              Continuar
-            </Button>
-          </div>
         </>
       )}
 
@@ -658,16 +640,42 @@ export function CheckoutForm({
             </details>
           )}
 
+          {cardAvailable && (
+            <div className={sectionClass}>
+              <h2 className={sectionTitle}>Forma de pagamento</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { key: "pix", label: "Pix", icon: QrCode },
+                    { key: "card", label: "Cartão", icon: CreditCard },
+                  ] as const
+                ).map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPayMethod(key)}
+                    aria-pressed={payMethod === key}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-lg border py-2.5 text-body font-semibold transition-colors",
+                      payMethod === key
+                        ? "border-brand bg-brand text-brand-fg"
+                        : "border-line-strong text-ink-soft active:bg-hover",
+                    )}
+                  >
+                    <Icon className="size-[18px]" /> {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-small text-ink-muted">
+                {payMethod === "pix"
+                  ? "Aprovação na hora via QR Code ou copia e cola."
+                  : "Crédito à vista ou parcelado, aprovação imediata."}
+              </p>
+            </div>
+          )}
+
           {errorBox}
-          <div className="flex gap-2">
-            <Button variant="outline" size="lg" leftIcon={<ArrowLeft className="size-[18px]" />} onClick={() => setStep(2)}>
-              Voltar
-            </Button>
-            <Button size="lg" className="flex-1" loading={submitting} onClick={submit}>
-              Finalizar — {formatBRL(totalCents)}
-            </Button>
-          </div>
-          <p className="mt-2 text-center text-small text-ink-muted">
+          <p className="text-center text-small text-ink-muted">
             Ao finalizar, você concorda com os termos do evento e a política de privacidade.
           </p>
         </>
@@ -678,10 +686,151 @@ export function CheckoutForm({
         <OrderPayment
           access={access}
           mpPublicKey={mpPublicKey}
+          initialMethod={payMethod}
           email={reuseActive ? undefined : email.trim().toLowerCase()}
           showTicketsLink
         />
       )}
+
+      {/* Barra de ação fixa no mobile (Total + avançar); estática no desktop. */}
+      {step === 1 && (
+        <ActionBar
+          show={totalQuantity > 0}
+          totalCents={subtotalCents}
+          totalLabel="Subtotal"
+          primaryLabel="Continuar"
+          onPrimary={goToData}
+          disabled={totalQuantity === 0}
+        />
+      )}
+      {step === 2 && (
+        <ActionBar
+          show
+          totalCents={subtotalCents}
+          totalLabel="Subtotal"
+          onBack={() => setStep(1)}
+          primaryLabel="Continuar"
+          onPrimary={goToReview}
+          disabled={!dataStepValid}
+        />
+      )}
+      {step === 3 && (
+        <ActionBar
+          show
+          totalCents={totalCents}
+          totalLabel="Total"
+          onBack={() => setStep(2)}
+          primaryLabel="Finalizar"
+          onPrimary={submit}
+          loading={submitting}
+        />
+      )}
     </section>
+  );
+}
+
+/** Stepper de círculos numerados (Ingressos → Dados → Revisão → Pagamento). */
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <ol className="flex items-start" aria-label={`Passo ${current} de ${STEP_LABELS.length}`}>
+      {STEP_LABELS.map((label, i) => {
+        const n = i + 1;
+        const done = n < current;
+        const active = n === current;
+        const last = i === STEP_LABELS.length - 1;
+        return (
+          <li
+            key={label}
+            className="flex flex-1 flex-col items-center"
+            aria-current={active ? "step" : undefined}
+          >
+            <div className="flex w-full items-center">
+              <span className="h-0.5 flex-1" aria-hidden />
+              <span
+                className={cn(
+                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-small font-bold tabular-nums transition-colors",
+                  done || active
+                    ? "border-brand bg-brand text-brand-fg"
+                    : "border-line-strong bg-surface text-ink-muted",
+                )}
+              >
+                {done ? <Check className="size-4" /> : n}
+              </span>
+              <span
+                className={cn("h-0.5 flex-1", last ? "opacity-0" : n < current ? "bg-brand" : "bg-hover")}
+                aria-hidden
+              />
+            </div>
+            <span
+              className={cn(
+                "mt-1.5 text-center text-caption leading-tight",
+                active ? "font-semibold text-ink" : "text-ink-muted",
+              )}
+            >
+              {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Barra de ação do checkout. No mobile é fixa no rodapé (com safe-area); no
+ * desktop (sm+) volta a ser um elemento estático no fim da seção. É opaca e com
+ * z alto para cobrir o CTA flutuante do passo 1 caso ambos coincidam.
+ */
+function ActionBar({
+  show,
+  totalCents,
+  totalLabel,
+  primaryLabel,
+  onPrimary,
+  onBack,
+  disabled,
+  loading,
+}: {
+  show: boolean;
+  totalCents: number;
+  totalLabel: string;
+  primaryLabel: string;
+  onPrimary: () => void;
+  onBack?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  if (!show) return null;
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 px-3 py-3 backdrop-blur sm:static sm:z-auto sm:rounded-xl sm:border sm:bg-surface sm:px-4 sm:backdrop-blur-none"
+      style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+    >
+      <div className="mx-auto flex max-w-lg items-center gap-3">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Voltar"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors active:bg-hover"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-caption text-ink-muted">{totalLabel}</p>
+          <p className="text-h3 font-bold tabular-nums text-ink">{formatBRL(totalCents)}</p>
+        </div>
+        <Button
+          size="lg"
+          className="shrink-0"
+          disabled={disabled ?? false}
+          loading={loading ?? false}
+          onClick={onPrimary}
+        >
+          {primaryLabel}
+        </Button>
+      </div>
+    </div>
   );
 }

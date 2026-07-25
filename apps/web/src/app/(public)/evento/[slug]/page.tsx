@@ -162,7 +162,7 @@ export default async function PublicEventPage({
 
   return (
     <CheckoutFlowProvider>
-      <div className="relative min-h-dvh px-3 py-5 sm:px-4 sm:py-8">
+      <div className="relative min-h-svh px-3 py-5 sm:px-4 sm:py-8">
         {event.page.backgroundUrl && (
           // Full-page background behind the checkout card. A dark scrim keeps
           // the surrounding area calm and the white card readable. URL is

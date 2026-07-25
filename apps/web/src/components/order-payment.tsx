@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, CreditCard, PartyPopper, QrCode } from "lucide-react";
+import { Check, Copy, PartyPopper } from "lucide-react";
 import { Badge, Button, buttonVariants } from "@/components/ui";
-import { cn } from "@/lib/cn";
 import { ORDER_STATUS, statusMeta } from "@/lib/status";
 import { CardBrick } from "@/components/card-brick";
 
@@ -40,11 +39,14 @@ const cardClass = "rounded-xl border border-line bg-surface p-4";
 export function OrderPayment({
   access,
   mpPublicKey,
+  initialMethod = "pix",
   email,
   showTicketsLink = false,
 }: {
   access: OrderAccess;
   mpPublicKey: string | null;
+  /** Method chosen on the review step; the charge is generated for it only. */
+  initialMethod?: "pix" | "card";
   /** Only used to personalize the success message; never sent anywhere. */
   email?: string | undefined;
   /** Show a link to /pedido after payment (useful from the checkout flow). */
@@ -56,12 +58,14 @@ export function OrderPayment({
   const [countdown, setCountdown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [resent, setResent] = useState(false);
-  const [payMethod, setPayMethod] = useState<"pix" | "card">("pix");
+  const [payMethod, setPayMethod] = useState<"pix" | "card">(initialMethod);
   const [cardProcessing, setCardProcessing] = useState(false);
   const credentials = useRef<OrderAccess>(access);
   // React StrictMode double-invokes effects in dev; a duplicated Pix request
   // races the PSP into a lock (423), so the auto-track must fire exactly once.
   const started = useRef(false);
+  // Ensures the Pix charge is requested at most once (StrictMode / re-renders).
+  const pixRequested = useRef(false);
 
   const lookup = useCallback(async (creds: OrderAccess) => {
     const response = await fetch("/api/public/orders/lookup", {
@@ -94,15 +98,8 @@ export function OrderPayment({
       }
       credentials.current = creds;
       setOrder(found);
-      if (found.status === "AWAITING_PAYMENT" && !pix) {
-        try {
-          setPix(await startPix(creds));
-        } catch (pixError) {
-          setError(pixError instanceof Error ? pixError.message : "Falha ao gerar o Pix.");
-        }
-      }
     },
-    [lookup, startPix, pix],
+    [lookup],
   );
 
   useEffect(() => {
@@ -111,6 +108,22 @@ export function OrderPayment({
     void track(access);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Generate the Pix lazily — only when Pix is the chosen method. Picking card
+  // never creates a Pix charge; switching to Pix here creates it on demand.
+  useEffect(() => {
+    if (order?.status !== "AWAITING_PAYMENT" || payMethod !== "pix") return;
+    if (pix || pixRequested.current) return;
+    pixRequested.current = true;
+    void (async () => {
+      try {
+        setPix(await startPix(credentials.current));
+      } catch (pixError) {
+        pixRequested.current = false;
+        setError(pixError instanceof Error ? pixError.message : "Falha ao gerar o Pix.");
+      }
+    })();
+  }, [order?.status, payMethod, pix, startPix]);
 
   useEffect(() => {
     if (order?.status !== "AWAITING_PAYMENT") return;
@@ -200,41 +213,17 @@ export function OrderPayment({
             </p>
           )}
 
-          {mpPublicKey && (
-            <div className="mb-4 grid grid-cols-2 gap-2">
-              {(
-                [
-                  { key: "pix", label: "Pix", icon: QrCode },
-                  { key: "card", label: "Cartão", icon: CreditCard },
-                ] as const
-              ).map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPayMethod(key)}
-                  aria-pressed={payMethod === key}
-                  className={cn(
-                    "flex items-center justify-center gap-2 rounded-lg border py-2.5 text-body font-semibold transition-colors",
-                    payMethod === key
-                      ? "border-brand bg-brand text-brand-fg"
-                      : "border-line-strong text-ink-soft active:bg-hover",
-                  )}
-                >
-                  <Icon className="size-[18px]" /> {label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {payMethod === "pix" ? (
             <div className="text-center">
               <h2 className="mb-3 text-h3 text-ink">Pague com Pix para garantir</h2>
-              {pix?.pixQrCode && (
+              {pix?.pixQrCode ? (
                 <img
                   src={`data:image/png;base64,${pix.pixQrCode}`}
                   alt="QR Code Pix"
                   className="mx-auto size-56 rounded-lg border border-line"
                 />
+              ) : (
+                <p className="py-6 text-body text-ink-soft">Gerando seu Pix…</p>
               )}
               {pix?.pixQrCodeText && (
                 <Button
@@ -268,6 +257,17 @@ export function OrderPayment({
                 payerEmail={email}
               />
             )
+          )}
+
+          {/* Troca discreta de método, caso o cliente tenha escolhido errado. */}
+          {mpPublicKey && !cardProcessing && (
+            <button
+              type="button"
+              onClick={() => setPayMethod(payMethod === "pix" ? "card" : "pix")}
+              className="mt-4 block w-full text-center text-small font-medium text-ink-muted underline"
+            >
+              {payMethod === "pix" ? "Prefiro pagar com cartão" : "Prefiro pagar com Pix"}
+            </button>
           )}
         </div>
       )}
