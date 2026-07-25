@@ -38,7 +38,7 @@ export default async function TicketPage({ params }: { params: Promise<{ token: 
   const dateLabel = event ? formatEventDate(event.startsAt, event.timezone) : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col items-center px-4 pb-16 pt-8">
+    <main className="mx-auto flex min-h-svh max-w-lg flex-col items-center px-4 pb-16 pt-8">
       <div className="w-full rounded-2xl border border-line bg-surface p-6 text-center shadow-sm">
         <p className="text-caption font-semibold uppercase tracking-widest text-brand">Ingresso</p>
         {event && <h1 className="mt-1 text-h2 leading-tight text-ink">{event.title}</h1>}

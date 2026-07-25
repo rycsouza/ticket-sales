@@ -76,7 +76,7 @@ export function PanelShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-dvh bg-page">
+    <div className="min-h-svh bg-page">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
         <SidebarContent org={org} multiOrg={multiOrg} />

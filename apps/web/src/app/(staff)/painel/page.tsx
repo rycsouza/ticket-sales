@@ -17,7 +17,7 @@ export default async function PainelHome() {
   if (orgs.length === 1) redirect(`/painel/${orgs[0]!.organization.id}`);
 
   return (
-    <div className="min-h-dvh bg-page">
+    <div className="min-h-svh bg-page">
       <header className="flex h-16 items-center border-b border-line bg-surface px-4 lg:px-8">
         <span className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-fg">
