@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarDays, MapPin, MoreVertical, Search } from "lucide-react";
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
   Input,
@@ -40,10 +41,21 @@ const GROUPS: { key: Group; label: string; match: (s: string) => boolean }[] = [
   },
 ];
 
-export function EventsList({ orgId, events }: { orgId: string; events: EventListItem[] }) {
-  const [query, setQuery] = useState("");
+const PAGE_SIZE = 12;
+
+export function EventsList({
+  orgId,
+  events,
+  initialQuery = "",
+}: {
+  orgId: string;
+  events: EventListItem[];
+  initialQuery?: string;
+}) {
+  const [query, setQuery] = useState(initialQuery);
   const [group, setGroup] = useState<Group>("all");
   const [sort, setSort] = useState<"date-desc" | "date-asc">("date-desc");
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -55,17 +67,24 @@ export function EventsList({ orgId, events }: { orgId: string; events: EventList
     );
   }, [events, query, group, sort]);
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
+
   return (
     <div className="space-y-4">
-      {/* Controls — only shown once there are enough events to warrant them. */}
-      {events.length > 3 && (
+      {/* Controls — shown once there are enough events (or an active search). */}
+      {(events.length > 3 || query) && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative sm:max-w-xs sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
             <Input
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
               placeholder="Buscar por nome"
               aria-label="Buscar eventos por nome"
               className="pl-9"
@@ -74,7 +93,10 @@ export function EventsList({ orgId, events }: { orgId: string; events: EventList
           <div className="w-full sm:w-44">
             <Select
               value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
+              onChange={(e) => {
+                setSort(e.target.value as typeof sort);
+                setPage(0);
+              }}
               aria-label="Ordenar eventos"
             >
               <option value="date-desc">Data (mais recente)</option>
@@ -95,7 +117,10 @@ export function EventsList({ orgId, events }: { orgId: string; events: EventList
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setGroup(g.key)}
+                onClick={() => {
+                  setGroup(g.key);
+                  setPage(0);
+                }}
                 className={cn(
                   "rounded-full px-3 py-1.5 text-small font-medium transition-colors",
                   active ? "bg-brand text-brand-fg" : "bg-hover text-ink-soft hover:bg-selected",
@@ -120,13 +145,35 @@ export function EventsList({ orgId, events }: { orgId: string; events: EventList
           />
         </Card>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
-          {filtered.map((e) => (
-            <li key={e.id}>
-              <EventCard orgId={orgId} event={e} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {paged.map((e) => (
+              <li key={e.id}>
+                <EventCard orgId={orgId} event={e} />
+              </li>
+            ))}
+          </ul>
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-small text-ink-muted">
+                Página {current + 1} de {pageCount}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={current === 0} onClick={() => setPage(current - 1)}>
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={current >= pageCount - 1}
+                  onClick={() => setPage(current + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

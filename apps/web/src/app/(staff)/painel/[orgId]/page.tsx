@@ -9,8 +9,15 @@ import { EventsList, type EventListItem } from "./events-list";
 
 export const metadata: Metadata = { title: "Eventos — Ingressos" };
 
-export default async function OrgEvents({ params }: { params: Promise<{ orgId: string }> }) {
+export default async function OrgEvents({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgId: string }>;
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { orgId } = await params;
+  const { q } = await searchParams;
   const { userId } = await requireDashboardUser();
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
@@ -63,7 +70,7 @@ export default async function OrgEvents({ params }: { params: Promise<{ orgId: s
           />
         </Card>
       ) : (
-        <EventsList orgId={orgId} events={items} />
+        <EventsList key={q ?? ""} orgId={orgId} events={items} initialQuery={q ?? ""} />
       )}
     </>
   );

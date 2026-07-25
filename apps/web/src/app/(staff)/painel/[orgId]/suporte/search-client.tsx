@@ -16,11 +16,14 @@ type Row = {
   createdAt: string;
 };
 
+const PAGE_SIZE = 20;
+
 export function SupportSearch({ orgId }: { orgId: string }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(0);
 
   async function search() {
     setBusy(true);
@@ -31,10 +34,15 @@ export function SupportSearch({ orgId }: { orgId: string }) {
       const res = await fetch(`/api/orgs/${orgId}/orders?${sp.toString()}`);
       const data = (await res.json().catch(() => ({}))) as { orders?: Row[] };
       setRows(res.ok ? (data.orders ?? []) : []);
+      setPage(0);
     } finally {
       setBusy(false);
     }
   }
+
+  const pageCount = rows ? Math.max(1, Math.ceil(rows.length / PAGE_SIZE)) : 1;
+  const current = Math.min(page, pageCount - 1);
+  const paged = rows ? rows.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE) : [];
 
   return (
     <div className="space-y-4">
@@ -80,7 +88,7 @@ export function SupportSearch({ orgId }: { orgId: string }) {
             />
           ) : (
             <ul className="divide-y divide-line">
-              {rows.map((o) => {
+              {paged.map((o) => {
                 const s = statusMeta(ORDER_STATUS, o.status);
                 return (
                   <li key={o.id}>
@@ -110,6 +118,26 @@ export function SupportSearch({ orgId }: { orgId: string }) {
                 );
               })}
             </ul>
+          )}
+          {rows.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
+              <span className="text-small text-ink-muted">
+                Página {current + 1} de {pageCount}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={current === 0} onClick={() => setPage(current - 1)}>
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={current >= pageCount - 1}
+                  onClick={() => setPage(current + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
           )}
         </Card>
       )}

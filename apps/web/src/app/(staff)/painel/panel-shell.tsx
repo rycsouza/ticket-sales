@@ -14,6 +14,7 @@ import {
   Ticket,
   ArrowLeftRight,
   MoreHorizontal,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -81,10 +82,13 @@ export function PanelShell({
         <SidebarContent org={org} multiOrg={multiOrg} />
       </aside>
 
-      {/* Mobile top bar (brand + org context) */}
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur lg:hidden">
-        <BrandMark />
-        <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
+      {/* Mobile top bar (brand + org context + search) */}
+      <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-3">
+          <BrandMark />
+          <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
+        </div>
+        <NavSearch orgId={org.id} />
       </header>
 
       {/* Content — extra bottom padding on mobile clears the bottom nav */}
@@ -253,6 +257,34 @@ function MobileBottomNav({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) 
   );
 }
 
+/** Quick search in the navbar — routes to the events list filtered by the term. */
+function NavSearch({ orgId, onNavigate }: { orgId: string; onNavigate?: () => void }) {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const term = q.trim();
+        router.push(term ? `/painel/${orgId}?q=${encodeURIComponent(term)}` : `/painel/${orgId}`);
+        onNavigate?.();
+      }}
+      className="relative"
+      role="search"
+    >
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Buscar eventos"
+        aria-label="Buscar eventos"
+        className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-8 pr-3 text-body text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+      />
+    </form>
+  );
+}
+
 function SidebarContent({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -279,6 +311,9 @@ function SidebarContent({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
               Trocar
             </Link>
           )}
+        </div>
+        <div className="mt-3">
+          <NavSearch orgId={org.id} />
         </div>
       </div>
 
