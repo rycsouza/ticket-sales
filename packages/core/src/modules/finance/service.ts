@@ -1,5 +1,5 @@
 import type { RequestContext } from "../../shared/context";
-import { NotFoundOrForbiddenError } from "../../shared/errors";
+import { NotFoundOrForbiddenError, ValidationFailedError } from "../../shared/errors";
 import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { LedgerPostEntry, LedgerRepository } from "./repository";
@@ -243,5 +243,75 @@ export class FinanceService {
       memo: input.memo,
       correlationId: ctx.correlationId,
     });
+  }
+
+  /**
+   * Outstanding commission owed to each promoter for an event — the PROMOTER
+   * account balance per promoter (accrued − reversed − paid). Only promoters
+   * with a positive balance are returned.
+   */
+  async getEventPromoterPayables(
+    ctx: RequestContext,
+    eventId: string,
+  ): Promise<{ promoterId: string; owedCents: number }[]> {
+    await requireActiveRole(this.deps.memberships, ctx, FINANCE_ROLES);
+    const event = await this.deps.events.findByIdScoped(ctx.organizationId, eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+
+    const entries = await this.deps.ledger.listByEvent(ctx.organizationId, eventId);
+    const owed = new Map<string, number>();
+    for (const e of entries) {
+      if (e.account !== "PROMOTER" || !e.promoterId) continue;
+      owed.set(e.promoterId, (owed.get(e.promoterId) ?? 0) + e.amountCents);
+    }
+    return [...owed.entries()]
+      .filter(([, cents]) => cents > 0)
+      .map(([promoterId, owedCents]) => ({ promoterId, owedCents }));
+  }
+
+  /**
+   * Registers a promoter commission payout executed EXTERNALLY (FR-FIN-013).
+   * Guards against over-payout: the amount may not exceed the promoter's
+   * outstanding balance. Posts a PROMOTER PAYOUT entry (append-only ledger).
+   */
+  async registerPromoterPayout(
+    ctx: RequestContext,
+    eventId: string,
+    input: { promoterId: string; amountCents: number; memo?: string | undefined },
+  ): Promise<LedgerEntryRecord> {
+    await requireActiveRole(this.deps.memberships, ctx, FINANCE_ROLES);
+    const event = await this.deps.events.findByIdScoped(ctx.organizationId, eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+
+    const entries = await this.deps.ledger.listByEvent(ctx.organizationId, eventId);
+    const owed = entries
+      .filter((e) => e.account === "PROMOTER" && e.promoterId === input.promoterId)
+      .reduce((acc, e) => acc + e.amountCents, 0);
+
+    const amount = Math.abs(input.amountCents);
+    if (amount <= 0 || amount > owed) {
+      throw new ValidationFailedError("Valor acima do saldo de comissão devido ao promotor");
+    }
+
+    const posted = await this.deps.ledger.append({
+      organizationId: ctx.organizationId,
+      eventId,
+      account: "PROMOTER",
+      type: "PAYOUT",
+      amountCents: -amount,
+      promoterId: input.promoterId,
+      memo: input.memo,
+      correlationId: ctx.correlationId,
+    });
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "finance.promoter_payout",
+      resourceType: "event",
+      resourceId: eventId,
+      after: { promoterId: input.promoterId, amountCents: amount },
+      correlationId: ctx.correlationId,
+    });
+    return posted;
   }
 }

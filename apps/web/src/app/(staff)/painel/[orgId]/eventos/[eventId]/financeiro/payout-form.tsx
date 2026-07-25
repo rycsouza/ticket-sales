@@ -92,3 +92,60 @@ export function PayoutForm({ apiBase }: { apiBase: string }) {
     </>
   );
 }
+
+/** Registers the full owed commission payout to a promoter (capped server-side). */
+export function PromoterPayoutButton({
+  apiBase,
+  promoterId,
+  promoterName,
+  owedCents,
+}: {
+  apiBase: string;
+  promoterId: string;
+  promoterName: string;
+  owedCents: number;
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+
+  async function submit() {
+    const res = await fetch(`${apiBase}/finance/promoter-payouts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        promoterId,
+        amountCents: owedCents,
+        memo: `Comissão — ${promoterName}`,
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? "Não foi possível registrar o pagamento." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+        Registrar pagamento
+      </Button>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title="Registrar pagamento de comissão?"
+        description={
+          <>
+            Registrar o pagamento de{" "}
+            <strong className="text-ink">{fmtBRL(owedCents)}</strong> a{" "}
+            <strong className="text-ink">{promoterName}</strong>. Isto{" "}
+            <strong>não movimenta dinheiro</strong> — apenas registra a comissão como paga.
+          </>
+        }
+        confirmLabel="Registrar pagamento"
+        onConfirm={submit}
+      />
+    </>
+  );
+}

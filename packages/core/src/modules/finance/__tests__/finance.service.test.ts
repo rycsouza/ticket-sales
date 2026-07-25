@@ -200,6 +200,35 @@ describe("financial summary & payout (FR-FIN-003/013/010)", () => {
     expect(ledger.entries.some((e) => e.type === "PAYOUT")).toBe(true);
   });
 
+  it("promoter payout is capped at the owed balance and reduces it", async () => {
+    const { ledger, memberships, service } = build(
+      { subtotalCents: 20_000, discountCents: 0, feeCents: 0, feeMode: "PRODUCER" },
+      2_000, // commission accrued to PROMOTER
+    );
+    await memberships.create({ organizationId: ORG, userId: "u_fin", role: "FINANCE" });
+    await service.postForPaidOrder(ORG, ORDER, { correlationId: "c" });
+
+    const payables = await service.getEventPromoterPayables(financeCtx, EVENT);
+    expect(payables).toEqual([{ promoterId: PROMOTER, owedCents: 2_000 }]);
+
+    // Over-payout is rejected (never pay more than owed).
+    await expect(
+      service.registerPromoterPayout(financeCtx, EVENT, {
+        promoterId: PROMOTER,
+        amountCents: 2_500,
+      }),
+    ).rejects.toThrow();
+
+    // A valid payout brings the promoter balance to zero.
+    await service.registerPromoterPayout(financeCtx, EVENT, {
+      promoterId: PROMOTER,
+      amountCents: 2_000,
+      memo: "PIX",
+    });
+    expect(balances(ledger).PROMOTER).toBe(0);
+    expect(await service.getEventPromoterPayables(financeCtx, EVENT)).toHaveLength(0);
+  });
+
   it("denies a non-finance caller", async () => {
     const { memberships, service } = build({
       subtotalCents: 10_000,

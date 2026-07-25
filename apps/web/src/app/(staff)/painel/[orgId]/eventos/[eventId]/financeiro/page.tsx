@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { Download } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
-import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
+import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
-import { PayoutForm } from "./payout-form";
+import { toPromoterResponse } from "@/lib/serializers";
+import { PayoutForm, PromoterPayoutButton } from "./payout-form";
 
 export const metadata: Metadata = { title: "Financeiro — Ingressos" };
 
@@ -31,6 +32,15 @@ export default async function FinancePage({
       </Card>
     );
   }
+
+  const [payables, promoters] = await Promise.all([
+    getServices().finance.getEventPromoterPayables(ctx, eventId).catch(() => []),
+    getServices()
+      .promoters.listPromoters(ctx)
+      .then((r) => r.map(toPromoterResponse))
+      .catch(() => []),
+  ]);
+  const promoterName = (id: string) => promoters.find((p) => p.id === id)?.name ?? "Promotor";
 
   // Producer-facing composition. Each line has a real ledger source; the
   // authoritative balance is `producerPayableCents`.
@@ -119,6 +129,41 @@ export default async function FinancePage({
           <CardBody>
             <PayoutForm apiBase={`/api/orgs/${orgId}/events/${eventId}`} />
           </CardBody>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Comissões dos promotores"
+            description="Saldo devido a cada promotor neste evento. Registrar o pagamento marca a comissão como paga."
+          />
+          {payables.length === 0 ? (
+            <EmptyState
+              title="Nenhuma comissão em aberto"
+              description="Comissões acumulam automaticamente conforme vendas atribuídas a promotores são pagas."
+            />
+          ) : (
+            <ul className="divide-y divide-line">
+              {payables.map((p) => (
+                <li
+                  key={p.promoterId}
+                  className="flex items-center justify-between gap-3 px-5 py-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium text-ink">{promoterName(p.promoterId)}</span>
+                    <span className="text-small text-ink-muted">
+                      {fmtBRL(p.owedCents)} a pagar
+                    </span>
+                  </span>
+                  <PromoterPayoutButton
+                    apiBase={`/api/orgs/${orgId}/events/${eventId}`}
+                    promoterId={p.promoterId}
+                    promoterName={promoterName(p.promoterId)}
+                    owedCents={p.owedCents}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </div>
