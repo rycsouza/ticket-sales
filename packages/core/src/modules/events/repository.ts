@@ -8,8 +8,14 @@ export interface CreateEventData {
   description?: string | undefined;
   venueName?: string | undefined;
   addressLine?: string | undefined;
+  addressNumber?: string | undefined;
+  addressComplement?: string | undefined;
+  neighborhood?: string | undefined;
+  postalCode?: string | undefined;
   city?: string | undefined;
   state?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
   timezone: string;
   startsAt?: Date | undefined;
   endsAt?: Date | undefined;
@@ -83,8 +89,14 @@ const eventSelect = {
   description: true,
   venueName: true,
   addressLine: true,
+  addressNumber: true,
+  addressComplement: true,
+  neighborhood: true,
+  postalCode: true,
   city: true,
   state: true,
+  latitude: true,
+  longitude: true,
   timezone: true,
   startsAt: true,
   endsAt: true,
@@ -130,8 +142,14 @@ export class PrismaEventRepository implements EventRepository {
           description: data.description,
           venueName: data.venueName,
           addressLine: data.addressLine,
+          addressNumber: data.addressNumber,
+          addressComplement: data.addressComplement,
+          neighborhood: data.neighborhood,
+          postalCode: data.postalCode,
           city: data.city,
           state: data.state,
+          latitude: data.latitude,
+          longitude: data.longitude,
           startsAt: data.startsAt,
           endsAt: data.endsAt,
           capacityTotal: data.capacityTotal,

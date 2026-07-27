@@ -8,6 +8,25 @@ const slugSchema = z
   .min(3)
   .max(80);
 
+// Structured address (CEP-first, filled via ViaCEP/BrasilAPI in the panel).
+// lat/lng are display-only pin coordinates; validated to WGS84 ranges.
+const addressFields = {
+  venueName: z.string().trim().min(2).max(120).optional(),
+  addressLine: z.string().trim().max(200).optional(),
+  addressNumber: z.string().trim().max(20).optional(),
+  addressComplement: z.string().trim().max(120).optional(),
+  neighborhood: z.string().trim().max(120).optional(),
+  postalCode: z
+    .string()
+    .trim()
+    .regex(/^\d{8}$/, "CEP deve ter 8 dígitos")
+    .optional(),
+  city: z.string().trim().min(2).max(80).optional(),
+  state: z.string().trim().length(2).toUpperCase().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+} as const;
+
 // Strict allowlists — status, organizationId, publishedAt etc. are NEVER
 // accepted from the client (CLAUDE_SECURITY_RULES §8).
 export const createEventSchema = z
@@ -15,10 +34,7 @@ export const createEventSchema = z
     title: z.string().trim().min(3).max(120),
     slug: slugSchema,
     description: z.string().trim().max(5000).optional(),
-    venueName: z.string().trim().min(2).max(120).optional(),
-    addressLine: z.string().trim().max(200).optional(),
-    city: z.string().trim().min(2).max(80).optional(),
-    state: z.string().trim().length(2).toUpperCase().optional(),
+    ...addressFields,
     timezone: z.string().trim().max(60).default("America/Sao_Paulo"),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
@@ -51,10 +67,7 @@ export const updateEventSchema = z
   .object({
     title: z.string().trim().min(3).max(120).optional(),
     description: z.string().trim().max(5000).optional(),
-    venueName: z.string().trim().min(2).max(120).optional(),
-    addressLine: z.string().trim().max(200).optional(),
-    city: z.string().trim().min(2).max(80).optional(),
-    state: z.string().trim().length(2).toUpperCase().optional(),
+    ...addressFields,
     timezone: z.string().trim().max(60).optional(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),

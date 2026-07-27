@@ -235,9 +235,16 @@ model Event {
 
   // Venue (embedded for MVP; sectors as separate model)
   venueName    String?
-  addressLine  String?
+  addressLine  String? // logradouro (rua/avenida)
+  addressNumber String?
+  addressComplement String?
+  neighborhood String?
+  postalCode   String? // CEP, digits only
   city         String?
   state        String?
+  // Display-only map pin (WGS84). Best-effort from the CEP/address; nullable.
+  latitude     Float?
+  longitude    Float?
 
   // Times stored UTC; timezone is the IANA zone used for display
   timezone String  @default("America/Sao_Paulo")

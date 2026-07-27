@@ -21,6 +21,7 @@ import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL, fmtDateTime } from "@/lib/status";
+import { EventLocationForm } from "./location-form";
 
 export const metadata: Metadata = { title: "Visão geral — Ingressos" };
 
@@ -253,6 +254,31 @@ export default async function EventOverview({
           </CardBody>
         </Card>
       </div>
+
+      {/* Local e endereço — editável, com autofill por CEP. */}
+      <Card>
+        <CardHeader
+          title="Local e endereço"
+          description="Onde o evento acontece. Digite o CEP para preencher o endereço automaticamente."
+        />
+        <CardBody>
+          <EventLocationForm
+            apiBase={`/api/orgs/${orgId}/events/${eventId}`}
+            initial={{
+              venueName: event.venueName ?? "",
+              postalCode: event.postalCode ?? "",
+              addressLine: event.addressLine ?? "",
+              addressNumber: event.addressNumber ?? "",
+              addressComplement: event.addressComplement ?? "",
+              neighborhood: event.neighborhood ?? "",
+              city: event.city ?? "",
+              state: event.state ?? "",
+              latitude: event.latitude,
+              longitude: event.longitude,
+            }}
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

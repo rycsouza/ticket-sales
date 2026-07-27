@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button, Field, Input, Modal, Select } from "@/components/ui";
+import { AddressFields, addressToPayload, emptyAddress, type AddressValue } from "../address-fields";
 
 function slugify(value: string): string {
   return value
@@ -17,9 +18,6 @@ function slugify(value: string): string {
 
 const EMPTY = {
   title: "",
-  venueName: "",
-  city: "",
-  state: "",
   startsAt: "",
   capacityTotal: "",
   feePercent: "10",
@@ -30,6 +28,7 @@ export function NewEventForm({ orgId }: { orgId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [address, setAddress] = useState<AddressValue>(emptyAddress);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +46,7 @@ export function NewEventForm({ orgId }: { orgId: string }) {
         feeMode: form.feeMode,
         platformFeeBps: Math.round(Number(form.feePercent) * 100),
       };
-      if (form.venueName.trim()) body.venueName = form.venueName.trim();
-      if (form.city.trim()) body.city = form.city.trim();
-      if (form.state.trim()) body.state = form.state.trim().toUpperCase();
+      Object.assign(body, addressToPayload(address));
       if (form.startsAt) body.startsAt = new Date(form.startsAt).toISOString();
       if (form.capacityTotal) body.capacityTotal = Number(form.capacityTotal);
 
@@ -115,28 +112,7 @@ export function NewEventForm({ orgId }: { orgId: string }) {
             />
           </Field>
 
-          <Field label="Local" htmlFor="ev-venue">
-            <Input
-              id="ev-venue"
-              value={form.venueName}
-              onChange={(e) => set("venueName", e.target.value)}
-              placeholder="Clube da Cidade"
-            />
-          </Field>
-
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Cidade" htmlFor="ev-city" className="col-span-2">
-              <Input id="ev-city" value={form.city} onChange={(e) => set("city", e.target.value)} />
-            </Field>
-            <Field label="UF" htmlFor="ev-uf">
-              <Input
-                id="ev-uf"
-                maxLength={2}
-                value={form.state}
-                onChange={(e) => set("state", e.target.value)}
-              />
-            </Field>
-          </div>
+          <AddressFields value={address} onChange={setAddress} />
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Início" htmlFor="ev-start">

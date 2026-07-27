@@ -30,8 +30,14 @@ export interface EventRecord {
   description: string | null;
   venueName: string | null;
   addressLine: string | null;
+  addressNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  postalCode: string | null;
   city: string | null;
   state: string | null;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   startsAt: Date | null;
   endsAt: Date | null;

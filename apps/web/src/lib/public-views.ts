@@ -45,8 +45,12 @@ export interface PublicEventView {
   description: string | null;
   venueName: string | null;
   addressLine: string | null;
+  addressNumber: string | null;
+  neighborhood: string | null;
   city: string | null;
   state: string | null;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -116,8 +120,12 @@ async function buildPublicEventView(event: EventRecord): Promise<PublicEventView
     description: event.description,
     venueName: event.venueName,
     addressLine: event.addressLine,
+    addressNumber: event.addressNumber,
+    neighborhood: event.neighborhood,
     city: event.city,
     state: event.state,
+    latitude: event.latitude,
+    longitude: event.longitude,
     timezone: event.timezone,
     startsAt: event.startsAt,
     endsAt: event.endsAt,

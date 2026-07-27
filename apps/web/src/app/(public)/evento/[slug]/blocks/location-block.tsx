@@ -21,10 +21,19 @@ export function LocationBlock({
     ? `${event.city}${event.state ? `/${event.state}` : ""}`
     : null;
 
-  // Endereço textual para o mapa/rota — dados do próprio evento, nunca do cliente
-  const mapQuery = [event.venueName, event.addressLine, event.city, event.state]
+  // Rua + número numa linha só (ex.: "Rua X, 123").
+  const streetLine = event.addressLine
+    ? `${event.addressLine}${event.addressNumber ? `, ${event.addressNumber}` : ""}`
+    : null;
+
+  // Coordenadas dão um pino preciso; sem elas, cai no endereço textual. Dados do
+  // próprio evento, nunca do cliente.
+  const hasCoords = event.latitude !== null && event.longitude !== null;
+  const coordQuery = hasCoords ? `${event.latitude},${event.longitude}` : null;
+  const textQuery = [event.venueName, streetLine, event.neighborhood, event.city, event.state]
     .filter(Boolean)
     .join(", ");
+  const mapQuery = coordQuery ?? textQuery;
 
   return (
     <section className="mb-6">
@@ -38,7 +47,8 @@ export function LocationBlock({
             {event.venueName}
           </p>
         )}
-        {event.addressLine && <p className="mt-1">{event.addressLine}</p>}
+        {streetLine && <p className="mt-1">{streetLine}</p>}
+        {event.neighborhood && <p className="mt-0.5">{event.neighborhood}</p>}
         {cityLine && <p className="mt-0.5">{cityLine}</p>}
         {config.note && (
           <p className="mt-3 whitespace-pre-line text-small text-ink-muted">{config.note}</p>
