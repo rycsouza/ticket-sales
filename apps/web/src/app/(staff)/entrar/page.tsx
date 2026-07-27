@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Ticket } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
+import { getServices } from "@/lib/services";
+import { SESSION_COOKIE } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -20,6 +24,19 @@ export default async function LoginPage({
   searchParams: Promise<{ erro?: string }>;
 }) {
   const { erro } = await searchParams;
+
+  // Already signed in? Skip the form entirely — landing on /entrar with a valid
+  // session used to re-show the credentials screen, which read as "logged out".
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (token) {
+    try {
+      await getServices().auth.validateSession(token);
+      redirect("/painel");
+    } catch {
+      // Invalid/expired session — fall through and render the login form.
+    }
+  }
+
   // Read raw (not via loadServerEnv) so it never throws at build.
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
   const oauthError = erro ? OAUTH_ERRORS[erro] : undefined;

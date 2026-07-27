@@ -15,7 +15,7 @@ import {
 } from "@/lib/status";
 import { NoteForm, TicketActions } from "./console-client";
 
-export const metadata: Metadata = { title: "Pedido — Suporte" };
+export const metadata: Metadata = { title: "Pedido — Ingressos" };
 
 export default async function OrderDetailPage({
   params,
@@ -39,11 +39,11 @@ export default async function OrderDetailPage({
   return (
     <>
       <Link
-        href={`/painel/${orgId}/suporte`}
+        href={`/painel/${orgId}/pedidos`}
         className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
       >
         <ArrowLeft className="size-4" />
-        Voltar à busca
+        Voltar aos pedidos
       </Link>
 
       <PageHeader

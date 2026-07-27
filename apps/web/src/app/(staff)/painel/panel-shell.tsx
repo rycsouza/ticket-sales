@@ -8,7 +8,7 @@ import {
   BarChart3,
   Users,
   Megaphone,
-  LifeBuoy,
+  Receipt,
   ScanLine,
   LogOut,
   X,
@@ -58,10 +58,10 @@ function navItems(orgId: string): NavItem[] {
       match: (p) => p.startsWith(`${base}/afiliados`),
     },
     {
-      href: `${base}/suporte`,
-      label: "Suporte",
-      icon: LifeBuoy,
-      match: (p) => p.startsWith(`${base}/suporte`),
+      href: `${base}/pedidos`,
+      label: "Pedidos",
+      icon: Receipt,
+      match: (p) => p.startsWith(`${base}/pedidos`),
     },
   ];
 }

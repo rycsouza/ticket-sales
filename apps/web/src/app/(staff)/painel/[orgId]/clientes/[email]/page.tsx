@@ -147,7 +147,7 @@ export default async function BuyerDetailPage({
                     <tr key={o.id} className="hover:bg-hover">
                       <td className="px-5 py-3">
                         <Link
-                          href={`/painel/${orgId}/suporte/${o.id}`}
+                          href={`/painel/${orgId}/pedidos/${o.id}`}
                           className="inline-flex items-center gap-1 font-mono font-medium text-brand hover:underline"
                         >
                           {o.code}
