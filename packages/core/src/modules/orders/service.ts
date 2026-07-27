@@ -125,6 +125,11 @@ export class OrdersService {
     if (!event) throw new NotFoundOrForbiddenError();
     this.assertWithinWindow(now, event.salesStartAt, event.salesEndAt, "Sales are not open");
 
+    // Self-heal (BR-INV-003): opportunistically expire orders whose hold lapsed
+    // BEFORE reading availability, so a missing periodic sweep never leaves
+    // tickets stuck as "reserved". Best-effort — it must never block a purchase.
+    await this.expireDueOrders(100).catch(() => undefined);
+
     // Load and validate every batch BEFORE reserving anything
     const units: { batchId: string; ticketTypeId: string; unitPriceCents: number }[] = [];
     let totalQuantity = 0;
