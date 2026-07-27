@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, CreditCard, Minus, Plus, QrCode } from "lucide-react";
-import { Button, Field, Input, PhoneInput } from "@/components/ui";
+import { Button, Field, Input, PhoneInput, Spinner } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import {
   isCompleteMobilePhone,
@@ -15,7 +15,12 @@ import {
 } from "@/lib/format";
 import { getStoredPhone, setStoredPhone } from "@/lib/prefs";
 import type { PublicBatchView } from "@/lib/public-views";
-import { OrderPayment, type OrderAccess } from "@/components/order-payment";
+import {
+  OrderPayment,
+  type OrderAccess,
+  type OrderView,
+  type PixView,
+} from "@/components/order-payment";
 import { useCheckoutStep } from "./checkout-flow";
 
 function formatBRL(centsValue: number): string {
@@ -55,6 +60,13 @@ type Lookup =
 const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
 const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão", "Pagamento"];
+// Friendly, reassuring messages shown while the order + payment are prepared.
+const PREP_MESSAGES = [
+  "Reservando seus ingressos…",
+  "Gerando seu pagamento…",
+  "Preparando tudo pra você…",
+  "Quase lá…",
+];
 
 export function CheckoutForm({
   eventId,
@@ -69,6 +81,10 @@ export function CheckoutForm({
   const router = useRouter();
   // Set once the order is created — drives the in-flow Pagamento step (4).
   const [access, setAccess] = useState<OrderAccess | null>(null);
+  // Resolved order + generated Pix, so step 4 lands on a ready screen (no wait).
+  const [initialOrder, setInitialOrder] = useState<OrderView | null>(null);
+  const [initialPix, setInitialPix] = useState<PixView | null>(null);
+  const [prepMsg, setPrepMsg] = useState(0);
   // Step lives in shared context so the surrounding marketing blocks can hide
   // once the buyer advances past ticket selection (StepOneOnly in checkout-flow).
   const { step, setStep } = useCheckoutStep();
@@ -131,6 +147,16 @@ export function CheckoutForm({
       window.scrollTo({ top: 0 });
     }
   }, [step]);
+
+  // Rotate the reassuring messages while the order + payment are being prepared.
+  useEffect(() => {
+    if (!submitting) {
+      setPrepMsg(0);
+      return;
+    }
+    const t = setInterval(() => setPrepMsg((i) => (i + 1) % PREP_MESSAGES.length), 1400);
+    return () => clearInterval(t);
+  }, [submitting]);
 
   // `phone` holds digits only (PhoneInput handles the mask).
   const phoneComplete = isCompleteMobilePhone(phone);
@@ -316,6 +342,9 @@ export function CheckoutForm({
       const data = (await response.json()) as {
         code?: string;
         accessToken?: string | null;
+        status?: string;
+        totalCents?: number;
+        expiresAt?: string | null;
         error?: string;
       };
 
@@ -345,6 +374,30 @@ export function CheckoutForm({
           : { code: data.code, email: buyerEmail };
 
       if (nextAccess) {
+        // Resolve the order + generate the chosen payment BEFORE advancing, so
+        // the buyer lands on a ready screen (QR already visible) instead of a
+        // spinner. The reassuring messages play while this runs.
+        setInitialOrder({
+          code: data.code,
+          status: data.status ?? "AWAITING_PAYMENT",
+          totalCents: data.totalCents ?? totalCents,
+          expiresAt: data.expiresAt ?? null,
+        });
+        if (payMethod === "pix") {
+          try {
+            const payRes = await fetch("/api/public/orders/pay", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(nextAccess),
+            });
+            const payData = (await payRes.json().catch(() => ({}))) as PixView & {
+              error?: string;
+            };
+            if (payRes.ok) setInitialPix(payData);
+          } catch {
+            // Non-fatal: OrderPayment regenerates the Pix lazily on the next step.
+          }
+        }
         setAccess(nextAccess);
         setStep(4);
       } else {
@@ -535,6 +588,40 @@ export function CheckoutForm({
       {/* Step 3 — Revisão */}
       {step === 3 && (
         <>
+          {cardAvailable && (
+            <div className={`${sectionClass} border-brand-border`}>
+              <h2 className={sectionTitle}>Como você quer pagar?</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { key: "pix", label: "Pix", icon: QrCode },
+                    { key: "card", label: "Cartão", icon: CreditCard },
+                  ] as const
+                ).map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPayMethod(key)}
+                    aria-pressed={payMethod === key}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-lg border py-3 text-body font-semibold transition-colors",
+                      payMethod === key
+                        ? "border-brand bg-brand text-brand-fg"
+                        : "border-line-strong text-ink-soft active:bg-hover",
+                    )}
+                  >
+                    <Icon className="size-[18px]" /> {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-small text-ink-muted">
+                {payMethod === "pix"
+                  ? "Pix: aprovação na hora, via QR Code ou copia e cola."
+                  : "Cartão: crédito à vista ou parcelado, aprovação imediata."}
+              </p>
+            </div>
+          )}
+
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Cupom</h2>
             {applied ? (
@@ -613,6 +700,30 @@ export function CheckoutForm({
                 <span className="tabular-nums">{formatBRL(totalCents)}</span>
               </div>
             </div>
+            <details className="mt-3 border-t border-line pt-3 text-small text-ink-muted">
+              <summary className="cursor-pointer font-medium text-ink-soft">
+                Entenda os valores
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                <li>
+                  <strong className="text-ink">Subtotal</strong> — soma dos ingressos escolhidos.
+                </li>
+                {discountCents > 0 && (
+                  <li>
+                    <strong className="text-ink">Desconto</strong> — abatimento do cupom aplicado.
+                  </li>
+                )}
+                {feeCents > 0 && (
+                  <li>
+                    <strong className="text-ink">Taxa de serviço</strong> — taxa da plataforma pela
+                    emissão e pelo suporte dos seus ingressos.
+                  </li>
+                )}
+                <li>
+                  <strong className="text-ink">Total</strong> — valor final que você paga agora.
+                </li>
+              </ul>
+            </details>
           </div>
 
           <div className={`${sectionClass} text-body text-ink-soft`}>
@@ -640,40 +751,6 @@ export function CheckoutForm({
             </details>
           )}
 
-          {cardAvailable && (
-            <div className={sectionClass}>
-              <h2 className={sectionTitle}>Forma de pagamento</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { key: "pix", label: "Pix", icon: QrCode },
-                    { key: "card", label: "Cartão", icon: CreditCard },
-                  ] as const
-                ).map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setPayMethod(key)}
-                    aria-pressed={payMethod === key}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded-lg border py-2.5 text-body font-semibold transition-colors",
-                      payMethod === key
-                        ? "border-brand bg-brand text-brand-fg"
-                        : "border-line-strong text-ink-soft active:bg-hover",
-                    )}
-                  >
-                    <Icon className="size-[18px]" /> {label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-small text-ink-muted">
-                {payMethod === "pix"
-                  ? "Aprovação na hora via QR Code ou copia e cola."
-                  : "Crédito à vista ou parcelado, aprovação imediata."}
-              </p>
-            </div>
-          )}
-
           {errorBox}
           <p className="text-center text-small text-ink-muted">
             Ao finalizar, você concorda com os termos do evento e a política de privacidade.
@@ -687,17 +764,33 @@ export function CheckoutForm({
           access={access}
           mpPublicKey={mpPublicKey}
           initialMethod={payMethod}
+          initialOrder={initialOrder}
+          initialPix={initialPix}
           email={reuseActive ? undefined : email.trim().toLowerCase()}
           showTicketsLink
         />
       )}
 
+      {/* Feedback enquanto o pedido + pagamento são preparados (passo 3 → 4). */}
+      {submitting && (
+        <div
+          className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-page/90 px-6 text-center backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <Spinner className="size-8 text-brand" />
+          <p className="text-h3 font-semibold text-ink">{PREP_MESSAGES[prepMsg]}</p>
+          <p className="text-body text-ink-muted">Não feche esta tela.</p>
+        </div>
+      )}
+
       {/* Barra de ação fixa no mobile (Total + avançar); estática no desktop. */}
       {step === 1 && (
         <ActionBar
-          show={totalQuantity > 0}
+          show
           totalCents={subtotalCents}
           totalLabel="Subtotal"
+          note={totalQuantity === 0 ? "Selecione seus ingressos" : undefined}
           primaryLabel="Continuar"
           onPrimary={goToData}
           disabled={totalQuantity === 0}
@@ -785,6 +878,7 @@ function ActionBar({
   show,
   totalCents,
   totalLabel,
+  note,
   primaryLabel,
   onPrimary,
   onBack,
@@ -794,6 +888,8 @@ function ActionBar({
   show: boolean;
   totalCents: number;
   totalLabel: string;
+  /** When set, replaces the total block (e.g. "Selecione seus ingressos"). */
+  note?: string | undefined;
   primaryLabel: string;
   onPrimary: () => void;
   onBack?: () => void;
@@ -817,10 +913,14 @@ function ActionBar({
             <ArrowLeft className="size-5" />
           </button>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="text-caption text-ink-muted">{totalLabel}</p>
-          <p className="text-h3 font-bold tabular-nums text-ink">{formatBRL(totalCents)}</p>
-        </div>
+        {note ? (
+          <p className="min-w-0 flex-1 text-body font-medium text-ink-muted">{note}</p>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <p className="text-caption text-ink-muted">{totalLabel}</p>
+            <p className="text-h3 font-bold tabular-nums text-ink">{formatBRL(totalCents)}</p>
+          </div>
+        )}
         <Button
           size="lg"
           className="shrink-0"
