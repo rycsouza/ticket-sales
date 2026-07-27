@@ -26,14 +26,15 @@ export function LocationBlock({
     ? `${event.addressLine}${event.addressNumber ? `, ${event.addressNumber}` : ""}`
     : null;
 
-  // Coordenadas dão um pino preciso; sem elas, cai no endereço textual. Dados do
-  // próprio evento, nunca do cliente.
+  // Prefer the textual query (venue + address): the Google embed geocodes it and
+  // drops a *labelled*, recognizable pin ("Pérola Negra"). Saved coordinates are
+  // only a fallback for events with no usable address text — a bare lat/lng pin
+  // has no label and a CEP centroid can be less precise. Data is the event's own.
   const hasCoords = event.latitude !== null && event.longitude !== null;
-  const coordQuery = hasCoords ? `${event.latitude},${event.longitude}` : null;
   const textQuery = [event.venueName, streetLine, event.neighborhood, event.city, event.state]
     .filter(Boolean)
     .join(", ");
-  const mapQuery = coordQuery ?? textQuery;
+  const mapQuery = textQuery || (hasCoords ? `${event.latitude},${event.longitude}` : "");
 
   return (
     <section className="mb-6">
