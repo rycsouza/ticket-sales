@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, Percent, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
+import { CalendarDays, Download, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
 import type { EventFinancialSummary } from "@ingressos/core";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
-import { toBatchResponse, toEventResponse } from "@/lib/serializers";
-import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Stat } from "@/components/ui";
+import { toBatchResponse, toEventResponse, toPromoterResponse } from "@/lib/serializers";
+import {
+  Alert,
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  Stat,
+  buttonVariants,
+} from "@/components/ui";
 import { EVENT_STATUS, fmtBRL, statusMeta } from "@/lib/status";
 import { EventFilterSelect } from "../../ui";
 
@@ -46,6 +56,29 @@ export default async function OrgReport({
     }),
   );
   rows.sort((a, b) => (b.finance?.grossSalesCents ?? 0) - (a.finance?.grossSalesCents ?? 0) || b.sold - a.sold);
+
+  // When a single event is selected, surface its full financial breakdown here
+  // so the producer never has to open the event to read the report. The event's
+  // own Financeiro tab keeps only the operational actions (registering payouts).
+  const selected = eventId ? rows.find((r) => r.event.id === eventId) : undefined;
+  const selectedFinance = selected?.finance ?? null;
+  const commissions =
+    eventId && selectedFinance
+      ? await (async () => {
+          const [payables, promoters] = await Promise.all([
+            services.finance.getEventPromoterPayables(ctx, eventId).catch(() => []),
+            services.promoters
+              .listPromoters(ctx)
+              .then((r) => r.map(toPromoterResponse))
+              .catch(() => []),
+          ]);
+          return payables.map((p) => ({
+            promoterId: p.promoterId,
+            name: promoters.find((x) => x.id === p.promoterId)?.name ?? "Promotor",
+            owedCents: p.owedCents,
+          }));
+        })()
+      : [];
 
   const financeAvailable = rows.some((r) => r.finance !== null);
   const totals = rows.reduce(
@@ -166,10 +199,102 @@ export default async function OrgReport({
             </div>
           </Card>
 
-          <Alert tone="neutral" className="mt-4">
-            Os números refletem os pedidos pagos registrados. O detalhamento completo de cada evento
-            está em <strong className="font-medium text-ink">Financeiro</strong>, dentro do evento.
-          </Alert>
+          {eventId && selectedFinance ? (
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader
+                  title="Composição do resultado"
+                  description={`Detalhamento de ${selected?.event.title ?? "evento"} — do total vendido ao saldo a receber.`}
+                  action={
+                    <a
+                      href={`/api/orgs/${orgId}/events/${eventId}/finance/export`}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    >
+                      <Download className="size-4" />
+                      Extrato (CSV)
+                    </a>
+                  }
+                />
+                <CardBody>
+                  <ul className="divide-y divide-line">
+                    {(
+                      [
+                        { label: "Vendas brutas", value: selectedFinance.grossSalesCents },
+                        { label: "Descontos", value: -selectedFinance.discountCents },
+                        { label: "Taxas da plataforma", value: -selectedFinance.platformFeeCents },
+                        { label: "Custos de pagamento", value: -selectedFinance.pspCostCents },
+                        { label: "Comissões", value: -selectedFinance.commissionCents },
+                        { label: "Reembolsos", value: -selectedFinance.refundedCents },
+                        { label: "Repasses já registrados", value: -selectedFinance.payoutsCents },
+                      ] as const
+                    ).map((row) => (
+                      <li
+                        key={row.label}
+                        className="flex items-center justify-between gap-3 py-2.5 text-body"
+                      >
+                        <span className="text-ink-soft">{row.label}</span>
+                        <span
+                          className={
+                            row.value < 0 ? "tabular-nums text-ink-muted" : "tabular-nums text-ink"
+                          }
+                        >
+                          {row.value < 0
+                            ? `− ${fmtBRL(Math.abs(row.value))}`
+                            : fmtBRL(row.value)}
+                        </span>
+                      </li>
+                    ))}
+                    <li className="flex items-center justify-between gap-3 pt-3 text-body font-semibold">
+                      <span className="text-ink">Saldo a receber</span>
+                      <span className="tabular-nums text-ink">
+                        {fmtBRL(selectedFinance.producerPayableCents)}
+                      </span>
+                    </li>
+                  </ul>
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardHeader
+                  title="Comissões dos promotores"
+                  description="Saldo devido a cada promotor neste evento."
+                />
+                {commissions.length === 0 ? (
+                  <EmptyState
+                    title="Nenhuma comissão em aberto"
+                    description="As comissões acumulam conforme as vendas atribuídas a promotores são pagas."
+                  />
+                ) : (
+                  <ul className="divide-y divide-line">
+                    {commissions.map((c) => (
+                      <li
+                        key={c.promoterId}
+                        className="flex items-center justify-between gap-3 px-5 py-3"
+                      >
+                        <span className="font-medium text-ink">{c.name}</span>
+                        <span className="tabular-nums text-ink-soft">{fmtBRL(c.owedCents)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Alert tone="neutral" className="m-4 mt-0">
+                  Para registrar um repasse ou marcar comissões como pagas, use{" "}
+                  <Link
+                    href={`/painel/${orgId}/eventos/${eventId}/financeiro`}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Financeiro do evento
+                  </Link>
+                  .
+                </Alert>
+              </Card>
+            </div>
+          ) : (
+            <Alert tone="neutral" className="mt-4">
+              Os números refletem os pedidos pagos registrados. Selecione um evento acima para ver o
+              detalhamento financeiro completo, sem sair desta tela.
+            </Alert>
+          )}
         </>
       )}
     </>
