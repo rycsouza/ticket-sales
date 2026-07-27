@@ -9,6 +9,7 @@ import {
   Users,
   Megaphone,
   Receipt,
+  Sparkles,
   ScanLine,
   LogOut,
   X,
@@ -56,6 +57,12 @@ function navItems(orgId: string): NavItem[] {
       label: "Afiliados",
       icon: Megaphone,
       match: (p) => p.startsWith(`${base}/afiliados`),
+    },
+    {
+      href: `${base}/ofertas`,
+      label: "Ofertas",
+      icon: Sparkles,
+      match: (p) => p.startsWith(`${base}/ofertas`),
     },
     {
       href: `${base}/pedidos`,

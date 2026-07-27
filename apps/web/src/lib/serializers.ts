@@ -9,6 +9,7 @@ import type {
   EventPageRecord,
   EventRecord,
   LedgerEntryRecord,
+  OfferRecord,
   OrderNoteRecord,
   OrderSearchRow,
   OrderTimeline,
@@ -17,6 +18,7 @@ import type {
   PromoterAssignmentRecord,
   PromoterLinkRecord,
   PromoterSummaryRow,
+  ProductRecord,
   SalesBatchRecord,
   TicketRecord,
   TicketTypeRecord,
@@ -96,6 +98,31 @@ export function toPromoterResponse(p: PromoterRecord) {
     contactPhone: p.contactPhone,
     hasLogin: p.membershipId !== null,
     active: p.active,
+  };
+}
+
+export function toProductResponse(p: ProductRecord) {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    priceCents: p.priceCents,
+    active: p.active,
+  };
+}
+
+export function toOfferResponse(o: OfferRecord) {
+  return {
+    id: o.id,
+    kind: o.kind,
+    eventId: o.eventId,
+    batchId: o.batchId,
+    productId: o.productId,
+    title: o.title,
+    description: o.description,
+    priceCentsOverride: o.priceCentsOverride,
+    active: o.active,
+    sortOrder: o.sortOrder,
   };
 }
 
