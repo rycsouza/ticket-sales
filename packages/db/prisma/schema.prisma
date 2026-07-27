@@ -517,14 +517,27 @@ model Order {
   @@index([status, expiresAt])
 }
 
-// One row per UNIT (PRD §13.1) — each item becomes exactly one ticket.
+enum OrderItemKind {
+  TICKET // one unit → exactly one emitted ticket (reserves batch inventory)
+  PRODUCT // standalone paid add-on: no ticket, no check-in (upsell/order bump)
+}
+
+// One row per UNIT (PRD §13.1). A TICKET line becomes exactly one ticket and
+// holds batch inventory; a PRODUCT line is a paid add-on with no ticket.
 model OrderItem {
-  id             String @id @default(uuid(7))
+  id             String        @id @default(uuid(7))
   organizationId String
   orderId        String
   eventId        String
-  batchId        String
-  ticketTypeId   String
+  kind           OrderItemKind @default(TICKET)
+  // Set for TICKET lines; null for PRODUCT lines.
+  batchId        String?
+  ticketTypeId   String?
+  // Set for PRODUCT lines; null for TICKET lines.
+  productId      String?
+  // Snapshot of the product name at purchase time so history stays stable even
+  // if the product is later renamed or removed. Null for TICKET lines.
+  description    String?
 
   unitPriceCents Int
 
@@ -863,6 +876,69 @@ model OrderAttribution {
 
   @@index([organizationId, eventId])
   @@index([promoterId])
+}
+
+// ---------------------------------------------------------------------------
+// Upsell & Order Bump — org-level offers linked to events
+// ---------------------------------------------------------------------------
+
+// A standalone paid add-on that is NOT a ticket: no QR, no check-in. It is a
+// paid line on the order and flows to the producer as revenue (SALE). Org-
+// scoped and reusable across events (surfaced through an Offer).
+model Product {
+  id             String  @id @default(uuid(7))
+  organizationId String
+  name           String
+  description    String?
+  // BR-FIN-001: integer cents.
+  priceCents     Int
+  active         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, active])
+}
+
+enum OfferKind {
+  ORDER_BUMP // checkbox card in the checkout summary (before payment)
+  UPSELL // suggestion shown right after the buyer picks their tickets
+}
+
+// A promoted offer shown at checkout. It targets EITHER an existing ticket lote
+// (batchId → reuses the sales engine: the unit is reserved and emitted like any
+// ticket) OR a standalone Product (productId → paid line, no ticket). Exactly
+// one target is set (enforced in the service). Org-scoped; `eventId` NULL means
+// "every event" and is allowed ONLY for product-target offers — a batch-target
+// offer is implicitly bound to its batch's event.
+model Offer {
+  id             String    @id @default(uuid(7))
+  organizationId String
+  eventId        String? // null = all events (product-target offers only)
+  kind           OfferKind
+
+  // Target — exactly one of these is non-null.
+  batchId   String? // existing ticket lote
+  productId String? // standalone add-on
+
+  // Marketing copy shown to the buyer; falls back to the target's own name.
+  title       String?
+  description String?
+
+  // Special price for this offer, in cents. Null = the target's own price
+  // (batch.priceCents or product.priceCents). Never trusted from the client.
+  priceCentsOverride Int?
+
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, active])
+  @@index([eventId, kind, active])
+  @@index([batchId])
+  @@index([productId])
 }
 
 // FR-FIN-001/002/007 — append-only financial ledger. Never UPDATE/DELETE;

@@ -56,13 +56,21 @@ export interface OrderSearchFilters {
   limit: number;
 }
 
+export type OrderItemKind = "TICKET" | "PRODUCT";
+
 export interface OrderItemRecord {
   id: string;
   organizationId: string;
   orderId: string;
   eventId: string;
-  batchId: string;
-  ticketTypeId: string;
+  kind: OrderItemKind;
+  /** Set for TICKET lines; null for PRODUCT lines. */
+  batchId: string | null;
+  ticketTypeId: string | null;
+  /** Set for PRODUCT lines; null for TICKET lines. */
+  productId: string | null;
+  /** Snapshot of the product name at purchase time; null for TICKET lines. */
+  description: string | null;
   unitPriceCents: number;
 }
 

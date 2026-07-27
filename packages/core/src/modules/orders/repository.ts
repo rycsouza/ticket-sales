@@ -25,6 +25,11 @@ export interface CreatePendingOrderData {
   correlationId: string;
   /** One entry per UNIT (each becomes a ticket). */
   units: { batchId: string; ticketTypeId: string; unitPriceCents: number }[];
+  /**
+   * Standalone paid add-ons (upsell / order bump). One entry per UNIT; each
+   * becomes a PRODUCT order item — no ticket, no inventory reservation.
+   */
+  products?: { productId: string; description: string; unitPriceCents: number }[];
 }
 
 export interface OrderRepository {
@@ -98,8 +103,11 @@ const itemSelect = {
   organizationId: true,
   orderId: true,
   eventId: true,
+  kind: true,
   batchId: true,
   ticketTypeId: true,
+  productId: true,
+  description: true,
   unitPriceCents: true,
 } as const;
 
@@ -132,13 +140,25 @@ export class PrismaOrderRepository implements OrderRepository {
           expiresAt: data.expiresAt,
           correlationId: data.correlationId,
           items: {
-            create: data.units.map((unit) => ({
-              organizationId: data.organizationId,
-              eventId: data.eventId,
-              batchId: unit.batchId,
-              ticketTypeId: unit.ticketTypeId,
-              unitPriceCents: unit.unitPriceCents,
-            })),
+            create: [
+              ...data.units.map((unit) => ({
+                organizationId: data.organizationId,
+                eventId: data.eventId,
+                kind: "TICKET" as const,
+                batchId: unit.batchId,
+                ticketTypeId: unit.ticketTypeId,
+                unitPriceCents: unit.unitPriceCents,
+              })),
+              // PRODUCT lines: paid add-ons with no ticket and no reservation.
+              ...(data.products ?? []).map((product) => ({
+                organizationId: data.organizationId,
+                eventId: data.eventId,
+                kind: "PRODUCT" as const,
+                productId: product.productId,
+                description: product.description,
+                unitPriceCents: product.unitPriceCents,
+              })),
+            ],
           },
         },
         select: orderSelect,

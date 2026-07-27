@@ -60,7 +60,7 @@ export interface PromoterOrderReader {
   listItems(
     organizationId: string,
     orderId: string,
-  ): Promise<{ ticketTypeId: string; unitPriceCents: number }[]>;
+  ): Promise<{ ticketTypeId: string | null; unitPriceCents: number }[]>;
 }
 
 export interface PromoterMembershipReader extends MembershipLookup {
@@ -601,7 +601,11 @@ export class PromotersService {
     const order = await this.deps.orders.findByIdScoped(organizationId, orderId);
     if (!order || order.status !== "PAID") return;
 
-    const items = await this.deps.orders.listItems(organizationId, orderId);
+    // Only ticket units earn commission — standalone add-ons (upsell / order
+    // bump PRODUCT lines, ticketTypeId null) are excluded.
+    const items = (await this.deps.orders.listItems(organizationId, orderId)).filter(
+      (item): item is { ticketTypeId: string; unitPriceCents: number } => item.ticketTypeId !== null,
+    );
 
     let quantity = 0;
     let baseCents = 0;

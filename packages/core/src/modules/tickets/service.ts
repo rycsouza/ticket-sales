@@ -50,6 +50,8 @@ export class TicketsService {
     const issued: IssuedTicket[] = [];
     for (const item of items) {
       if (ticketedItemIds.has(item.id)) continue;
+      // PRODUCT lines (upsell / order bump add-ons) never emit a ticket.
+      if (item.kind !== "TICKET" || !item.ticketTypeId) continue;
 
       const rawToken = generateToken();
       const ticket = await this.deps.tickets.createForOrderItem({
