@@ -11,6 +11,7 @@ import {
   IdentityService,
   InventoryService,
   NotificationsService,
+  OffersService,
   OrdersService,
   PaymentsService,
   PromotersService,
@@ -33,6 +34,8 @@ import {
   PrismaLedgerRepository,
   PrismaMembershipRepository,
   PrismaNotificationRepository,
+  PrismaOfferRepository,
+  PrismaProductRepository,
   PrismaOrderRepository,
   PrismaOrganizationRepository,
   PrismaPaymentEventRepository,
@@ -191,6 +194,14 @@ function buildServices() {
     clock: systemClock,
   });
 
+  const offersService = new OffersService({
+    products: new PrismaProductRepository(prisma),
+    offers: new PrismaOfferRepository(prisma),
+    batches,
+    memberships,
+    audit,
+  });
+
   const ordersService = new OrdersService({
     orders: orderRepo,
     reservations,
@@ -199,6 +210,7 @@ function buildServices() {
     audit,
     clock: systemClock,
     checkout: promotersService,
+    offers: offersService,
     // Buyer access tokens (Print 4): issued at checkout, resolved on the order page.
     cache,
     // Lazy: customersService is constructed below; the closure resolves it at
@@ -323,6 +335,7 @@ function buildServices() {
     notifications: notificationsService,
     payments: paymentsService,
     promoters: promotersService,
+    offers: offersService,
     finance: financeService,
     customers: customersService,
     checkin: new CheckinService({

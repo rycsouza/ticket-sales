@@ -68,6 +68,18 @@ export interface CustomerLookupResolver {
     phone: string,
   ): Promise<{ name: string; email: string } | null>;
 }
+export interface OfferCheckoutResolver {
+  /** Validates buyer-selected offers and returns server-priced order lines. */
+  resolveSelections(input: {
+    organizationId: string;
+    eventId: string;
+    selections: { offerId: string; quantity: number }[];
+    now: Date;
+  }): Promise<{
+    ticketUnits: { batchId: string; ticketTypeId: string; unitPriceCents: number }[];
+    products: { productId: string; description: string; unitPriceCents: number }[];
+  }>;
+}
 
 export interface OrdersServiceDeps {
   orders: OrderRepository;
@@ -80,6 +92,8 @@ export interface OrdersServiceDeps {
   checkout?: CheckoutResolver | undefined;
   /** Optional: absent in environments without the customers module. */
   customerLookup?: CustomerLookupResolver | undefined;
+  /** Optional: absent in environments without the offers module. */
+  offers?: OfferCheckoutResolver | undefined;
   /** Optional: short-lived buyer access tokens (Print 4). Absent → code+e-mail only. */
   cache?: CachePort | undefined;
 }
@@ -162,17 +176,41 @@ export class OrdersService {
       }
     }
 
+    // Upsell / order bump (FR-CHK). Resolved server-side: ticket-target offers
+    // add extra reserved+emitted units; product-target offers add paid PRODUCT
+    // lines (no reservation, no ticket). Prices come from the Offer, never the
+    // client. An invalid offer rejects the whole checkout.
+    let products: { productId: string; description: string; unitPriceCents: number }[] = [];
+    if (input.offers && input.offers.length > 0 && this.deps.offers) {
+      const resolved = await this.deps.offers.resolveSelections({
+        organizationId: event.organizationId,
+        eventId: event.id,
+        selections: input.offers,
+        now,
+      });
+      for (const unit of resolved.ticketUnits) {
+        totalQuantity += 1;
+        units.push(unit);
+      }
+      products = resolved.products;
+    }
+
     if (event.maxTicketsPerOrder !== null && totalQuantity > event.maxTicketsPerOrder) {
       throw new ValidationFailedError(
         `At most ${event.maxTicketsPerOrder} tickets per order for this event`,
       );
     }
 
-    // Server-side money only (BR-FIN-001; CLAUDE_SECURITY_RULES §19)
-    const subtotalCents = units.reduce((sum, unit) => sum + unit.unitPriceCents, 0);
+    // Server-side money only (BR-FIN-001; CLAUDE_SECURITY_RULES §19). Discount
+    // and platform fee apply to the TICKET subtotal only; standalone products
+    // are pass-through revenue to the producer (added to subtotal & total).
+    const ticketSubtotalCents = units.reduce((sum, unit) => sum + unit.unitPriceCents, 0);
+    const productSubtotalCents = products.reduce((sum, item) => sum + item.unitPriceCents, 0);
+    const subtotalCents = ticketSubtotalCents + productSubtotalCents;
     const expiresAt = new Date(now.getTime() + RESERVATION_TTL_MINUTES * 60 * 1000);
 
-    // Coupon discount resolved server-side (FR-CHK-008). An invalid explicit
+    // Coupon discount resolved server-side (FR-CHK-008), computed over the
+    // TICKET subtotal only (add-ons are never discounted). An invalid explicit
     // coupon rejects the whole checkout so the buyer never pays a surprise price.
     let discountCents = 0;
     if (input.coupon && this.deps.checkout) {
@@ -180,19 +218,21 @@ export class OrdersService {
         organizationId: event.organizationId,
         eventId: event.id,
         couponCode: input.coupon,
-        subtotalCents,
+        subtotalCents: ticketSubtotalCents,
         now,
       });
-      discountCents = Math.max(0, Math.min(resolved.discountCents, subtotalCents));
+      discountCents = Math.max(0, Math.min(resolved.discountCents, ticketSubtotalCents));
     }
 
     // Platform fee (DEC-003): percentage over the ticket value AFTER discount.
-    // BUYER mode adds it to the buyer's total; PRODUCER mode only records it
-    // (it is deducted from the payout later, in the ledger).
-    const netCents = subtotalCents - discountCents;
-    const feeCents = percentageOf(cents(netCents), event.platformFeeBps);
+    // Standalone products are excluded from the fee base (pass-through to the
+    // producer). BUYER mode adds the fee to the buyer's total; PRODUCER mode
+    // only records it (deducted from the payout later, in the ledger).
+    const ticketNetCents = ticketSubtotalCents - discountCents;
+    const feeCents = percentageOf(cents(ticketNetCents), event.platformFeeBps);
     const feeMode = event.feeMode;
-    const totalCents = netCents + (feeMode === "BUYER" ? feeCents : 0);
+    const totalCents =
+      ticketNetCents + productSubtotalCents + (feeMode === "BUYER" ? feeCents : 0);
 
     // Resolve the buyer identity. A returning buyer may send only a phone; we
     // fill name/e-mail from their existing customer record SERVER-SIDE (the
@@ -230,6 +270,7 @@ export class OrdersService {
       expiresAt,
       correlationId: meta.correlationId,
       units,
+      products,
     });
 
     // Attribution is best-effort: a failure here must never fail the purchase

@@ -41,6 +41,24 @@ export const createOrderSchema = z
       .refine((b) => (!!b.name && !!b.email) || !!b.phone, {
         message: "Informe nome e e-mail, ou o telefone de um cadastro existente.",
       }),
+    // Upsell / order bump selections (FR-CHK). Only the offer id + quantity come
+    // from the client; the price and target are resolved SERVER-SIDE from the
+    // Offer row so the buyer can never set their own price.
+    offers: z
+      .array(
+        z
+          .object({
+            offerId: z.string().uuid(),
+            quantity: z.number().int().min(1).max(20),
+          })
+          .strict(),
+      )
+      .max(10)
+      .refine(
+        (offers) => new Set(offers.map((offer) => offer.offerId)).size === offers.length,
+        { message: "Duplicate offerId entries — merge quantities per offer" },
+      )
+      .optional(),
     // Attribution (FR-CHK-008/009/010) — opaque strings, length-capped. The
     // discount and promoter credit are resolved SERVER-SIDE from these refs.
     coupon: z.string().trim().min(1).max(40).optional(),
