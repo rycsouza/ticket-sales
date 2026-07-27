@@ -14,7 +14,7 @@ import {
   titleCaseName,
 } from "@/lib/format";
 import { getStoredPhone, setStoredPhone } from "@/lib/prefs";
-import type { PublicBatchView } from "@/lib/public-views";
+import type { PublicBatchView, PublicOfferView } from "@/lib/public-views";
 import {
   OrderPayment,
   type OrderAccess,
@@ -30,6 +30,7 @@ function formatBRL(centsValue: number): string {
 interface Props {
   eventId: string;
   batches: PublicBatchView[];
+  offers: PublicOfferView[];
   maxTicketsPerOrder: number | null;
   platformFeeBps: number;
   feeMode: "BUYER" | "PRODUCER";
@@ -71,6 +72,7 @@ const PREP_MESSAGES = [
 export function CheckoutForm({
   eventId,
   batches,
+  offers,
   maxTicketsPerOrder,
   platformFeeBps,
   feeMode,
@@ -89,6 +91,8 @@ export function CheckoutForm({
   // once the buyer advances past ticket selection (StepOneOnly in checkout-flow).
   const { step, setStep } = useCheckoutStep();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  // Selected upsell / order-bump offers (offerId → true). One unit each.
+  const [selectedOffers, setSelectedOffers] = useState<Record<string, boolean>>({});
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -209,25 +213,44 @@ export function CheckoutForm({
     () => Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0),
     [quantities],
   );
-  const subtotalCents = useMemo(
+  const batchSubtotalCents = useMemo(
     () => batches.reduce((sum, batch) => sum + (quantities[batch.id] ?? 0) * batch.priceCents, 0),
     [batches, quantities],
   );
+  // Split selected offers exactly as the server does: ticket-target offers join
+  // the ticket subtotal (and the fee base); product-target offers are add-ons.
+  const chosenOffers = useMemo(
+    () => offers.filter((offer) => selectedOffers[offer.id]),
+    [offers, selectedOffers],
+  );
+  const offerTicketCents = useMemo(
+    () => chosenOffers.filter((o) => o.isTicket).reduce((s, o) => s + o.priceCents, 0),
+    [chosenOffers],
+  );
+  const offerProductCents = useMemo(
+    () => chosenOffers.filter((o) => !o.isTicket).reduce((s, o) => s + o.priceCents, 0),
+    [chosenOffers],
+  );
+  // Ticket subtotal drives the coupon + platform fee (BR-FIN); add-ons don't.
+  const ticketSubtotalCents = batchSubtotalCents + offerTicketCents;
+  const subtotalCents = ticketSubtotalCents + offerProductCents;
   const discountCents = useMemo(() => {
     if (!applied) return 0;
     const raw =
       applied.type === "PERCENT"
-        ? Math.round((subtotalCents * Math.min(applied.value, 10_000)) / 10_000)
+        ? Math.round((ticketSubtotalCents * Math.min(applied.value, 10_000)) / 10_000)
         : applied.value;
-    return Math.max(0, Math.min(raw, subtotalCents));
-  }, [applied, subtotalCents]);
-  const netCents = subtotalCents - discountCents;
+    return Math.max(0, Math.min(raw, ticketSubtotalCents));
+  }, [applied, ticketSubtotalCents]);
+  const ticketNetCents = ticketSubtotalCents - discountCents;
   const feeCents = useMemo(
     () =>
-      feeMode === "BUYER" ? Math.round((netCents * Math.min(platformFeeBps, 10_000)) / 10_000) : 0,
-    [feeMode, platformFeeBps, netCents],
+      feeMode === "BUYER"
+        ? Math.round((ticketNetCents * Math.min(platformFeeBps, 10_000)) / 10_000)
+        : 0,
+    [feeMode, platformFeeBps, ticketNetCents],
   );
-  const totalCents = netCents + feeCents;
+  const totalCents = ticketNetCents + offerProductCents + feeCents;
 
   const nameValid = isValidFullName(name);
   const emailValid = isValidEmail(email);
@@ -319,6 +342,12 @@ export function CheckoutForm({
         .filter(([, quantity]) => quantity > 0)
         .map(([batchId, quantity]) => ({ batchId, quantity }));
 
+      // Selected upsell / order-bump offers — one unit each. The price and
+      // target are re-resolved server-side; we only send the id.
+      const selectedOfferPayload = offers
+        .filter((offer) => selectedOffers[offer.id])
+        .map((offer) => ({ offerId: offer.id, quantity: 1 }));
+
       const hasUtm = Object.keys(utm).length > 0;
       const couponToSend = applied?.code ?? (couponInput.trim() || undefined);
       // Reuse path sends only the phone; the server fills name/e-mail from the
@@ -334,6 +363,7 @@ export function CheckoutForm({
           eventId,
           items,
           buyer,
+          ...(selectedOfferPayload.length > 0 ? { offers: selectedOfferPayload } : {}),
           ...(couponToSend ? { coupon: couponToSend } : {}),
           ...(linkRef ? { ref: linkRef } : {}),
           ...(hasUtm ? { utm } : {}),
@@ -482,6 +512,27 @@ export function CheckoutForm({
               })}
             </ul>
           </div>
+
+          {/* Upsell — sugestões após escolher os ingressos (FR-CHK). */}
+          {totalQuantity > 0 && offers.some((o) => o.kind === "UPSELL") && (
+            <div className={sectionClass}>
+              <h2 className={sectionTitle}>Que tal aproveitar?</h2>
+              <div className="space-y-2">
+                {offers
+                  .filter((o) => o.kind === "UPSELL")
+                  .map((offer) => (
+                    <OfferCard
+                      key={offer.id}
+                      offer={offer}
+                      checked={!!selectedOffers[offer.id]}
+                      onToggle={(next) =>
+                        setSelectedOffers((prev) => ({ ...prev, [offer.id]: next }))
+                      }
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
           {errorBox}
         </>
       )}
@@ -661,6 +712,27 @@ export function CheckoutForm({
             {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
           </div>
 
+          {/* Order bump — adicionais em destaque, antes do pagamento (FR-CHK). */}
+          {offers.some((o) => o.kind === "ORDER_BUMP") && (
+            <div className={sectionClass}>
+              <h2 className={sectionTitle}>Adicione ao seu pedido</h2>
+              <div className="space-y-2">
+                {offers
+                  .filter((o) => o.kind === "ORDER_BUMP")
+                  .map((offer) => (
+                    <OfferCard
+                      key={offer.id}
+                      offer={offer}
+                      checked={!!selectedOffers[offer.id]}
+                      onToggle={(next) =>
+                        setSelectedOffers((prev) => ({ ...prev, [offer.id]: next }))
+                      }
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Resumo</h2>
             <ul className="divide-y divide-line">
@@ -677,6 +749,18 @@ export function CheckoutForm({
                     </span>
                   </li>
                 ))}
+              {chosenOffers.map((offer) => (
+                <li
+                  key={offer.id}
+                  className="flex items-center justify-between py-2 text-body"
+                >
+                  <span className="text-ink">
+                    {offer.title}
+                    <span className="text-ink-muted"> · adicional</span>
+                  </span>
+                  <span className="tabular-nums text-ink">{formatBRL(offer.priceCents)}</span>
+                </li>
+              ))}
             </ul>
             <div className="mt-3 space-y-1 border-t border-line pt-3 text-body">
               <div className="flex justify-between text-ink-soft">
@@ -819,6 +903,55 @@ export function CheckoutForm({
         />
       )}
     </section>
+  );
+}
+
+/** Cartão de oferta (upsell / order bump) com checkbox — segue a cor do produtor. */
+function OfferCard({
+  offer,
+  checked,
+  onToggle,
+}: {
+  offer: PublicOfferView;
+  checked: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!checked)}
+      aria-pressed={checked}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
+        checked ? "border-brand bg-brand/5" : "border-line bg-surface hover:bg-hover",
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+          checked ? "border-brand bg-brand text-brand-fg" : "border-line-strong",
+        )}
+        aria-hidden
+      >
+        {checked && <Check className="size-3.5" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-ink">{offer.title}</span>
+        {offer.description && (
+          <span className="mt-0.5 block text-small text-ink-muted">{offer.description}</span>
+        )}
+      </span>
+      <span className="shrink-0 text-right">
+        {offer.originalPriceCents !== null && (
+          <span className="block text-small text-ink-muted line-through tabular-nums">
+            {formatBRL(offer.originalPriceCents)}
+          </span>
+        )}
+        <span className="block font-semibold tabular-nums text-brand">
+          + {formatBRL(offer.priceCents)}
+        </span>
+      </span>
+    </button>
   );
 }
 

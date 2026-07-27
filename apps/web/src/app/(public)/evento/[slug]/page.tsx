@@ -126,6 +126,7 @@ function renderBlock(block: PageBlock, event: PublicEventView, mpPublicKey: stri
           <CheckoutForm
             eventId={event.id}
             batches={event.batches}
+            offers={event.offers}
             maxTicketsPerOrder={event.maxTicketsPerOrder}
             platformFeeBps={event.platformFeeBps}
             feeMode={event.feeMode}

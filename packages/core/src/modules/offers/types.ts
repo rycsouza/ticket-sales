@@ -50,4 +50,10 @@ export interface CheckoutOfferView {
   priceCents: number;
   /** Only for ticket-target offers — lets the UI show the original price. */
   originalPriceCents: number | null;
+  /**
+   * True when the offer's target is a ticket lote (so it counts toward the
+   * platform-fee base, exactly like a regular ticket). False for standalone
+   * products (pass-through, no fee). Lets the client mirror the server total.
+   */
+  isTicket: boolean;
 }

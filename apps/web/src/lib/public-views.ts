@@ -28,6 +28,17 @@ export interface PublicOrganizerView {
   logoUrl: string | null;
 }
 
+/** Oferta de upsell / order bump exibida no checkout (allowlist pública). */
+export interface PublicOfferView {
+  id: string;
+  kind: "ORDER_BUMP" | "UPSELL";
+  title: string;
+  description: string | null;
+  priceCents: number;
+  originalPriceCents: number | null;
+  isTicket: boolean;
+}
+
 export interface PublicEventView {
   id: string;
   title: string;
@@ -48,6 +59,7 @@ export interface PublicEventView {
   platformFeeBps: number;
   feeMode: "BUYER" | "PRODUCER";
   batches: PublicBatchView[];
+  offers: PublicOfferView[];
   page: PublicEventPageView;
   organizer: PublicOrganizerView | null;
 }
@@ -71,11 +83,12 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
 async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
   const now = new Date();
-  const [batches, ticketTypes, pageRow, organizerIdentity] = await Promise.all([
+  const [batches, ticketTypes, pageRow, organizerIdentity, offers] = await Promise.all([
     services.batchesRepo.listByEvent(event.organizationId, event.id),
     services.ticketTypesRepo.listByEvent(event.organizationId, event.id),
     services.publicEventPages.findByEventId(event.id),
     services.publicOrganizations.findIdentityById(event.organizationId),
+    services.offers.listForCheckout(event.organizationId, event.id).catch(() => []),
   ]);
   const typeNames = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
@@ -115,6 +128,15 @@ async function buildPublicEventView(event: EventRecord): Promise<PublicEventView
     platformFeeBps: event.platformFeeBps,
     feeMode: event.feeMode,
     batches: visibleBatches,
+    offers: offers.map((offer) => ({
+      id: offer.id,
+      kind: offer.kind,
+      title: offer.title,
+      description: offer.description,
+      priceCents: offer.priceCents,
+      originalPriceCents: offer.originalPriceCents,
+      isTicket: offer.isTicket,
+    })),
     // Blocos re-validados por Zod na leitura (JSON corrompido → defaults);
     // eventos sem personalização renderizam a página padrão de sempre.
     page: {

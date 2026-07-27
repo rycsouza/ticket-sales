@@ -181,6 +181,7 @@ export class OffersService {
           description: offer.description ?? product.description,
           priceCents: offer.priceCentsOverride ?? product.priceCents,
           originalPriceCents: null,
+          isTicket: false,
         });
       } else if (offer.batchId) {
         const batch = await this.deps.batches.findByIdScoped(organizationId, offer.batchId);
@@ -193,6 +194,7 @@ export class OffersService {
           description: offer.description,
           priceCents,
           originalPriceCents: priceCents < batch.priceCents ? batch.priceCents : null,
+          isTicket: true,
         });
       }
     }
