@@ -21,6 +21,11 @@ export interface TicketTypeRepository {
     name: string,
   ): Promise<TicketTypeRecord | null>;
   listByEvent(organizationId: string, eventId: string): Promise<TicketTypeRecord[]>;
+  update(
+    organizationId: string,
+    ticketTypeId: string,
+    data: { name?: string | undefined; active?: boolean | undefined },
+  ): Promise<TicketTypeRecord | null>;
 }
 
 export interface SalesBatchRepository {
@@ -49,6 +54,17 @@ export interface SalesBatchRepository {
     batchId: string,
     quantityTotal: number,
   ): Promise<SalesBatchRecord>;
+  updateFields(
+    organizationId: string,
+    batchId: string,
+    data: {
+      name?: string | undefined;
+      priceCents?: number | undefined;
+      salesStartAt?: Date | null | undefined;
+      salesEndAt?: Date | null | undefined;
+      maxPerOrder?: number | null | undefined;
+    },
+  ): Promise<SalesBatchRecord | null>;
   updateStatus(
     organizationId: string,
     batchId: string,
@@ -129,6 +145,22 @@ export class PrismaTicketTypeRepository implements TicketTypeRepository {
       orderBy: { name: "asc" },
     });
   }
+
+  async update(
+    organizationId: string,
+    ticketTypeId: string,
+    data: { name?: string | undefined; active?: boolean | undefined },
+  ) {
+    const result = await this.prisma.ticketType.updateMany({
+      where: { id: ticketTypeId, organizationId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.active !== undefined ? { active: data.active } : {}),
+      },
+    });
+    if (result.count === 0) return null;
+    return this.findByIdScoped(organizationId, ticketTypeId);
+  }
 }
 
 export class PrismaSalesBatchRepository implements SalesBatchRepository {
@@ -206,6 +238,31 @@ export class PrismaSalesBatchRepository implements SalesBatchRepository {
       data: { quantityTotal },
     });
     if (result.count === 0) throw new Error("Batch not found in organization scope");
+    return this.mustFind(organizationId, batchId);
+  }
+
+  async updateFields(
+    organizationId: string,
+    batchId: string,
+    data: {
+      name?: string | undefined;
+      priceCents?: number | undefined;
+      salesStartAt?: Date | null | undefined;
+      salesEndAt?: Date | null | undefined;
+      maxPerOrder?: number | null | undefined;
+    },
+  ) {
+    const result = await this.prisma.salesBatch.updateMany({
+      where: { id: batchId, organizationId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
+        ...(data.salesStartAt !== undefined ? { salesStartAt: data.salesStartAt } : {}),
+        ...(data.salesEndAt !== undefined ? { salesEndAt: data.salesEndAt } : {}),
+        ...(data.maxPerOrder !== undefined ? { maxPerOrder: data.maxPerOrder } : {}),
+      },
+    });
+    if (result.count === 0) return null;
     return this.mustFind(organizationId, batchId);
   }
 

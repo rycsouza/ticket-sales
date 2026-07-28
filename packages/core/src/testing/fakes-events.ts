@@ -193,6 +193,18 @@ export class InMemoryTicketTypeRepository implements TicketTypeRepository {
       (t) => t.organizationId === organizationId && t.eventId === eventId,
     );
   }
+
+  async update(
+    organizationId: string,
+    ticketTypeId: string,
+    data: { name?: string | undefined; active?: boolean | undefined },
+  ) {
+    const t = await this.findByIdScoped(organizationId, ticketTypeId);
+    if (!t) return null;
+    if (data.name !== undefined) t.name = data.name;
+    if (data.active !== undefined) t.active = data.active;
+    return t;
+  }
 }
 
 export class InMemorySalesBatchRepository implements SalesBatchRepository, InventoryReader {
@@ -266,6 +278,27 @@ export class InMemorySalesBatchRepository implements SalesBatchRepository, Inven
   async updateQuantityTotal(organizationId: string, batchId: string, quantityTotal: number) {
     const batch = await this.mustFind(organizationId, batchId);
     batch.quantityTotal = quantityTotal;
+    return batch;
+  }
+
+  async updateFields(
+    organizationId: string,
+    batchId: string,
+    data: {
+      name?: string | undefined;
+      priceCents?: number | undefined;
+      salesStartAt?: Date | null | undefined;
+      salesEndAt?: Date | null | undefined;
+      maxPerOrder?: number | null | undefined;
+    },
+  ) {
+    const batch = await this.findByIdScoped(organizationId, batchId);
+    if (!batch) return null;
+    if (data.name !== undefined) batch.name = data.name;
+    if (data.priceCents !== undefined) batch.priceCents = data.priceCents;
+    if (data.salesStartAt !== undefined) batch.salesStartAt = data.salesStartAt;
+    if (data.salesEndAt !== undefined) batch.salesEndAt = data.salesEndAt;
+    if (data.maxPerOrder !== undefined) batch.maxPerOrder = data.maxPerOrder;
     return batch;
   }
 

@@ -10,6 +10,14 @@ export const createTicketTypeSchema = z
 
 export type CreateTicketTypeInput = z.infer<typeof createTicketTypeSchema>;
 
+export const updateTicketTypeSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    active: z.boolean().optional(),
+  })
+  .strict();
+export type UpdateTicketTypeInput = z.infer<typeof updateTicketTypeSchema>;
+
 export const createSalesBatchSchema = z
   .object({
     ticketTypeId: z.string().uuid(),
@@ -38,3 +46,20 @@ export const updateBatchQuantitySchema = z
   .strict();
 
 export type UpdateBatchQuantityInput = z.infer<typeof updateBatchQuantitySchema>;
+
+export const updateSalesBatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    priceCents: z.number().int().min(0).max(100_000_000).optional(),
+    quantityTotal: z.number().int().min(1).max(1_000_000).optional(),
+    salesStartAt: z.coerce.date().nullable().optional(),
+    salesEndAt: z.coerce.date().nullable().optional(),
+    maxPerOrder: z.number().int().min(1).max(50).nullable().optional(),
+    justification: z.string().trim().min(5).max(500).optional(),
+  })
+  .strict()
+  .refine(
+    (d) => !d.salesStartAt || !d.salesEndAt || d.salesEndAt > d.salesStartAt,
+    { message: "salesEndAt must be after salesStartAt" },
+  );
+export type UpdateSalesBatchInput = z.infer<typeof updateSalesBatchSchema>;

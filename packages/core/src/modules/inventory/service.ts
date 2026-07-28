@@ -8,9 +8,19 @@ import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import { EVENT_MANAGER_ROLES, EVENT_TERMINAL_STATES, type EventRecord } from "../events/types";
 import type { SalesBatchRepository, TicketTypeRepository } from "./repository";
-import type { CreateSalesBatchInput, CreateTicketTypeInput } from "./schemas";
+import type {
+  CreateSalesBatchInput,
+  CreateTicketTypeInput,
+  UpdateSalesBatchInput,
+  UpdateTicketTypeInput,
+} from "./schemas";
 import { assertBatchTransition } from "./transitions";
-import { committedOf, type SalesBatchRecord, type SalesBatchStatus } from "./types";
+import {
+  committedOf,
+  type SalesBatchRecord,
+  type SalesBatchStatus,
+  type TicketTypeRecord,
+} from "./types";
 
 /** Read-only view of event data the inventory module needs. */
 export interface EventReader {
@@ -59,6 +69,41 @@ export class InventoryService {
     });
 
     return ticketType;
+  }
+
+  async updateTicketType(
+    ctx: RequestContext,
+    ticketTypeId: string,
+    input: UpdateTicketTypeInput,
+  ): Promise<TicketTypeRecord> {
+    await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
+    const type = await this.deps.ticketTypes.findByIdScoped(ctx.organizationId, ticketTypeId);
+    if (!type) throw new NotFoundOrForbiddenError();
+    await this.mustFindEditableEvent(ctx, type.eventId);
+
+    if (input.name && input.name !== type.name) {
+      const clash = await this.deps.ticketTypes.findByEventAndName(
+        ctx.organizationId,
+        type.eventId,
+        input.name,
+      );
+      if (clash) throw new ConflictError("A ticket type with this name already exists");
+    }
+
+    const updated = await this.deps.ticketTypes.update(ctx.organizationId, ticketTypeId, input);
+    if (!updated) throw new NotFoundOrForbiddenError();
+
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "ticket_type.updated",
+      resourceType: "ticket_type",
+      resourceId: ticketTypeId,
+      before: { name: type.name, active: type.active },
+      after: { name: updated.name, active: updated.active },
+      correlationId: ctx.correlationId,
+    });
+    return updated;
   }
 
   async listTicketTypes(ctx: RequestContext, eventId: string) {
@@ -194,6 +239,53 @@ export class InventoryService {
 
     // A sold-out batch that regains room reopens explicitly, not silently.
     return updated;
+  }
+
+  /**
+   * Edit a batch's name, price, sales window and per-order cap. Price/name/dates
+   * changes affect only FUTURE orders (existing orders snapshot their price).
+   * Quantity, if provided, goes through the guarded quantity path (can't drop
+   * below what's already committed; respects event capacity).
+   */
+  async updateSalesBatch(
+    ctx: RequestContext,
+    batchId: string,
+    input: UpdateSalesBatchInput,
+  ): Promise<SalesBatchRecord> {
+    await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
+    const batch = await this.deps.batches.findByIdScoped(ctx.organizationId, batchId);
+    if (!batch) throw new NotFoundOrForbiddenError();
+    await this.mustFindEditableEvent(ctx, batch.eventId);
+
+    const fields = {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.priceCents !== undefined ? { priceCents: input.priceCents } : {}),
+      ...(input.salesStartAt !== undefined ? { salesStartAt: input.salesStartAt } : {}),
+      ...(input.salesEndAt !== undefined ? { salesEndAt: input.salesEndAt } : {}),
+      ...(input.maxPerOrder !== undefined ? { maxPerOrder: input.maxPerOrder } : {}),
+    };
+    if (Object.keys(fields).length > 0) {
+      const updated = await this.deps.batches.updateFields(ctx.organizationId, batchId, fields);
+      if (!updated) throw new NotFoundOrForbiddenError();
+      await this.deps.audit.append({
+        organizationId: ctx.organizationId,
+        actorUserId: ctx.userId,
+        action: "sales_batch.updated",
+        resourceType: "sales_batch",
+        resourceId: batchId,
+        before: { name: batch.name, priceCents: batch.priceCents },
+        after: { name: updated.name, priceCents: updated.priceCents },
+        correlationId: ctx.correlationId,
+      });
+    }
+
+    if (input.quantityTotal !== undefined && input.quantityTotal !== batch.quantityTotal) {
+      await this.updateBatchQuantity(ctx, batchId, input.quantityTotal, input.justification);
+    }
+
+    const fresh = await this.deps.batches.findByIdScoped(ctx.organizationId, batchId);
+    if (!fresh) throw new NotFoundOrForbiddenError();
+    return fresh;
   }
 
   /** Manual open — automatic opening by sales window arrives with Fase 2 cron. */

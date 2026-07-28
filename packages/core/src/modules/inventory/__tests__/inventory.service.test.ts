@@ -271,3 +271,66 @@ describe("tenant isolation", () => {
     ).rejects.toThrow(NotFoundOrForbiddenError);
   });
 });
+
+describe("updateTicketType", () => {
+  it("renames and toggles visibility, rejecting a name clash", async () => {
+    const env = await setup();
+    const a = await env.service.createTicketType(ctx(), env.event.id, { name: "Pista", kind: "FULL" });
+    await env.service.createTicketType(ctx(), env.event.id, { name: "Camarote", kind: "FULL" });
+
+    const renamed = await env.service.updateTicketType(ctx(), a.id, { name: "Pista Premium", active: false });
+    expect(renamed.name).toBe("Pista Premium");
+    expect(renamed.active).toBe(false);
+    expect(env.audit.byAction("ticket_type.updated")).toHaveLength(1);
+
+    await expect(
+      env.service.updateTicketType(ctx(), a.id, { name: "Camarote" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("updateSalesBatch", () => {
+  async function withBatch(env: Awaited<ReturnType<typeof setup>>) {
+    const type = await env.service.createTicketType(ctx(), env.event.id, { name: "Pista", kind: "FULL" });
+    const batch = await env.service.createSalesBatch(ctx(), env.event.id, {
+      ticketTypeId: type.id,
+      name: "1º Lote",
+      priceCents: 10_000,
+      quantityTotal: 100,
+    });
+    return batch;
+  }
+
+  it("edits name, price and per-order cap", async () => {
+    const env = await setup();
+    const batch = await withBatch(env);
+    const updated = await env.service.updateSalesBatch(ctx(), batch.id, {
+      name: "1º Lote — Promo",
+      priceCents: 8_000,
+      maxPerOrder: 4,
+    });
+    expect(updated.name).toBe("1º Lote — Promo");
+    expect(updated.priceCents).toBe(8_000);
+    expect(updated.maxPerOrder).toBe(4);
+    expect(env.audit.byAction("sales_batch.updated")).toHaveLength(1);
+  });
+
+  it("routes quantity through the guarded path (cannot drop below committed)", async () => {
+    const env = await setup();
+    const batch = await withBatch(env);
+    env.batches.batches[0]!.quantitySold = 30; // 30 already committed
+
+    await expect(
+      env.service.updateSalesBatch(ctx(), batch.id, {
+        quantityTotal: 10,
+        justification: "tentativa de reduzir",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const ok = await env.service.updateSalesBatch(ctx(), batch.id, {
+      quantityTotal: 150,
+      justification: "liberação de mais lugares",
+    });
+    expect(ok.quantityTotal).toBe(150);
+  });
+});

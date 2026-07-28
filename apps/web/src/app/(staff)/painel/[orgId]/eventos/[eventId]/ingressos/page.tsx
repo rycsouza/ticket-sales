@@ -7,7 +7,12 @@ import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/se
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { BATCH_STATUS, fmtBRL, fmtDateTime, statusMeta } from "@/lib/status";
 import { ActionButton } from "../../../../ui";
-import { NewBatchForm, NewTicketTypeForm } from "../inventory-forms";
+import {
+  EditBatchButton,
+  EditTicketTypeButton,
+  NewBatchForm,
+  NewTicketTypeForm,
+} from "../inventory-forms";
 
 export const metadata: Metadata = { title: "Ingressos e lotes — Ingressos" };
 
@@ -78,13 +83,20 @@ export default async function EventInventory({
                   }
                   description={`${typeBatches.length} lote(s) · ${sold} vendido(s)`}
                   action={
-                    <NewBatchForm
-                      orgId={orgId}
-                      eventId={eventId}
-                      ticketTypes={typeOptions}
-                      lockedTicketTypeId={type.id}
-                      triggerLabel="Criar lote"
-                    />
+                    <span className="flex items-center gap-1">
+                      <EditTicketTypeButton
+                        orgId={orgId}
+                        eventId={eventId}
+                        ticketType={{ id: type.id, name: type.name, active: type.active }}
+                      />
+                      <NewBatchForm
+                        orgId={orgId}
+                        eventId={eventId}
+                        ticketTypes={typeOptions}
+                        lockedTicketTypeId={type.id}
+                        triggerLabel="Criar lote"
+                      />
+                    </span>
                   }
                 />
                 {typeBatches.length === 0 ? (
@@ -123,7 +135,19 @@ export default async function EventInventory({
                               </p>
                             )}
                           </div>
-                          <div className="shrink-0">
+                          <div className="flex shrink-0 items-center gap-1">
+                            <EditBatchButton
+                              orgId={orgId}
+                              batch={{
+                                id: b.id,
+                                name: b.name,
+                                priceCents: b.priceCents,
+                                quantityTotal: b.quantityTotal,
+                                maxPerOrder: b.maxPerOrder,
+                                salesStartAt: b.salesStartAt ? b.salesStartAt.toISOString() : null,
+                                salesEndAt: b.salesEndAt ? b.salesEndAt.toISOString() : null,
+                              }}
+                            />
                             {b.status === "OPEN" ? (
                               <ActionButton
                                 url={batchApi(b.id)}
