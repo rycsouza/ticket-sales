@@ -42,7 +42,7 @@ export function Modal({
         style={{ background: "var(--overlay)" }}
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-md rounded-t-2xl bg-surface p-5 shadow-lg sm:rounded-2xl">
+      <div className="relative z-10 flex max-h-[90svh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-2xl bg-surface p-5 shadow-lg sm:rounded-2xl">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-h3 text-ink">{title}</h2>

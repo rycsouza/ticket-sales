@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { getServices } from "@/lib/services";
 import { buildPublicEventView } from "@/lib/public-views";
-import { EventPageView } from "@/app/(public)/evento/[slug]/event-page-view";
+import { PreviewClient } from "./preview-client";
 
 export const metadata: Metadata = {
   title: "Prévia do evento — Ingressos",
@@ -36,5 +36,11 @@ export default async function EventPreviewPage({
   const view = await buildPublicEventView(event);
   const mpPublicKey = process.env.MERCADOPAGO_PUBLIC_KEY || null;
 
-  return <EventPageView event={view} mpPublicKey={mpPublicKey} preview />;
+  return (
+    <PreviewClient
+      event={view}
+      mpPublicKey={mpPublicKey}
+      storageKey={`ingressos:page-preview:${event.id}`}
+    />
+  );
 }

@@ -566,20 +566,38 @@ export function PageEditor({
         </CardBody>
       </Card>
 
-      {/* Salvar */}
-      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-3 rounded-t-xl border-t border-line bg-surface/95 px-1 py-3 backdrop-blur lg:col-span-2">
+      {/* Salvar — static on mobile (a sticky bottom-0 bar would sit BEHIND the
+          fixed mobile bottom nav); sticky only from lg up where there is none. */}
+      <div className="-mx-1 flex flex-wrap items-center gap-3 rounded-t-xl border-t border-line bg-surface/95 px-1 py-3 backdrop-blur lg:sticky lg:bottom-0 lg:col-span-2">
         <Button loading={busy} disabled={!colorValid || !dirty} onClick={() => void save()}>
           {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
-        <a
-          href={previewHref}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => {
+            // Hand the current (possibly unsaved) draft to the preview tab so it
+            // shows exactly what's on screen — not the last-saved version.
+            try {
+              const draft = {
+                brandColor: brandColor === "" ? null : brandColor.toLowerCase(),
+                theme,
+                logoUrl: images.logoUrl,
+                bannerUrl: heroCover0(blocks),
+                faviconUrl: images.faviconUrl,
+                backgroundUrl: images.backgroundUrl,
+                blocks,
+              };
+              sessionStorage.setItem(`ingressos:page-preview:${eventId}`, JSON.stringify(draft));
+            } catch {
+              // sessionStorage unavailable → preview falls back to the saved page.
+            }
+            window.open(previewHref, "_blank", "noopener,noreferrer");
+          }}
           className={buttonVariants({ variant: "outline" })}
         >
           <Eye className="size-4" />
           Pré-visualizar
-        </a>
+        </button>
         <span className="text-small" role="status" aria-live="polite">
           {busy ? (
             <span className="text-ink-muted">Salvando…</span>
