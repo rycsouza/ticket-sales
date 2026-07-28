@@ -35,7 +35,7 @@ export function HeroCarousel({ images, overlayClass }: { images: string[]; overl
       if (!track) return;
       const next = (Math.round(track.scrollLeft / track.clientWidth) + 1) % images.length;
       track.scrollTo({ left: next * track.clientWidth, behavior: "smooth" });
-    }, 6000);
+    }, 4000);
     return () => clearInterval(id);
   }, [images.length]);
 
