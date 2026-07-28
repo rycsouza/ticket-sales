@@ -27,15 +27,19 @@ export default async function LoginPage({
 
   // Already signed in? Skip the form entirely — landing on /entrar with a valid
   // session used to re-show the credentials screen, which read as "logged out".
+  // redirect() MUST run outside the try: it throws a NEXT_REDIRECT control-flow
+  // error that a surrounding catch would swallow (silently re-showing the form).
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let hasValidSession = false;
   if (token) {
     try {
       await getServices().auth.validateSession(token);
-      redirect("/painel");
+      hasValidSession = true;
     } catch {
       // Invalid/expired session — fall through and render the login form.
     }
   }
+  if (hasValidSession) redirect("/painel");
 
   // Read raw (not via loadServerEnv) so it never throws at build.
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
