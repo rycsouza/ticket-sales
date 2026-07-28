@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Download } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
 import { toPromoterResponse } from "@/lib/serializers";
-import { PayoutForm, PromoterPayoutButton } from "./payout-form";
 
 export const metadata: Metadata = { title: "Financeiro — Ingressos" };
 
@@ -92,7 +92,7 @@ export default async function FinancePage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader
             title="Composição do resultado"
             description="Do total vendido até o saldo a receber."
@@ -121,20 +121,18 @@ export default async function FinancePage({
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader
-            title="Registrar repasse externo"
-            description="Informa ao sistema um pagamento feito por fora — não movimenta dinheiro."
-          />
-          <CardBody>
-            <PayoutForm apiBase={`/api/orgs/${orgId}/events/${eventId}`} />
-          </CardBody>
-        </Card>
-
         <Card className="lg:col-span-2">
           <CardHeader
             title="Comissões dos promotores"
-            description="Saldo devido a cada promotor neste evento. Registrar o pagamento marca a comissão como paga."
+            description="Saldo devido a cada promotor neste evento. O pagamento é registrado na aba Afiliados."
+            action={
+              <Link
+                href={`/painel/${orgId}/afiliados?evento=${eventId}`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                Pagar em Afiliados
+              </Link>
+            }
           />
           {payables.length === 0 ? (
             <EmptyState
@@ -154,12 +152,6 @@ export default async function FinancePage({
                       {fmtBRL(p.owedCents)} a pagar
                     </span>
                   </span>
-                  <PromoterPayoutButton
-                    apiBase={`/api/orgs/${orgId}/events/${eventId}`}
-                    promoterId={p.promoterId}
-                    promoterName={promoterName(p.promoterId)}
-                    owedCents={p.owedCents}
-                  />
                 </li>
               ))}
             </ul>

@@ -1,21 +1,31 @@
 import type { Metadata } from "next";
-import { Ticket, Users } from "lucide-react";
+import { HandCoins, Ticket, Users } from "lucide-react";
 import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import {
   toCommissionRuleResponse,
   toCouponResponse,
+  toEventResponse,
   toPromoterResponse,
 } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
-import { commissionBaseLabel, discountValueLabel } from "@/lib/status";
+import { commissionBaseLabel, discountValueLabel, fmtBRL } from "@/lib/status";
 import { NewCouponForm, NewRuleForm } from "../eventos/[eventId]/promoters/promoter-forms";
+import { PromoterPayoutButton } from "../eventos/[eventId]/financeiro/payout-form";
 import { CreatePromoterForm, RegenerateReportButton } from "./afiliados-client";
+import { EventPayoutSelect } from "./commission-payout";
 
 export const metadata: Metadata = { title: "Afiliados — Ingressos" };
 
-export default async function AfiliadosPage({ params }: { params: Promise<{ orgId: string }> }) {
+export default async function AfiliadosPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgId: string }>;
+  searchParams: Promise<{ evento?: string }>;
+}) {
   const { orgId } = await params;
+  const { evento: selectedEventId } = await searchParams;
   const { userId } = await requireDashboardUser();
   const ctx = dashboardCtx(orgId, userId);
   const s = getServices();
@@ -38,10 +48,21 @@ export default async function AfiliadosPage({ params }: { params: Promise<{ orgI
     );
   }
 
-  const [coupons, rules] = await Promise.all([
+  const [coupons, rules, events] = await Promise.all([
     s.promoters.listOrgCoupons(ctx).then((r) => r.map(toCouponResponse)),
     s.promoters.listOrgCommissionRules(ctx).then((r) => r.map(toCommissionRuleResponse)),
+    s.events.listEvents(ctx).then((r) => r.map(toEventResponse)).catch(() => []),
   ]);
+
+  // Commission payouts are always event-scoped (payables come from each event's
+  // ledger). When an event is picked, load its open promoter payables.
+  const eventOptions = events.map((e) => ({ id: e.id, title: e.title }));
+  const validEventId = selectedEventId && events.some((e) => e.id === selectedEventId)
+    ? selectedEventId
+    : null;
+  const payables = validEventId
+    ? await s.finance.getEventPromoterPayables(ctx, validEventId).catch(() => [])
+    : [];
   // Only org-wide defaults (eventId null) are managed here; event-scoped ones
   // live in each event's "Promotores e cupons" tab.
   const orgCoupons = coupons.filter((c) => c.eventId === null);
@@ -89,6 +110,52 @@ export default async function AfiliadosPage({ params }: { params: Promise<{ orgI
                     </span>
                   </span>
                   <RegenerateReportButton orgId={orgId} promoterId={p.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* Commission payouts — moved here from the event's finance tab. */}
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Comissões a pagar"
+            description="Escolha o evento para ver o saldo devido a cada afiliado. Registrar o pagamento marca a comissão como paga (não movimenta dinheiro)."
+          />
+          <CardBody className="border-b border-line">
+            <div className="max-w-sm">
+              <EventPayoutSelect events={eventOptions} selectedId={validEventId} />
+            </div>
+          </CardBody>
+          {!validEventId ? (
+            <EmptyState
+              icon={<HandCoins className="size-5" />}
+              title="Selecione um evento"
+              description="As comissões são apuradas por evento. Escolha um evento acima para ver o que está em aberto."
+            />
+          ) : payables.length === 0 ? (
+            <EmptyState
+              icon={<HandCoins className="size-5" />}
+              title="Nenhuma comissão em aberto"
+              description="Comissões acumulam automaticamente conforme vendas atribuídas a afiliados são pagas."
+            />
+          ) : (
+            <ul className="divide-y divide-line">
+              {payables.map((p) => (
+                <li
+                  key={p.promoterId}
+                  className="flex items-center justify-between gap-3 px-5 py-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium text-ink">{nameOf(p.promoterId)}</span>
+                    <span className="text-small text-ink-muted">{fmtBRL(p.owedCents)} a pagar</span>
+                  </span>
+                  <PromoterPayoutButton
+                    apiBase={`/api/orgs/${orgId}/events/${validEventId}`}
+                    promoterId={p.promoterId}
+                    promoterName={nameOf(p.promoterId)}
+                    owedCents={p.owedCents}
+                  />
                 </li>
               ))}
             </ul>
