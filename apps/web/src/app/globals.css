@@ -102,6 +102,66 @@
   --overlay: rgba(15, 23, 42, 0.45);
 }
 
+/* ==========================================================================
+   Dark theme — applied by setting data-theme="dark" on any ancestor (the
+   panel shell, or the public event page wrapper). CSS custom properties
+   inherit, so overriding them here re-themes the whole subtree. Brand stays
+   whatever it was configured to; brand-soft/border derive from it via
+   color-mix so any whitelabel brand reads well on dark surfaces.
+   ========================================================================== */
+[data-theme="dark"] {
+  --color-brand-soft: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  --color-brand-border: color-mix(in srgb, var(--color-brand) 45%, transparent);
+
+  --color-page: #0b0f17;
+  --color-surface: #131a26;
+  --color-subtle: #0f1521;
+  --color-hover: #1b2431;
+  --color-selected: #1e2836;
+
+  --color-ink: #e6e9ef;
+  --color-ink-soft: #c3cad6;
+  --color-ink-muted: #93a0b2;
+  --color-ink-faint: #6a768a;
+  --color-ink-inverse: #0b0f17;
+
+  --color-line: #232d3d;
+  --color-line-strong: #313d51;
+  --color-line-stronger: #47566d;
+  --color-divider: #1b2431;
+
+  --color-success-bg: color-mix(in srgb, var(--color-success) 18%, transparent);
+  --color-success-border: color-mix(in srgb, var(--color-success) 40%, transparent);
+  --color-success-text: #86efac;
+
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--color-warning) 40%, transparent);
+  --color-warning-text: #fcd34d;
+
+  --color-danger-bg: color-mix(in srgb, var(--color-danger) 18%, transparent);
+  --color-danger-border: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  --color-danger-text: #fca5a5;
+
+  --color-info-bg: color-mix(in srgb, var(--color-info) 18%, transparent);
+  --color-info-border: color-mix(in srgb, var(--color-info) 40%, transparent);
+  --color-info-text: #7dd3fc;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+/* Keep the document background in sync when the theme is set at the root. */
+[data-theme="dark"] body {
+  background-color: var(--color-page);
+  color: var(--color-ink);
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);

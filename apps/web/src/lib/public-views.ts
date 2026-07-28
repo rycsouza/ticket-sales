@@ -19,6 +19,7 @@ export interface PublicEventPageView {
   bannerUrl: string | null;
   faviconUrl: string | null;
   backgroundUrl: string | null;
+  theme: "light" | "dark";
   blocks: PageBlock[];
 }
 
@@ -158,6 +159,7 @@ export async function buildPublicEventView(event: EventRecord): Promise<PublicEv
       bannerUrl: pageRow?.bannerUrl ?? null,
       faviconUrl: pageRow?.faviconUrl ?? null,
       backgroundUrl: pageRow?.backgroundUrl ?? null,
+      theme: pageRow?.theme === "dark" ? "dark" : "light",
       blocks: pageRow ? parseStoredBlocks(pageRow.blocks) : defaultPageBlocks(),
     },
     organizer: organizerIdentity

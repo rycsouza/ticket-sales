@@ -95,7 +95,10 @@ export function EventPageView({
           Prévia — só você vê. As mudanças entram no ar quando você publicar/salvar.
         </div>
       )}
-      <div className="relative min-h-svh px-3 py-5 sm:px-4 sm:py-8">
+      <div
+        data-theme={event.page.theme}
+        className="relative min-h-svh bg-page text-ink px-3 py-5 sm:px-4 sm:py-8"
+      >
         {event.page.backgroundUrl && (
           <div
             aria-hidden

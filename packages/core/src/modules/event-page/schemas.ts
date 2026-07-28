@@ -249,6 +249,7 @@ export const updateEventPageSchema = z
     bannerUrl: assetUrlSchema.nullable().optional(),
     faviconUrl: assetUrlSchema.nullable().optional(),
     backgroundUrl: assetUrlSchema.nullable().optional(),
+    theme: z.enum(["light", "dark"]).optional(),
     blocks: eventPageBlocksSchema.optional(),
   })
   .strict();

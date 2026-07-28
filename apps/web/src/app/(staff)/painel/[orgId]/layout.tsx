@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
@@ -28,12 +29,14 @@ export default async function PanelLayout({
   if (!current) redirect("/painel");
 
   const isPlatformAdmin = await currentUserIsPlatformAdmin();
+  const theme = (await cookies()).get("panel_theme")?.value === "dark" ? "dark" : "light";
 
   return (
     <PanelShell
       org={{ id: orgId, name: current.organization.name }}
       multiOrg={orgs.length > 1}
       isPlatformAdmin={isPlatformAdmin}
+      theme={theme}
     >
       {children}
     </PanelShell>

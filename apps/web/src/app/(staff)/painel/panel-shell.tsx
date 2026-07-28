@@ -20,6 +20,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { ThemeToggle, type PanelTheme } from "./theme-toggle";
 
 type NavOrg = { id: string; name: string };
 
@@ -85,18 +86,25 @@ export function PanelShell({
   org,
   multiOrg,
   isPlatformAdmin = false,
+  theme = "light",
   children,
 }: {
   org: NavOrg;
   multiOrg: boolean;
   isPlatformAdmin?: boolean;
+  theme?: PanelTheme;
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-svh bg-page">
+    <div id="panel-shell" data-theme={theme} className="min-h-svh bg-page text-ink">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
-        <SidebarContent org={org} multiOrg={multiOrg} isPlatformAdmin={isPlatformAdmin} />
+        <SidebarContent
+          org={org}
+          multiOrg={multiOrg}
+          isPlatformAdmin={isPlatformAdmin}
+          theme={theme}
+        />
       </aside>
 
       {/* Mobile top bar (brand + org context + search) */}
@@ -114,7 +122,12 @@ export function PanelShell({
       </div>
 
       {/* Mobile bottom nav */}
-      <MobileBottomNav org={org} multiOrg={multiOrg} isPlatformAdmin={isPlatformAdmin} />
+      <MobileBottomNav
+        org={org}
+        multiOrg={multiOrg}
+        isPlatformAdmin={isPlatformAdmin}
+        theme={theme}
+      />
     </div>
   );
 }
@@ -134,10 +147,12 @@ function MobileBottomNav({
   org,
   multiOrg,
   isPlatformAdmin,
+  theme,
 }: {
   org: NavOrg;
   multiOrg: boolean;
   isPlatformAdmin: boolean;
+  theme: PanelTheme;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -277,6 +292,9 @@ function MobileBottomNav({
                 </li>
               )}
               <li>
+                <ThemeToggle initial={theme} />
+              </li>
+              <li>
                 <button
                   type="button"
                   onClick={() => void logout()}
@@ -326,10 +344,12 @@ function SidebarContent({
   org,
   multiOrg,
   isPlatformAdmin,
+  theme,
 }: {
   org: NavOrg;
   multiOrg: boolean;
   isPlatformAdmin: boolean;
+  theme: PanelTheme;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -408,7 +428,8 @@ function SidebarContent({
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-line p-3">
+      <div className="space-y-1 border-t border-line p-3">
+        <ThemeToggle initial={theme} />
         <button
           type="button"
           onClick={() => void logout()}

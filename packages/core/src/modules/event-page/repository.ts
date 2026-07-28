@@ -9,6 +9,7 @@ export interface EventPageRow {
   bannerUrl: string | null;
   faviconUrl: string | null;
   backgroundUrl: string | null;
+  theme: string;
   blocks: unknown;
 }
 
@@ -18,6 +19,7 @@ export interface UpsertEventPageData {
   bannerUrl?: string | null | undefined;
   faviconUrl?: string | null | undefined;
   backgroundUrl?: string | null | undefined;
+  theme?: "light" | "dark" | undefined;
   blocks?: unknown[] | undefined;
 }
 
@@ -39,6 +41,7 @@ const pageSelect = {
   bannerUrl: true,
   faviconUrl: true,
   backgroundUrl: true,
+  theme: true,
   blocks: true,
 } as const;
 
@@ -78,6 +81,7 @@ export class PrismaEventPageRepository implements EventPageRepository {
           bannerUrl: data.bannerUrl,
           faviconUrl: data.faviconUrl,
           backgroundUrl: data.backgroundUrl,
+          theme: data.theme,
           blocks: data.blocks as object | undefined,
         }),
       });
@@ -91,6 +95,7 @@ export class PrismaEventPageRepository implements EventPageRepository {
           bannerUrl: data.bannerUrl ?? null,
           faviconUrl: data.faviconUrl ?? null,
           backgroundUrl: data.backgroundUrl ?? null,
+          ...(data.theme ? { theme: data.theme } : {}),
           blocks: (data.blocks ?? defaultBlocks) as object,
         },
       });

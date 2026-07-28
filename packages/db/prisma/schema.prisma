@@ -306,6 +306,8 @@ model EventPage {
   bannerUrl  String? // Cloudinary — também vira og:image
   faviconUrl String? // Cloudinary
   backgroundUrl String? // Cloudinary — imagem de fundo atrás do checkout
+  // Tema visual da página pública/checkout: "light" | "dark" (default claro).
+  theme      String @default("light")
 
   // Documento ordenado de blocos (discriminated union no core/event-page)
   blocks Json

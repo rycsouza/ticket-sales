@@ -39,6 +39,7 @@ interface EditorPage {
   bannerUrl: string | null;
   faviconUrl: string | null;
   backgroundUrl: string | null;
+  theme: "light" | "dark";
   blocks: PageBlock[];
 }
 
@@ -126,6 +127,7 @@ export function PageEditor({
 }) {
   const router = useRouter();
   const [brandColor, setBrandColor] = useState(initial.brandColor ?? "");
+  const [theme, setTheme] = useState<"light" | "dark">(initial.theme);
   const [images, setImages] = useState({
     logoUrl: initial.logoUrl,
     bannerUrl: initial.bannerUrl,
@@ -148,6 +150,7 @@ export function PageEditor({
   const [baseline, setBaseline] = useState(() =>
     JSON.stringify({
       brandColor: initial.brandColor ?? "",
+      theme: initial.theme,
       images: {
         logoUrl: initial.logoUrl,
         bannerUrl: initial.bannerUrl,
@@ -158,8 +161,8 @@ export function PageEditor({
     }),
   );
   const current = useMemo(
-    () => JSON.stringify({ brandColor, images, blocks }),
-    [brandColor, images, blocks],
+    () => JSON.stringify({ brandColor, theme, images, blocks }),
+    [brandColor, theme, images, blocks],
   );
   const dirty = current !== baseline;
 
@@ -234,6 +237,7 @@ export function PageEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brandColor: brandColor === "" ? null : brandColor.toLowerCase(),
+          theme,
           logoUrl: images.logoUrl,
           bannerUrl: images.bannerUrl,
           faviconUrl: images.faviconUrl,
@@ -247,7 +251,7 @@ export function PageEditor({
         return;
       }
       setBlocks(cleaned!);
-      setBaseline(JSON.stringify({ brandColor, images, blocks: cleaned }));
+      setBaseline(JSON.stringify({ brandColor, theme, images, blocks: cleaned }));
       setSaved(true);
       router.refresh();
     } finally {
@@ -306,9 +310,33 @@ export function PageEditor({
             </Alert>
           )}
 
+          <Field label="Tema da página" htmlFor="page-theme">
+            <div id="page-theme" className="inline-flex rounded-lg border border-line-strong p-0.5">
+              {(["light", "dark"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTheme(t);
+                    setSaved(false);
+                  }}
+                  aria-pressed={theme === t}
+                  className={
+                    theme === t
+                      ? "rounded-md bg-brand px-4 py-1.5 text-small font-medium text-brand-fg"
+                      : "rounded-md px-4 py-1.5 text-small font-medium text-ink-soft hover:bg-hover"
+                  }
+                >
+                  {t === "light" ? "Claro" : "Escuro"}
+                </button>
+              ))}
+            </div>
+          </Field>
+
           {/* Amostra do tema aplicado */}
           <div
-            className="rounded-xl border border-line p-4"
+            data-theme={theme}
+            className="rounded-xl border border-line bg-surface p-4"
             style={preview as React.CSSProperties}
           >
             <p className="mb-2 text-caption font-semibold uppercase tracking-widest text-brand">

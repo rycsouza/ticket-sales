@@ -14,6 +14,8 @@ export interface EventPageRecord {
   faviconUrl: string | null;
   /** Full-page background image shown behind the checkout card. */
   backgroundUrl: string | null;
+  /** Visual theme of the public page/checkout. */
+  theme: "light" | "dark";
   blocks: PageBlock[];
 }
 

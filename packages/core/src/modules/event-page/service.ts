@@ -60,6 +60,7 @@ export class EventPageService {
         bannerUrl: null,
         faviconUrl: null,
         backgroundUrl: null,
+        theme: "light",
         blocks: defaultPageBlocks(),
       };
     }
@@ -181,6 +182,7 @@ function toRecord(row: EventPageRow): EventPageRecord {
     bannerUrl: row.bannerUrl,
     faviconUrl: row.faviconUrl,
     backgroundUrl: row.backgroundUrl,
+    theme: row.theme === "dark" ? "dark" : "light",
     blocks: parseStoredBlocks(row.blocks),
   };
 }
