@@ -261,6 +261,17 @@ export class InMemoryCouponRepository implements CouponRepository {
     return this.coupons.filter((c) => c.organizationId === organizationId);
   }
 
+  async hasActiveForEvent(organizationId: string, eventId: string, now: Date): Promise<boolean> {
+    return this.coupons.some(
+      (c) =>
+        c.organizationId === organizationId &&
+        c.active &&
+        (c.eventId === eventId || c.eventId === null) &&
+        (!c.startsAt || c.startsAt <= now) &&
+        (!c.endsAt || c.endsAt >= now),
+    );
+  }
+
   async tryIncrementRedemption(organizationId: string, couponId: string): Promise<boolean> {
     const coupon = this.coupons.find(
       (c) => c.id === couponId && c.organizationId === organizationId,

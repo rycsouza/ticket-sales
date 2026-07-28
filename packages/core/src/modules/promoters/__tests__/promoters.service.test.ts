@@ -582,3 +582,57 @@ describe("OrdersService integration — discount + attribution", () => {
     ).rejects.toBeInstanceOf(ValidationFailedError);
   });
 });
+
+describe("PromotersService.eventHasCoupons — checkout gate", () => {
+  it("is false with no coupons, true once an active coupon exists", async () => {
+    const s = await setup();
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(false);
+
+    await s.promoters.createCoupon(s.managerCtx, s.event.id, {
+      code: "PROMO10",
+      type: "PERCENT",
+      value: 1000,
+    });
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(true);
+  });
+
+  it("counts an org-wide default coupon (null eventId) for the event", async () => {
+    const s = await setup();
+    await s.coupons.create({ organizationId: ORG, eventId: null, code: "GERAL", type: "FIXED", value: 500 });
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(true);
+  });
+
+  it("ignores inactive, expired and other-org coupons", async () => {
+    const s = await setup();
+    const now = s.clock.now();
+    await s.coupons.create({
+      organizationId: ORG,
+      eventId: s.event.id,
+      code: "OFF",
+      type: "PERCENT",
+      value: 1000,
+    });
+    // Deactivate it.
+    s.coupons.coupons[0]!.active = false;
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(false);
+
+    await s.coupons.create({
+      organizationId: ORG,
+      eventId: s.event.id,
+      code: "EXPIRED",
+      type: "PERCENT",
+      value: 1000,
+      endsAt: new Date(now.getTime() - 1000),
+    });
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(false);
+
+    await s.coupons.create({
+      organizationId: OTHER_ORG,
+      eventId: s.event.id,
+      code: "OTHERORG",
+      type: "PERCENT",
+      value: 1000,
+    });
+    expect(await s.promoters.eventHasCoupons(ORG, s.event.id)).toBe(false);
+  });
+});

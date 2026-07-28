@@ -31,6 +31,8 @@ interface Props {
   eventId: string;
   batches: PublicBatchView[];
   offers: PublicOfferView[];
+  /** Whether the event has any applicable coupon — gates the coupon field. */
+  couponsAvailable: boolean;
   maxTicketsPerOrder: number | null;
   platformFeeBps: number;
   feeMode: "BUYER" | "PRODUCER";
@@ -73,6 +75,7 @@ export function CheckoutForm({
   eventId,
   batches,
   offers,
+  couponsAvailable,
   maxTicketsPerOrder,
   platformFeeBps,
   feeMode,
@@ -673,6 +676,9 @@ export function CheckoutForm({
             </div>
           )}
 
+          {/* Só mostra o campo de cupom quando o evento tem pelo menos um cupom
+              aplicável (ou já há um aplicado). Evita um campo inútil. */}
+          {(couponsAvailable || applied) && (
           <div className={sectionClass}>
             <h2 className={sectionTitle}>Cupom</h2>
             {applied ? (
@@ -711,6 +717,7 @@ export function CheckoutForm({
             )}
             {couponMsg && <p className="mt-2 text-body text-danger">{couponMsg}</p>}
           </div>
+          )}
 
           {/* Order bump — adicionais em destaque, antes do pagamento (FR-CHK). */}
           {offers.some((o) => o.kind === "ORDER_BUMP") && (

@@ -352,6 +352,15 @@ export class PromotersService {
     return this.deps.coupons.listByOrganization(ctx.organizationId);
   }
 
+  /**
+   * Public checkout gate: does this event have any usable coupon right now?
+   * Returns only a boolean (no codes), so it is safe to call unauthenticated
+   * for the public event view — it never enables coupon enumeration.
+   */
+  async eventHasCoupons(organizationId: string, eventId: string): Promise<boolean> {
+    return this.deps.coupons.hasActiveForEvent(organizationId, eventId, this.deps.clock.now());
+  }
+
   /** FR-PRM-008/009/015 — versioned rule; supersedes prior same-scope rule. */
   async createCommissionRule(
     ctx: RequestContext,

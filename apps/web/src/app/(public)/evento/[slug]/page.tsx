@@ -127,6 +127,7 @@ function renderBlock(block: PageBlock, event: PublicEventView, mpPublicKey: stri
             eventId={event.id}
             batches={event.batches}
             offers={event.offers}
+            couponsAvailable={event.couponsAvailable}
             maxTicketsPerOrder={event.maxTicketsPerOrder}
             platformFeeBps={event.platformFeeBps}
             feeMode={event.feeMode}

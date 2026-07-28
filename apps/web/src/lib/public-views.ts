@@ -64,6 +64,8 @@ export interface PublicEventView {
   feeMode: "BUYER" | "PRODUCER";
   batches: PublicBatchView[];
   offers: PublicOfferView[];
+  /** Whether any coupon currently applies — gates the checkout coupon field. */
+  couponsAvailable: boolean;
   page: PublicEventPageView;
   organizer: PublicOrganizerView | null;
 }
@@ -87,13 +89,15 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
 async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
   const now = new Date();
-  const [batches, ticketTypes, pageRow, organizerIdentity, offers] = await Promise.all([
-    services.batchesRepo.listByEvent(event.organizationId, event.id),
-    services.ticketTypesRepo.listByEvent(event.organizationId, event.id),
-    services.publicEventPages.findByEventId(event.id),
-    services.publicOrganizations.findIdentityById(event.organizationId),
-    services.offers.listForCheckout(event.organizationId, event.id).catch(() => []),
-  ]);
+  const [batches, ticketTypes, pageRow, organizerIdentity, offers, couponsAvailable] =
+    await Promise.all([
+      services.batchesRepo.listByEvent(event.organizationId, event.id),
+      services.ticketTypesRepo.listByEvent(event.organizationId, event.id),
+      services.publicEventPages.findByEventId(event.id),
+      services.publicOrganizations.findIdentityById(event.organizationId),
+      services.offers.listForCheckout(event.organizationId, event.id).catch(() => []),
+      services.promoters.eventHasCoupons(event.organizationId, event.id).catch(() => false),
+    ]);
   const typeNames = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
   const visibleBatches: PublicBatchView[] = batches
@@ -145,6 +149,7 @@ async function buildPublicEventView(event: EventRecord): Promise<PublicEventView
       originalPriceCents: offer.originalPriceCents,
       isTicket: offer.isTicket,
     })),
+    couponsAvailable,
     // Blocos re-validados por Zod na leitura (JSON corrompido → defaults);
     // eventos sem personalização renderizam a página padrão de sempre.
     page: {

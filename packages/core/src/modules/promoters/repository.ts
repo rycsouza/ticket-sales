@@ -100,6 +100,12 @@ export interface CouponRepository {
   listByEvent(organizationId: string, eventId: string): Promise<CouponRecord[]>;
   listByOrganization(organizationId: string): Promise<CouponRecord[]>;
   /**
+   * True when at least one coupon currently applies to the event — active,
+   * within its window, and either event-scoped or an org-wide default. Powers
+   * the checkout gate (only show the coupon field when it can do something).
+   */
+  hasActiveForEvent(organizationId: string, eventId: string, now: Date): Promise<boolean>;
+  /**
    * Atomic conditional increment: succeeds only while under the redemption
    * cap. Returns false when exhausted (never oversells a limited coupon).
    */
@@ -488,6 +494,23 @@ export class PrismaCouponRepository implements CouponRepository {
       select: couponSelect,
       orderBy: { createdAt: "asc" },
     });
+  }
+
+  async hasActiveForEvent(organizationId: string, eventId: string, now: Date): Promise<boolean> {
+    const count = await this.prisma.coupon.count({
+      where: {
+        organizationId,
+        active: true,
+        // Event-scoped OR org-wide default (eventId null).
+        OR: [{ eventId }, { eventId: null }],
+        // Within the optional validity window.
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+    });
+    return count > 0;
   }
 
   async tryIncrementRedemption(organizationId: string, couponId: string): Promise<boolean> {
