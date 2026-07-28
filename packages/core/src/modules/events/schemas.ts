@@ -45,9 +45,9 @@ export const createEventSchema = z
     cancellationPolicy: z.string().trim().max(5000).optional(),
     eventTerms: z.string().trim().max(20000).optional(),
     maxTicketsPerOrder: z.number().int().min(1).max(50).optional(),
-    // DEC-003: platform fee (basis points, max 100%) and who absorbs it.
-    platformFeeBps: z.number().int().min(0).max(10_000).optional(),
-    feeMode: z.enum(["BUYER", "PRODUCER"]).optional(),
+    // DEC-003: platform fee is NEVER set by the producer. New events inherit
+    // the organization's default (seeded server-side); platform admins may
+    // override per event through the /api/admin surface.
   })
   .strict()
   .refine((data) => !data.startsAt || !data.endsAt || data.endsAt > data.startsAt, {
@@ -77,12 +77,21 @@ export const updateEventSchema = z
     cancellationPolicy: z.string().trim().max(5000).optional(),
     eventTerms: z.string().trim().max(20000).optional(),
     maxTicketsPerOrder: z.number().int().min(1).max(50).optional(),
-    platformFeeBps: z.number().int().min(0).max(10_000).optional(),
-    feeMode: z.enum(["BUYER", "PRODUCER"]).optional(),
+    // platformFeeBps/feeMode are platform-admin only (see createEventSchema).
   })
   .strict();
 
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
+
+/** Platform-admin fee override for a single event (basis points + who pays). */
+export const setEventFeeSchema = z
+  .object({
+    platformFeeBps: z.number().int().min(0).max(10_000),
+    feeMode: z.enum(["BUYER", "PRODUCER"]),
+  })
+  .strict();
+
+export type SetEventFeeInput = z.infer<typeof setEventFeeSchema>;
 
 export const createSectorSchema = z
   .object({

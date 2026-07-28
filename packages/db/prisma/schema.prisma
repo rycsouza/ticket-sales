@@ -49,6 +49,11 @@ model Organization {
   supportPhone String?
   logoUrl      String?
 
+  // DEC-003: platform fee defaults, set ONLY by platform admins. New events
+  // inherit these at creation (seed); each event may then be overridden.
+  defaultPlatformFeeBps Int     @default(0)
+  defaultFeeMode        FeeMode @default(PRODUCER)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

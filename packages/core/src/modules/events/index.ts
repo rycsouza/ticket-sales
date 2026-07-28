@@ -2,4 +2,9 @@ export * from "./types";
 export * from "./transitions";
 export * from "./schemas";
 export * from "./repository";
-export { EventsService, type EventsServiceDeps, type InventoryReader } from "./service";
+export {
+  EventsService,
+  type EventsServiceDeps,
+  type InventoryReader,
+  type OrganizationFeeReader,
+} from "./service";

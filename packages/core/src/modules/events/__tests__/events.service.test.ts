@@ -21,15 +21,19 @@ function setup() {
   const events = new InMemoryEventRepository();
   const sectors = new InMemorySectorRepository();
   const batches = new InMemorySalesBatchRepository();
+  // Org fee defaults new events inherit (DEC-003). Mutable so tests can vary it.
+  const orgFee = { platformFeeBps: 0, feeMode: "PRODUCER" as "BUYER" | "PRODUCER" };
+  const organizations = { getFeeDefaults: async () => orgFee };
   const service = new EventsService({
     events,
     sectors,
     memberships,
     inventory: batches,
+    organizations,
     audit,
     clock,
   });
-  return { clock, audit, memberships, events, sectors, batches, service };
+  return { clock, audit, memberships, events, sectors, batches, orgFee, service };
 }
 
 const ORG = "org_A";
@@ -85,6 +89,56 @@ describe("createEvent", () => {
     const second = await env.service.createEvent(ctx(), baseEvent);
     expect(first.slug).toBe("festa-junina");
     expect(second.slug).toBe("festa-junina-2");
+  });
+
+  it("seeds the platform fee from the org default (never from client input)", async () => {
+    const env = setup();
+    await withManager(env);
+    env.orgFee.platformFeeBps = 750;
+    env.orgFee.feeMode = "BUYER";
+
+    const event = await env.service.createEvent(ctx(), baseEvent);
+    expect(event.platformFeeBps).toBe(750);
+    expect(event.feeMode).toBe("BUYER");
+  });
+});
+
+describe("platform-admin fee override", () => {
+  it("overrides a single event's fee and audits before/after", async () => {
+    const env = setup();
+    await withManager(env);
+    env.orgFee.platformFeeBps = 500;
+    const event = await env.service.createEvent(ctx(), baseEvent);
+
+    const updated = await env.service.setEventFeeAsPlatformAdmin({
+      organizationId: ORG,
+      eventId: event.id,
+      actorUserId: "admin_user",
+      fee: { platformFeeBps: 1200, feeMode: "BUYER" },
+      correlationId: "corr",
+    });
+
+    expect(updated.platformFeeBps).toBe(1200);
+    expect(updated.feeMode).toBe("BUYER");
+    const entry = env.audit.byAction("event.fee_changed")[0];
+    expect(entry?.actorType).toBe("platform_admin");
+    expect((entry?.before as { platformFeeBps: number }).platformFeeBps).toBe(500);
+  });
+
+  it("rejects overriding an event from another organization (tenancy)", async () => {
+    const env = setup();
+    await withManager(env);
+    const event = await env.service.createEvent(ctx(), baseEvent);
+
+    await expect(
+      env.service.setEventFeeAsPlatformAdmin({
+        organizationId: "org_OTHER",
+        eventId: event.id,
+        actorUserId: "admin_user",
+        fee: { platformFeeBps: 100, feeMode: "PRODUCER" },
+        correlationId: "corr",
+      }),
+    ).rejects.toThrow(NotFoundOrForbiddenError);
   });
 });
 

@@ -8,13 +8,19 @@ import type { ClockPort } from "../../ports/clock";
 import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { EventRepository, SectorRepository } from "./repository";
-import type { CreateEventInput, CreateSectorInput, UpdateEventInput } from "./schemas";
+import type {
+  CreateEventInput,
+  CreateSectorInput,
+  SetEventFeeInput,
+  UpdateEventInput,
+} from "./schemas";
 import { assertEventTransition } from "./transitions";
 import {
   EVENT_MANAGER_ROLES,
   EVENT_TERMINAL_STATES,
   type EventRecord,
   type EventStatus,
+  type FeeMode,
 } from "./types";
 
 /**
@@ -30,11 +36,22 @@ export interface InventoryReader {
   countBatches(organizationId: string, eventId: string): Promise<number>;
 }
 
+/**
+ * Read-only view of the organization's platform-fee defaults. Implemented by
+ * the identity module — events never touches the Organization table directly.
+ */
+export interface OrganizationFeeReader {
+  getFeeDefaults(
+    organizationId: string,
+  ): Promise<{ platformFeeBps: number; feeMode: FeeMode }>;
+}
+
 export interface EventsServiceDeps {
   events: EventRepository;
   sectors: SectorRepository;
   memberships: MembershipLookup;
   inventory: InventoryReader;
+  organizations: OrganizationFeeReader;
   audit: AuditRepository;
   clock: ClockPort;
 }
@@ -49,10 +66,16 @@ export class EventsService {
     // Public URL is /evento/<slug> — slug is globally unique. Keep the client's
     // slug when free; otherwise append a numeric suffix (never fail on it).
     const slug = await this.resolveUniqueSlug(input.slug);
+
+    // DEC-003: the producer never sets the fee. New events INHERIT the org's
+    // default (seeded server-side); a platform admin may override it later.
+    const feeDefaults = await this.deps.organizations.getFeeDefaults(ctx.organizationId);
     const event = await this.deps.events.create({
       organizationId: ctx.organizationId,
       ...input,
       slug,
+      platformFeeBps: feeDefaults.platformFeeBps,
+      feeMode: feeDefaults.feeMode,
     });
 
     await this.deps.audit.append({
@@ -86,6 +109,47 @@ export class EventsService {
   async listEvents(ctx: RequestContext): Promise<EventRecord[]> {
     await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
     return this.deps.events.listByOrganization(ctx.organizationId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Platform-admin surface (DEC-003). No org-membership check — authorization
+  // is enforced at the web edge by the PLATFORM_ADMIN_EMAILS allowlist. Only
+  // wired into /api/admin routes. Fee edits affect FUTURE orders only (existing
+  // orders keep their snapshot), so they are allowed on any event status.
+  // ---------------------------------------------------------------------------
+
+  async listEventsAsPlatformAdmin(organizationId: string): Promise<EventRecord[]> {
+    return this.deps.events.listByOrganization(organizationId);
+  }
+
+  async setEventFeeAsPlatformAdmin(params: {
+    organizationId: string;
+    eventId: string;
+    actorUserId: string;
+    fee: SetEventFeeInput;
+    correlationId: string;
+  }): Promise<EventRecord> {
+    const event = await this.deps.events.findByIdScoped(params.organizationId, params.eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+
+    const before = { platformFeeBps: event.platformFeeBps, feeMode: event.feeMode };
+    const updated = await this.deps.events.updateDetails(params.organizationId, params.eventId, {
+      platformFeeBps: params.fee.platformFeeBps,
+      feeMode: params.fee.feeMode,
+    });
+
+    await this.deps.audit.append({
+      organizationId: params.organizationId,
+      actorUserId: params.actorUserId,
+      actorType: "platform_admin",
+      action: "event.fee_changed",
+      resourceType: "event",
+      resourceId: params.eventId,
+      before,
+      after: { platformFeeBps: updated.platformFeeBps, feeMode: updated.feeMode },
+      correlationId: params.correlationId,
+    });
+    return updated;
   }
 
   /** FR-EVT-001 — details editing; capacity has its own audited use case. */

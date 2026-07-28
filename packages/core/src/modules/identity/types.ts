@@ -27,6 +27,10 @@ export interface OrganizationRecord {
   document: string | null;
   email: string | null;
   phone: string | null;
+  // DEC-003: platform fee defaults, configurable ONLY by platform admins.
+  // New events inherit these at creation; each event may be overridden.
+  defaultPlatformFeeBps: number;
+  defaultFeeMode: "BUYER" | "PRODUCER";
 }
 
 export interface MembershipRecord {

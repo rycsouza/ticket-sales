@@ -363,6 +363,12 @@ export class AuthService {
     return { userId: session.userId, sessionId: session.id };
   }
 
+  /** Minimal identity of the logged-in user (for the platform-admin gate). */
+  async getUserById(userId: string): Promise<{ id: string; email: string; name: string } | null> {
+    const user = await this.deps.users.findById(userId);
+    return user ? { id: user.id, email: user.email, name: user.name } : null;
+  }
+
   async logout(rawToken: string, meta: RequestMeta) {
     const session = await this.deps.sessions.findByTokenHash(hashToken(rawToken));
     if (!session) return; // idempotent — logging out twice is fine

@@ -175,14 +175,17 @@ export class FinanceService {
     await requireActiveRole(this.deps.memberships, ctx, FINANCE_ROLES);
     const event = await this.deps.events.findByIdScoped(ctx.organizationId, eventId);
     if (!event) throw new NotFoundOrForbiddenError();
+    return this.computeEventSummary(ctx.organizationId, eventId);
+  }
 
-    const entries = await this.deps.ledger.listByEvent(ctx.organizationId, eventId);
+  /** Reproducible financial summary from the ledger. Shared by staff + admin. */
+  private async computeEventSummary(
+    organizationId: string,
+    eventId: string,
+  ): Promise<EventFinancialSummary> {
+    const entries = await this.deps.ledger.listByEvent(organizationId, eventId);
     const sum = (predicate: (e: LedgerEntryRecord) => boolean): number =>
       entries.filter(predicate).reduce((acc, e) => acc + e.amountCents, 0);
-
-    const producerPayableCents = sum((e) => e.account === "PRODUCER");
-    const platformNetCents = sum((e) => e.account === "PLATFORM");
-    const promoterPayableCents = sum((e) => e.account === "PROMOTER");
 
     return {
       eventId,
@@ -192,9 +195,9 @@ export class FinanceService {
       pspCostCents: -sum((e) => e.type === "PSP_COST"),
       commissionCents: sum((e) => e.account === "PROMOTER" && e.type === "COMMISSION"),
       refundedCents: -sum((e) => e.account === "PRODUCER" && e.type === "REFUND"),
-      producerPayableCents,
-      platformNetCents,
-      promoterPayableCents,
+      producerPayableCents: sum((e) => e.account === "PRODUCER"),
+      platformNetCents: sum((e) => e.account === "PLATFORM"),
+      promoterPayableCents: sum((e) => e.account === "PROMOTER"),
       payoutsCents: -sum((e) => e.type === "PAYOUT"),
     };
   }
@@ -243,6 +246,58 @@ export class FinanceService {
       memo: input.memo,
       correlationId: ctx.correlationId,
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Platform-admin surface (DEC-003). No org-membership check — authorization
+  // is enforced at the web edge by the PLATFORM_ADMIN_EMAILS allowlist. Only
+  // wired into /api/admin routes.
+  // ---------------------------------------------------------------------------
+
+  async getEventFinancialSummaryAsPlatformAdmin(
+    organizationId: string,
+    eventId: string,
+  ): Promise<EventFinancialSummary> {
+    const event = await this.deps.events.findByIdScoped(organizationId, eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+    return this.computeEventSummary(organizationId, eventId);
+  }
+
+  /** External producer payout registered by a platform admin (FR-FIN-013). */
+  async registerExternalPayoutAsPlatformAdmin(params: {
+    organizationId: string;
+    eventId: string;
+    actorUserId: string;
+    amountCents: number;
+    memo: string;
+    correlationId: string;
+  }): Promise<LedgerEntryRecord> {
+    const event = await this.deps.events.findByIdScoped(params.organizationId, params.eventId);
+    if (!event) throw new NotFoundOrForbiddenError();
+    if (!Number.isInteger(params.amountCents) || params.amountCents <= 0) {
+      throw new ValidationFailedError("Valor do repasse inválido");
+    }
+
+    const posted = await this.deps.ledger.append({
+      organizationId: params.organizationId,
+      eventId: params.eventId,
+      account: "PRODUCER",
+      type: "PAYOUT",
+      amountCents: -Math.abs(params.amountCents),
+      memo: params.memo,
+      correlationId: params.correlationId,
+    });
+    await this.deps.audit.append({
+      organizationId: params.organizationId,
+      actorUserId: params.actorUserId,
+      actorType: "platform_admin",
+      action: "finance.external_payout",
+      resourceType: "event",
+      resourceId: params.eventId,
+      after: { amountCents: Math.abs(params.amountCents), memo: params.memo },
+      correlationId: params.correlationId,
+    });
+    return posted;
   }
 
   /**

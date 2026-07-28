@@ -194,6 +194,63 @@ export class IdentityService {
     return this.deps.organizations.listByUserId(userId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Platform-admin surface (DEC-003). These methods DO NOT check org membership
+  // — the platform admin operates across every tenant. Authorization is the
+  // caller's responsibility: the web edge gates them by the PLATFORM_ADMIN_EMAILS
+  // allowlist BEFORE calling. They are only wired into /api/admin routes.
+  // ---------------------------------------------------------------------------
+
+  async listAllOrganizationsAsPlatformAdmin() {
+    return this.deps.organizations.listAll();
+  }
+
+  async getOrganizationAsPlatformAdmin(organizationId: string) {
+    const org = await this.deps.organizations.findById(organizationId);
+    if (!org) throw new NotFoundOrForbiddenError();
+    return org;
+  }
+
+  /** Sets the org-wide platform-fee defaults (basis points + who absorbs). */
+  async setOrgDefaultFeeAsPlatformAdmin(params: {
+    organizationId: string;
+    actorUserId: string;
+    defaultPlatformFeeBps: number;
+    defaultFeeMode: "BUYER" | "PRODUCER";
+    correlationId: string;
+  }) {
+    const bps = params.defaultPlatformFeeBps;
+    if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
+      throw new ValidationFailedError("Taxa inválida (0 a 100%)");
+    }
+    const before = await this.deps.organizations.findById(params.organizationId);
+    if (!before) throw new NotFoundOrForbiddenError();
+
+    const updated = await this.deps.organizations.updateFeeDefaults(params.organizationId, {
+      defaultPlatformFeeBps: bps,
+      defaultFeeMode: params.defaultFeeMode,
+    });
+
+    await this.deps.audit.append({
+      organizationId: params.organizationId,
+      actorUserId: params.actorUserId,
+      action: "organization.default_fee_changed",
+      resourceType: "organization",
+      resourceId: params.organizationId,
+      before: {
+        defaultPlatformFeeBps: before.defaultPlatformFeeBps,
+        defaultFeeMode: before.defaultFeeMode,
+      },
+      after: {
+        defaultPlatformFeeBps: updated.defaultPlatformFeeBps,
+        defaultFeeMode: updated.defaultFeeMode,
+      },
+      actorType: "platform_admin",
+      correlationId: params.correlationId,
+    });
+    return updated;
+  }
+
   async listMembers(ctx: RequestContext): Promise<MembershipRecord[]> {
     // Any active member can see the member list; management requires more.
     await this.requireActiveMembership(ctx);

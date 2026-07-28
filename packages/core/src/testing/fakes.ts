@@ -301,6 +301,8 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
       document: data.document ?? null,
       email: data.email ?? null,
       phone: data.phone ?? null,
+      defaultPlatformFeeBps: 0,
+      defaultFeeMode: "PRODUCER",
     };
     this.organizations.push(org);
     await this.memberships.create({
@@ -323,6 +325,21 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
       const organization = this.organizations.find((org) => org.id === m.organizationId);
       return organization ? [{ organization, role: m.role }] : [];
     });
+  }
+
+  async listAll(): Promise<OrganizationRecord[]> {
+    return [...this.organizations];
+  }
+
+  async updateFeeDefaults(
+    organizationId: string,
+    data: { defaultPlatformFeeBps: number; defaultFeeMode: "BUYER" | "PRODUCER" },
+  ): Promise<OrganizationRecord> {
+    const org = this.organizations.find((o) => o.id === organizationId);
+    if (!org) throw new Error("org not found");
+    org.defaultPlatformFeeBps = data.defaultPlatformFeeBps;
+    org.defaultFeeMode = data.defaultFeeMode;
+    return org;
   }
 }
 

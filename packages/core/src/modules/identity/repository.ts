@@ -29,6 +29,16 @@ export interface OrganizationRepository {
   listByUserId(
     userId: string,
   ): Promise<{ organization: OrganizationRecord; role: MembershipRole }[]>;
+  /**
+   * Cross-org listing — used ONLY by the platform-admin surface (fee config).
+   * Deliberately unscoped; callers must gate by the platform-admin allowlist.
+   */
+  listAll(): Promise<OrganizationRecord[]>;
+  /** Update the platform-fee defaults (platform-admin only). */
+  updateFeeDefaults(
+    organizationId: string,
+    data: { defaultPlatformFeeBps: number; defaultFeeMode: "BUYER" | "PRODUCER" },
+  ): Promise<OrganizationRecord>;
 }
 
 export interface MembershipRepository {
@@ -114,6 +124,8 @@ const organizationSelect = {
   document: true,
   email: true,
   phone: true,
+  defaultPlatformFeeBps: true,
+  defaultFeeMode: true,
 } as const;
 
 const userSelect = {
@@ -170,6 +182,27 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       orderBy: { createdAt: "asc" },
     });
     return memberships.map((m) => ({ organization: m.organization, role: m.role }));
+  }
+
+  async listAll(): Promise<OrganizationRecord[]> {
+    return this.prisma.organization.findMany({
+      select: organizationSelect,
+      orderBy: { name: "asc" },
+    });
+  }
+
+  async updateFeeDefaults(
+    organizationId: string,
+    data: { defaultPlatformFeeBps: number; defaultFeeMode: "BUYER" | "PRODUCER" },
+  ): Promise<OrganizationRecord> {
+    return this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        defaultPlatformFeeBps: data.defaultPlatformFeeBps,
+        defaultFeeMode: data.defaultFeeMode,
+      },
+      select: organizationSelect,
+    });
   }
 }
 
