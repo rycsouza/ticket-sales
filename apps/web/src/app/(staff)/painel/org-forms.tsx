@@ -19,12 +19,12 @@ export function NewOrgForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() }),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok || !data.id) {
+      const data = (await res.json()) as { id?: string; slug?: string; error?: string };
+      if (!res.ok || !data.slug) {
         setError(data.error ?? "Não foi possível criar a organização.");
         return;
       }
-      router.push(`/painel/${data.id}`);
+      router.push(`/painel/${data.slug}`);
     } finally {
       setBusy(false);
     }

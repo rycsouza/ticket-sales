@@ -80,10 +80,12 @@ const PAGE_SIZE = 20;
 
 export function BuyersClient({
   orgId,
+  orgSlug,
   rows,
   eventScoped,
 }: {
   orgId: string;
+  orgSlug: string;
   rows: BuyerRow[];
   eventScoped: boolean;
 }) {
@@ -316,7 +318,7 @@ export function BuyersClient({
                   <tr key={r.email} className="hover:bg-hover">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/painel/${orgId}/clientes/${encodeURIComponent(r.email)}`}
+                        href={`/painel/${orgSlug}/clientes/${encodeURIComponent(r.email)}`}
                         className="flex items-center gap-3 rounded-md focus-visible:outline-2"
                       >
                         <Avatar name={r.name} email={r.email} />
@@ -340,7 +342,7 @@ export function BuyersClient({
                     </td>
                     <td className="px-4 py-3"><CommStatus optedOut={r.optedOut} /></td>
                     <td className="px-4 py-3 text-right">
-                      <RowActions orgId={orgId} buyer={r} onComm={setCommTarget} />
+                      <RowActions orgSlug={orgSlug} buyer={r} onComm={setCommTarget} />
                     </td>
                   </tr>
                 ))}
@@ -354,7 +356,7 @@ export function BuyersClient({
               <li key={r.email} className="rounded-xl border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-2">
                   <Link
-                    href={`/painel/${orgId}/clientes/${encodeURIComponent(r.email)}`}
+                    href={`/painel/${orgSlug}/clientes/${encodeURIComponent(r.email)}`}
                     className="flex min-w-0 items-center gap-3"
                   >
                     <Avatar name={r.name} email={r.email} />
@@ -366,7 +368,7 @@ export function BuyersClient({
                       )}
                     </span>
                   </Link>
-                  <RowActions orgId={orgId} buyer={r} onComm={setCommTarget} />
+                  <RowActions orgSlug={orgSlug} buyer={r} onComm={setCommTarget} />
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-y-1 text-small">
                   <dt className="text-ink-muted">Pedidos</dt>
@@ -425,11 +427,11 @@ export function BuyersClient({
 }
 
 function RowActions({
-  orgId,
+  orgSlug,
   buyer,
   onComm,
 }: {
-  orgId: string;
+  orgSlug: string;
   buyer: BuyerRow;
   onComm: (b: BuyerRow) => void;
 }) {
@@ -441,7 +443,7 @@ function RowActions({
       triggerVariant="ghost"
       triggerClassName="px-1.5"
     >
-      <MenuItem href={`/painel/${orgId}/clientes/${encodeURIComponent(buyer.email)}`}>
+      <MenuItem href={`/painel/${orgSlug}/clientes/${encodeURIComponent(buyer.email)}`}>
         Ver cliente
       </MenuItem>
       {wa && !buyer.optedOut && (

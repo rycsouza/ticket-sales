@@ -44,11 +44,11 @@ const GROUPS: { key: Group; label: string; match: (s: string) => boolean }[] = [
 const PAGE_SIZE = 12;
 
 export function EventsList({
-  orgId,
+  orgSlug,
   events,
   initialQuery = "",
 }: {
-  orgId: string;
+  orgSlug: string;
   events: EventListItem[];
   initialQuery?: string;
 }) {
@@ -149,7 +149,7 @@ export function EventsList({
           <ul className="grid gap-3 md:grid-cols-2">
             {paged.map((e) => (
               <li key={e.id}>
-                <EventCard orgId={orgId} event={e} />
+                <EventCard orgSlug={orgSlug} event={e} />
               </li>
             ))}
           </ul>
@@ -179,9 +179,9 @@ export function EventsList({
   );
 }
 
-function EventCard({ orgId, event }: { orgId: string; event: EventListItem }) {
+function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }) {
   const meta = statusMeta(EVENT_STATUS, event.status);
-  const base = `/painel/${orgId}/eventos/${event.id}`;
+  const base = `/painel/${orgSlug}/eventos/${event.slug}`;
   const pct =
     event.capacity && event.capacity > 0
       ? Math.min(100, Math.round((event.soldQty / event.capacity) * 100))

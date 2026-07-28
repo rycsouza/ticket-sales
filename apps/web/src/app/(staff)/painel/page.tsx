@@ -14,7 +14,7 @@ export default async function PainelHome() {
   const { userId } = await requireDashboardUser();
   const orgs = await getServices().identity.listMyOrganizations(userId);
 
-  if (orgs.length === 1) redirect(`/painel/${orgs[0]!.organization.id}`);
+  if (orgs.length === 1) redirect(`/painel/${orgs[0]!.organization.slug}`);
 
   return (
     <div className="min-h-svh bg-page">
@@ -40,7 +40,7 @@ export default async function PainelHome() {
             {orgs.map(({ organization, role }) => (
               <li key={organization.id}>
                 <Link
-                  href={`/painel/${organization.id}`}
+                  href={`/painel/${organization.slug}`}
                   className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 transition-colors hover:bg-hover"
                 >
                   <span className="min-w-0">

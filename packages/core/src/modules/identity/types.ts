@@ -23,6 +23,7 @@ export const MEMBER_MANAGER_ROLES: readonly MembershipRole[] = ["OWNER", "ADMIN"
 export interface OrganizationRecord {
   id: string;
   status: "ACTIVE" | "SUSPENDED";
+  slug: string;
   name: string;
   document: string | null;
   email: string | null;

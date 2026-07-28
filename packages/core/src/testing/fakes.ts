@@ -288,6 +288,7 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
   async createWithOwner(
     data: {
       name: string;
+      slug: string;
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
@@ -297,6 +298,7 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
     const org: OrganizationRecord = {
       id: nextId("org"),
       status: "ACTIVE",
+      slug: data.slug,
       name: data.name,
       document: data.document ?? null,
       email: data.email ?? null,
@@ -315,6 +317,10 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
 
   async findById(organizationId: string): Promise<OrganizationRecord | null> {
     return this.organizations.find((org) => org.id === organizationId) ?? null;
+  }
+
+  async findBySlug(slug: string): Promise<OrganizationRecord | null> {
+    return this.organizations.find((org) => org.slug === slug) ?? null;
   }
 
   async listByUserId(userId: string) {

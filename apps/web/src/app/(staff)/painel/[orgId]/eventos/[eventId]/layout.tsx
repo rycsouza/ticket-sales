@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, MapPin } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventResponse } from "@/lib/serializers";
 import { fmtDateTime } from "@/lib/status";
 import { CopyButton } from "../../../ui";
@@ -23,18 +23,22 @@ export default async function EventLayout({
   children: ReactNode;
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
 
   let event;
   try {
-    event = toEventResponse(await getServices().events.getEvent(ctx, eventId));
+    event = toEventResponse(await getServices().events.getEventBySlugOrId(ctx, eventParam));
   } catch {
-    redirect(`/painel/${orgId}`);
+    redirect(`/painel/${orgSlug}`);
   }
 
-  const base = `/painel/${orgId}/eventos/${eventId}`;
+  const eventId = event.id;
+  const base = `/painel/${orgSlug}/eventos/${event.slug}`;
   const hasPublicPage = ["PUBLISHED", "SALES_PAUSED", "SALES_CLOSED"].includes(event.status);
 
   const requestHeaders = await headers();
@@ -47,7 +51,7 @@ export default async function EventLayout({
   return (
     <>
       <Link
-        href={`/painel/${orgId}`}
+        href={`/painel/${orgSlug}`}
         className="mb-3 inline-flex items-center gap-1.5 text-small font-medium text-ink-muted transition-colors hover:text-ink"
       >
         <ArrowLeft className="size-4" />

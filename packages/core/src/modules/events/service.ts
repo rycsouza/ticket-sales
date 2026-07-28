@@ -106,6 +106,19 @@ export class EventsService {
     return this.mustFindEditable(ctx, eventId, { allowTerminal: true });
   }
 
+  /**
+   * Resolve an event by its slug (panel URL) or, as a fallback, its id (legacy
+   * links stay valid). Org-scoped; 404 when neither matches.
+   */
+  async getEventBySlugOrId(ctx: RequestContext, slugOrId: string): Promise<EventRecord> {
+    await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
+    const bySlug = await this.deps.events.findBySlug(ctx.organizationId, slugOrId);
+    if (bySlug) return bySlug;
+    const byId = await this.deps.events.findByIdScoped(ctx.organizationId, slugOrId);
+    if (!byId) throw new NotFoundOrForbiddenError();
+    return byId;
+  }
+
   async listEvents(ctx: RequestContext): Promise<EventRecord[]> {
     await requireActiveRole(this.deps.memberships, ctx, EVENT_MANAGER_ROLES);
     return this.deps.events.listByOrganization(ctx.organizationId);

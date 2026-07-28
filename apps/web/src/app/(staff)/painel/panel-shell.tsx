@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/cn";
 import { ThemeToggle, type PanelTheme } from "./theme-toggle";
 
-type NavOrg = { id: string; name: string };
+type NavOrg = { slug: string; name: string };
 
 interface NavItem {
   href: string;
@@ -113,7 +113,7 @@ export function PanelShell({
           <BrandMark />
           <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
         </div>
-        <NavSearch orgId={org.id} />
+        <NavSearch orgId={org.slug} />
       </header>
 
       {/* Content — extra bottom padding on mobile clears the bottom nav */}
@@ -157,7 +157,7 @@ function MobileBottomNav({
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
-  const items = navItems(org.id);
+  const items = navItems(org.slug);
   const tabs = items.slice(0, BOTTOM_TAB_COUNT);
   const overflow = items.slice(BOTTOM_TAB_COUNT);
   const moreActive = overflow.some((i) => i.match(pathname));
@@ -353,7 +353,7 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = navItems(org.id);
+  const items = navItems(org.slug);
 
   async function logout() {
     await logoutRequest();
@@ -378,7 +378,7 @@ function SidebarContent({
           )}
         </div>
         <div className="mt-3">
-          <NavSearch orgId={org.id} />
+          <NavSearch orgId={org.slug} />
         </div>
       </div>
 

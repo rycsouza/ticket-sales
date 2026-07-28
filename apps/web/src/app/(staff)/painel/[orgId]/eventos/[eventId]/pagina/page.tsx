@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventPageResponse, toEventResponse } from "@/lib/serializers";
 import { PageEditor } from "./page-editor";
 
@@ -12,19 +12,22 @@ export default async function EventPageCustomizer({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
   let event;
   let page;
   try {
-    event = toEventResponse(await services.events.getEvent(ctx, eventId));
-    page = toEventPageResponse(await services.eventPage.getPage(ctx, eventId));
+    event = toEventResponse(await services.events.getEventBySlugOrId(ctx, eventParam));
+    page = toEventPageResponse(await services.eventPage.getPage(ctx, event.id));
   } catch {
-    redirect(`/painel/${orgId}`);
+    redirect(`/painel/${org.slug}`);
   }
+  const eventId = event.id;
 
   const isPublished = ["PUBLISHED", "SALES_PAUSED", "SALES_CLOSED"].includes(event.status);
 
@@ -39,7 +42,12 @@ export default async function EventPageCustomizer({
         </p>
       </div>
 
-      <PageEditor orgId={orgId} eventId={eventId} initial={page} />
+      <PageEditor
+        orgId={orgId}
+        eventId={eventId}
+        previewHref={`/painel/${org.slug}/eventos/${event.slug}/preview`}
+        initial={page}
+      />
     </div>
   );
 }

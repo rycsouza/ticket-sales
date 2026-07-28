@@ -18,6 +18,7 @@ export interface OrganizationRepository {
   createWithOwner(
     data: {
       name: string;
+      slug: string;
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
@@ -25,6 +26,8 @@ export interface OrganizationRepository {
     ownerUserId: string,
   ): Promise<OrganizationRecord>;
   findById(organizationId: string): Promise<OrganizationRecord | null>;
+  /** Global slug lookup — slugs are globally unique for the panel URL. */
+  findBySlug(slug: string): Promise<OrganizationRecord | null>;
   /** Organizations where the user holds an ACTIVE membership (FR-ORG-006). */
   listByUserId(
     userId: string,
@@ -120,6 +123,7 @@ const inviteSelect = {
 const organizationSelect = {
   id: true,
   status: true,
+  slug: true,
   name: true,
   document: true,
   email: true,
@@ -145,6 +149,7 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
   async createWithOwner(
     data: {
       name: string;
+      slug: string;
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
@@ -155,6 +160,7 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       const org = await tx.organization.create({
         data: {
           name: data.name,
+          slug: data.slug,
           document: data.document ?? null,
           email: data.email ?? null,
           phone: data.phone ?? null,
@@ -171,6 +177,13 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
   async findById(organizationId: string): Promise<OrganizationRecord | null> {
     return this.prisma.organization.findUnique({
       where: { id: organizationId },
+      select: organizationSelect,
+    });
+  }
+
+  async findBySlug(slug: string): Promise<OrganizationRecord | null> {
+    return this.prisma.organization.findUnique({
+      where: { slug },
       select: organizationSelect,
     });
   }

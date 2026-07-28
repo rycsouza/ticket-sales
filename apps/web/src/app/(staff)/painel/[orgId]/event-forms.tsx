@@ -22,7 +22,7 @@ const EMPTY = {
   capacityTotal: "",
 };
 
-export function NewEventForm({ orgId }: { orgId: string }) {
+export function NewEventForm({ orgId, orgSlug }: { orgId: string; orgSlug: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -51,12 +51,12 @@ export function NewEventForm({ orgId }: { orgId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok || !data.id) {
+      const data = (await res.json()) as { id?: string; slug?: string; error?: string };
+      if (!res.ok || !data.slug) {
         setError(data.error ?? "Não foi possível criar o evento.");
         return;
       }
-      router.push(`/painel/${orgId}/eventos/${data.id}`);
+      router.push(`/painel/${orgSlug}/eventos/${data.slug}`);
     } finally {
       setBusy(false);
     }

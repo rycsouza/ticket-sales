@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CalendarDays, Download, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
 import type { EventFinancialSummary } from "@ingressos/core";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toPromoterResponse } from "@/lib/serializers";
 import {
   Alert,
@@ -28,15 +28,19 @@ export default async function OrgReport({
   params: Promise<{ orgId: string }>;
   searchParams: Promise<{ evento?: string }>;
 }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { evento } = await searchParams;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
   const events = (await services.events.listEvents(ctx).catch(() => [])).map(toEventResponse);
   const eventId = evento && events.some((e) => e.id === evento) ? evento : undefined;
   const scoped = eventId ? events.filter((e) => e.id === eventId) : events;
+  const scopedEventSlug = eventId ? (scoped[0]?.slug ?? eventId) : eventId;
 
   // No cross-event aggregate endpoint exists — fold per-event finance (role
   // gated; null when not permitted) + batch sold counts. See report follow-up.
@@ -110,7 +114,7 @@ export default async function OrgReport({
         <>
           <div className="mb-4 sm:max-w-xs">
             <EventFilterSelect
-              basePath={`/painel/${orgId}/relatorio`}
+              basePath={`/painel/${orgSlug}/relatorio`}
               events={events.map((e) => ({ id: e.id, title: e.title }))}
               selected={eventId ?? ""}
               ariaLabel="Filtrar relatório por evento"
@@ -175,7 +179,7 @@ export default async function OrgReport({
                       <tr key={event.id} className="hover:bg-hover">
                         <td className="px-5 py-3">
                           <Link
-                            href={`/painel/${orgId}/eventos/${event.id}`}
+                            href={`/painel/${orgSlug}/eventos/${event.slug}`}
                             className="font-medium text-ink hover:text-brand hover:underline"
                           >
                             {event.title}
@@ -280,7 +284,7 @@ export default async function OrgReport({
                 <Alert tone="neutral" className="m-4 mt-0">
                   Para registrar um repasse ou marcar comissões como pagas, use{" "}
                   <Link
-                    href={`/painel/${orgId}/eventos/${eventId}/financeiro`}
+                    href={`/painel/${orgSlug}/eventos/${scopedEventSlug}/financeiro`}
                     className="font-medium text-brand hover:underline"
                   >
                     Financeiro do evento

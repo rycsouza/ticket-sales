@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Info, Lock, LockOpen, Ticket } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { BATCH_STATUS, fmtBRL, fmtDateTime, statusMeta } from "@/lib/status";
@@ -21,16 +21,20 @@ export default async function EventInventory({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
+  let event;
   try {
-    await services.events.getEvent(ctx, eventId);
+    event = await services.events.getEventBySlugOrId(ctx, eventParam);
   } catch {
-    redirect(`/painel/${orgId}`);
+    redirect(`/painel/${org.slug}`);
   }
+  const eventId = event.id;
 
   const [ticketTypes, batches] = await Promise.all([
     services.inventory.listTicketTypes(ctx, eventId).then((r) => r.map(toTicketTypeResponse)),

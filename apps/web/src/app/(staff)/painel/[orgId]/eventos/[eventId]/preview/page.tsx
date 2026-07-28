@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { getServices } from "@/lib/services";
 import { buildPublicEventView } from "@/lib/public-views";
 import { EventPageView } from "@/app/(public)/evento/[slug]/event-page-view";
@@ -21,15 +21,16 @@ export default async function EventPreviewPage({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
-  const ctx = dashboardCtx(orgId, userId);
+  const org = await resolveOrg(orgParam, userId);
+  const ctx = dashboardCtx(org.id, userId);
 
   let event;
   try {
-    event = await getServices().events.getEvent(ctx, eventId);
+    event = await getServices().events.getEventBySlugOrId(ctx, eventParam);
   } catch {
-    redirect(`/painel/${orgId}`);
+    redirect(`/painel/${org.slug}`);
   }
 
   const view = await buildPublicEventView(event);

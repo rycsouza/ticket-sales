@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
 import { toPromoterResponse } from "@/lib/serializers";
@@ -14,9 +14,13 @@ export default async function FinancePage({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
+  const eventId = (await getServices().events.getEventBySlugOrId(ctx, eventParam)).id;
 
   let summary;
   try {
@@ -127,7 +131,7 @@ export default async function FinancePage({
             description="Saldo devido a cada promotor neste evento. O pagamento é registrado na aba Afiliados."
             action={
               <Link
-                href={`/painel/${orgId}/afiliados?evento=${eventId}`}
+                href={`/painel/${orgSlug}/afiliados?evento=${eventId}`}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 Pagar em Afiliados

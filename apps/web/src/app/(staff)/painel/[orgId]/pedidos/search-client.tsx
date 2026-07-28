@@ -20,7 +20,15 @@ type EventOption = { id: string; title: string };
 
 const PAGE_SIZE = 20;
 
-export function OrdersSearch({ orgId, events }: { orgId: string; events: EventOption[] }) {
+export function OrdersSearch({
+  orgId,
+  orgSlug,
+  events,
+}: {
+  orgId: string;
+  orgSlug: string;
+  events: EventOption[];
+}) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [eventId, setEventId] = useState("");
@@ -125,7 +133,7 @@ export function OrdersSearch({ orgId, events }: { orgId: string; events: EventOp
                 return (
                   <li key={o.id}>
                     <Link
-                      href={`/painel/${orgId}/pedidos/${o.id}`}
+                      href={`/painel/${orgSlug}/pedidos/${o.id}`}
                       className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-hover"
                     >
                       <span className="min-w-0">

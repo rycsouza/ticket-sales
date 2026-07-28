@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { getServices } from "@/lib/services";
 import { toEventResponse } from "@/lib/serializers";
 import { PageHeader } from "@/components/ui";
@@ -8,9 +8,10 @@ import { OrdersSearch } from "./search-client";
 export const metadata: Metadata = { title: "Pedidos — Ingressos" };
 
 export default async function OrdersPage({ params }: { params: Promise<{ orgId: string }> }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { userId } = await requireDashboardUser();
-  const ctx = dashboardCtx(orgId, userId);
+  const org = await resolveOrg(orgParam, userId);
+  const ctx = dashboardCtx(org.id, userId);
 
   // Event list powers the per-event filter; failures degrade to an empty list.
   const events = (await getServices().events.listEvents(ctx).catch(() => [])).map(toEventResponse);
@@ -21,7 +22,11 @@ export default async function OrdersPage({ params }: { params: Promise<{ orgId: 
         title="Pedidos"
         description="Acompanhe e busque pedidos por código, cliente, evento ou status — e abra o histórico para agir."
       />
-      <OrdersSearch orgId={orgId} events={events.map((e) => ({ id: e.id, title: e.title }))} />
+      <OrdersSearch
+        orgId={org.id}
+        orgSlug={org.slug}
+        events={events.map((e) => ({ id: e.id, title: e.title }))}
+      />
     </>
   );
 }

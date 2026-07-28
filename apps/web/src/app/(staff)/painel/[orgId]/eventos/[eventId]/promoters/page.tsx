@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Link2, Ticket, UserPlus, Users } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import {
   toCommissionRuleResponse,
   toCouponResponse,
@@ -23,19 +23,24 @@ export default async function PromotersPage({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
   const s = getServices();
 
-  const [assignments, links, coupons, rules, ranking, orgPromoters, event] = await Promise.all([
+  const event = await s.events.getEventBySlugOrId(ctx, eventParam).catch(() => null);
+  const eventId = event?.id ?? eventParam;
+
+  const [assignments, links, coupons, rules, ranking, orgPromoters] = await Promise.all([
     s.promoters.listEventAssignments(ctx, eventId).then((r) => r.map(toPromoterAssignmentResponse)),
     s.promoters.listLinks(ctx, eventId).then((r) => r.map(toPromoterLinkResponse)),
     s.promoters.listCoupons(ctx, eventId).then((r) => r.map(toCouponResponse)),
     s.promoters.listCommissionRules(ctx, eventId).then((r) => r.map(toCommissionRuleResponse)),
     s.promoters.eventRanking(ctx, eventId).then((r) => r.map(toPromoterSummaryResponse)),
     s.promoters.listPromoters(ctx).then((r) => r.map(toPromoterResponse)),
-    s.events.getEvent(ctx, eventId).catch(() => null),
   ]);
   const eventPath = event ? `/evento/${event.slug}` : `/e/${eventId}`;
   const nameOf = (id: string | null) =>
@@ -56,7 +61,7 @@ export default async function PromotersPage({
           </p>
         </div>
         <Link
-          href={`/painel/${orgId}/afiliados`}
+          href={`/painel/${orgSlug}/afiliados`}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <Users className="size-4" />
@@ -134,7 +139,7 @@ export default async function PromotersPage({
               </div>
             ) : (
               <Link
-                href={`/painel/${orgId}/afiliados`}
+                href={`/painel/${orgSlug}/afiliados`}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 <Users className="size-4" />

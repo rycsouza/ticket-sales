@@ -14,7 +14,7 @@ export const POST = route(async (request, { correlationId }) => {
   });
 
   return NextResponse.json(
-    { id: organization.id, name: organization.name },
+    { id: organization.id, slug: organization.slug, name: organization.name },
     { status: 201 },
   );
 });

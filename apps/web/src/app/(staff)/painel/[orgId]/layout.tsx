@@ -22,10 +22,12 @@ export default async function PanelLayout({
   children: ReactNode;
   params: Promise<{ orgId: string }>;
 }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { userId } = await requireDashboardUser();
   const orgs = await getServices().identity.listMyOrganizations(userId);
-  const current = orgs.find((o) => o.organization.id === orgId);
+  const current = orgs.find(
+    (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
+  );
   if (!current) redirect("/painel");
 
   const isPlatformAdmin = await currentUserIsPlatformAdmin();
@@ -33,7 +35,7 @@ export default async function PanelLayout({
 
   return (
     <PanelShell
-      org={{ id: orgId, name: current.organization.name }}
+      org={{ slug: current.organization.slug, name: current.organization.name }}
       multiOrg={orgs.length > 1}
       isPlatformAdmin={isPlatformAdmin}
       theme={theme}

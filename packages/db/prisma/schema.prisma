@@ -29,6 +29,10 @@ model Organization {
   id     String             @id @default(uuid(7))
   status OrganizationStatus @default(ACTIVE)
 
+  // Slug único global para a URL do painel (/painel/<slug>) — evita expor o
+  // UUID. Gerado a partir do nome na criação; nunca sequencial.
+  slug String @unique
+
   // FR-ORG-001: nome, documento, contatos e endereço
   name     String
   document String? // CNPJ/CPF — validated in service layer

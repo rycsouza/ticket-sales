@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { HandCoins, Ticket, Users } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import {
   toCommissionRuleResponse,
   toCouponResponse,
@@ -24,9 +24,11 @@ export default async function AfiliadosPage({
   params: Promise<{ orgId: string }>;
   searchParams: Promise<{ evento?: string }>;
 }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { evento: selectedEventId } = await searchParams;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const s = getServices();
 

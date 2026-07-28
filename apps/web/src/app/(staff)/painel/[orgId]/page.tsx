@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse } from "@/lib/serializers";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { NewEventForm } from "./event-forms";
@@ -16,9 +16,12 @@ export default async function OrgEvents({
   params: Promise<{ orgId: string }>;
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { q } = await searchParams;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
@@ -57,7 +60,7 @@ export default async function OrgEvents({
       <PageHeader
         title="Eventos"
         description="Crie e gerencie os eventos da sua produtora."
-        actions={<NewEventForm orgId={orgId} />}
+        actions={<NewEventForm orgId={orgId} orgSlug={orgSlug} />}
       />
 
       {items.length === 0 ? (
@@ -66,11 +69,11 @@ export default async function OrgEvents({
             icon={<CalendarDays className="size-5" />}
             title="Nenhum evento ainda"
             description="Crie o primeiro evento para começar a montar lotes e vender ingressos."
-            action={<NewEventForm orgId={orgId} />}
+            action={<NewEventForm orgId={orgId} orgSlug={orgSlug} />}
           />
         </Card>
       ) : (
-        <EventsList key={q ?? ""} orgId={orgId} events={items} initialQuery={q ?? ""} />
+        <EventsList key={q ?? ""} orgSlug={orgSlug} events={items} initialQuery={q ?? ""} />
       )}
     </>
   );

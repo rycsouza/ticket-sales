@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { getServices } from "@/lib/services";
 import { toBatchResponse, toEventResponse, toOfferResponse, toProductResponse } from "@/lib/serializers";
 import { PageHeader } from "@/components/ui";
@@ -8,8 +8,10 @@ import { OffersManager } from "./offers-client";
 export const metadata: Metadata = { title: "Ofertas — Ingressos" };
 
 export default async function OffersPage({ params }: { params: Promise<{ orgId: string }> }) {
-  const { orgId } = await params;
+  const { orgId: orgParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 

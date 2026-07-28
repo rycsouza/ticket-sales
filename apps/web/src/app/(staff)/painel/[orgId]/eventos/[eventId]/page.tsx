@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { EventFinancialSummary } from "@ingressos/core";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL, fmtDateTime } from "@/lib/status";
@@ -31,17 +31,20 @@ export default async function EventOverview({
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
 }) {
-  const { orgId, eventId } = await params;
+  const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
 
   let event;
   try {
-    event = toEventResponse(await services.events.getEvent(ctx, eventId));
+    event = toEventResponse(await services.events.getEventBySlugOrId(ctx, eventParam));
   } catch {
-    redirect(`/painel/${orgId}`);
+    redirect(`/painel/${org.slug}`);
   }
+  const eventId = event.id;
 
   const [ticketTypes, batches] = await Promise.all([
     services.inventory.listTicketTypes(ctx, eventId).then((r) => r.map(toTicketTypeResponse)),
@@ -56,7 +59,7 @@ export default async function EventOverview({
     finance = null;
   }
 
-  const base = `/painel/${orgId}/eventos/${eventId}`;
+  const base = `/painel/${org.slug}/eventos/${event.slug}`;
 
   const soldQty = batches.reduce((sum, b) => sum + b.quantitySold, 0);
   const reservedQty = batches.reduce((sum, b) => sum + b.quantityReserved, 0);

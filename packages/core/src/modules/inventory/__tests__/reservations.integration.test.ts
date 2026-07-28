@@ -31,7 +31,7 @@ describe.skipIf(!DATABASE_URL)("PrismaReservationStore against real Postgres", (
     store = new PrismaReservationStore(prisma);
 
     const org = await prisma.organization.create({
-      data: { name: `itest-concurrency-${Date.now()}` },
+      data: { name: `itest-concurrency-${Date.now()}`, slug: `itest-concurrency-${Date.now()}` },
     });
     organizationId = org.id;
 

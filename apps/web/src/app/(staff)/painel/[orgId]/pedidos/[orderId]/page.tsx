@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, StickyNote, Ticket } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { Badge, Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import {
   ORDER_STATUS,
@@ -22,8 +22,11 @@ export default async function OrderDetailPage({
 }: {
   params: Promise<{ orgId: string; orderId: string }>;
 }) {
-  const { orgId, orderId } = await params;
+  const { orgId: orgParam, orderId } = await params;
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
 
   let timeline;
@@ -39,7 +42,7 @@ export default async function OrderDetailPage({
   return (
     <>
       <Link
-        href={`/painel/${orgId}/pedidos`}
+        href={`/painel/${orgSlug}/pedidos`}
         className="mb-4 inline-flex items-center gap-1.5 text-small font-medium text-brand hover:underline"
       >
         <ArrowLeft className="size-4" />

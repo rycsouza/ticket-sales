@@ -119,10 +119,12 @@ function newBlock(type: PageBlockType, existing: PageBlock[]): PageBlock {
 export function PageEditor({
   orgId,
   eventId,
+  previewHref,
   initial,
 }: {
   orgId: string;
   eventId: string;
+  previewHref: string;
   initial: EditorPage;
 }) {
   const router = useRouter();
@@ -551,7 +553,7 @@ export function PageEditor({
           {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
         <a
-          href={`/painel/${orgId}/eventos/${eventId}/preview`}
+          href={previewHref}
           target="_blank"
           rel="noopener noreferrer"
           className={buttonVariants({ variant: "outline" })}

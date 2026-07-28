@@ -42,7 +42,11 @@ export class IdentityService {
     input: CreateOrganizationInput,
     actor: { userId: string; correlationId: string },
   ) {
-    const org = await this.deps.organizations.createWithOwner(input, actor.userId);
+    const slug = await this.resolveUniqueOrgSlug(input.name);
+    const org = await this.deps.organizations.createWithOwner(
+      { ...input, slug },
+      actor.userId,
+    );
     await this.deps.audit.append({
       organizationId: org.id,
       actorUserId: actor.userId,
@@ -53,6 +57,24 @@ export class IdentityService {
       correlationId: actor.correlationId,
     });
     return org;
+  }
+
+  /** Slug global único para a URL do painel; sufixo -2/-3… em colisão. */
+  private async resolveUniqueOrgSlug(name: string): Promise<string> {
+    const base =
+      name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "org";
+    if (!(await this.deps.organizations.findBySlug(base))) return base;
+    for (let n = 2; n <= 100; n++) {
+      const candidate = `${base}-${n}`;
+      if (!(await this.deps.organizations.findBySlug(candidate))) return candidate;
+    }
+    return `${base}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   /** FR-ORG-003/004 — returns the raw token ONCE (for the invite e-mail). */

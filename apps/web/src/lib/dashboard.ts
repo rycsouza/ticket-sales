@@ -29,3 +29,26 @@ export async function requireDashboardUser(): Promise<{ userId: string }> {
 export function dashboardCtx(organizationId: string, userId: string): RequestContext {
   return { organizationId, userId, role: "member", correlationId: crypto.randomUUID() };
 }
+
+/**
+ * Resolve the `[orgId]` URL segment — which now carries the org SLUG — to the
+ * real organization the user belongs to. Legacy UUID links keep working (we
+ * match by slug OR id). Redirects to the org resolver when the caller has no
+ * membership (anti-enumeration; same as an unknown org).
+ */
+export async function resolveOrg(
+  orgParam: string,
+  userId: string,
+): Promise<{ id: string; slug: string; name: string; role: string }> {
+  const orgs = await getServices().identity.listMyOrganizations(userId);
+  const match = orgs.find(
+    (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
+  );
+  if (!match) redirect("/painel");
+  return {
+    id: match.organization.id,
+    slug: match.organization.slug,
+    name: match.organization.name,
+    role: match.role,
+  };
+}

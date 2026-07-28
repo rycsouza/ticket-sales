@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink, MessageCircle } from "lucide-react";
 import { getServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventResponse, toOrderSearchRowResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { ORDER_STATUS, fmtBRL, fmtDate, fmtDateTime, statusMeta } from "@/lib/status";
@@ -17,12 +17,15 @@ export default async function BuyerDetailPage({
 }: {
   params: Promise<{ orgId: string; email: string }>;
 }) {
-  const { orgId, email: emailParam } = await params;
+  const { orgId: orgParam, email: emailParam } = await params;
   const email = decodeURIComponent(emailParam).toLowerCase();
   const { userId } = await requireDashboardUser();
+  const org = await resolveOrg(orgParam, userId);
+  const orgId = org.id;
+  const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
   const services = getServices();
-  const backHref = `/painel/${orgId}/clientes`;
+  const backHref = `/painel/${orgSlug}/clientes`;
 
   let segment;
   try {
@@ -147,7 +150,7 @@ export default async function BuyerDetailPage({
                     <tr key={o.id} className="hover:bg-hover">
                       <td className="px-5 py-3">
                         <Link
-                          href={`/painel/${orgId}/pedidos/${o.id}`}
+                          href={`/painel/${orgSlug}/pedidos/${o.id}`}
                           className="inline-flex items-center gap-1 font-mono font-medium text-brand hover:underline"
                         >
                           {o.code}
