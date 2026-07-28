@@ -22,6 +22,7 @@ import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/se
 import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL, fmtDateTime } from "@/lib/status";
 import { EventLocationForm } from "./location-form";
+import { EventDetailsForm } from "./event-details-form";
 
 export const metadata: Metadata = { title: "Visão geral — Ingressos" };
 
@@ -256,6 +257,26 @@ export default async function EventOverview({
       </div>
 
       {/* Local e endereço — editável, com autofill por CEP. */}
+      <Card>
+        <CardHeader
+          title="Detalhes do evento"
+          description="Título, descrição, datas e capacidade. Tudo o que você definiu na criação."
+        />
+        <CardBody>
+          <EventDetailsForm
+            apiBase={`/api/orgs/${orgId}/events/${eventId}`}
+            initial={{
+              title: event.title,
+              description: event.description ?? "",
+              startsAt: event.startsAt ? event.startsAt.toISOString() : null,
+              endsAt: event.endsAt ? event.endsAt.toISOString() : null,
+              capacityTotal: event.capacityTotal,
+              maxTicketsPerOrder: event.maxTicketsPerOrder,
+            }}
+          />
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader
           title="Local"
