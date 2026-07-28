@@ -97,8 +97,9 @@ describe("publishEvent", () => {
     const error = await env.service.publishEvent(ctx(), event.id).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ValidationFailedError);
     expect((error as Error).message).toContain("venueName");
-    expect((error as Error).message).toContain("capacityTotal");
     expect((error as Error).message).toContain("sales batch");
+    // Capacity is optional — a missing event capacity must NOT block publishing.
+    expect((error as Error).message).not.toContain("capacityTotal");
   });
 
   it("publishes a complete event and stamps publishedAt once", async () => {

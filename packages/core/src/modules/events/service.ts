@@ -179,11 +179,12 @@ export class EventsService {
     const event = await this.mustFindEditable(ctx, eventId);
     assertEventTransition(event.status, "PUBLISHED");
 
+    // Capacity is NOT required: the sales batches define how much is sellable
+    // and enforce their own overselling guard. An event-level cap is optional.
     const missing: string[] = [];
     if (!event.startsAt) missing.push("startsAt");
     if (!event.venueName) missing.push("venueName");
     if (!event.city) missing.push("city");
-    if (!event.capacityTotal) missing.push("capacityTotal");
     const batches = await this.deps.inventory.countBatches(ctx.organizationId, eventId);
     if (batches === 0) missing.push("at least one sales batch");
     if (missing.length > 0) {

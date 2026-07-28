@@ -15,6 +15,22 @@ import { apiSend, ConfirmDialog } from "../../../ui";
 
 type EventStatus = string;
 
+/** Friendly pt-BR for the (English) publish-readiness domain error. */
+const PUBLISH_FIELD_LABELS: Record<string, string> = {
+  startsAt: "data de início",
+  venueName: "local",
+  city: "cidade",
+  "at least one sales batch": "ao menos um lote de ingresso",
+};
+function translatePublishError(message: string): string {
+  const match = /not ready to publish: missing (.+)$/i.exec(message);
+  if (!match) return message;
+  const fields = match[1]!
+    .split(",")
+    .map((f) => PUBLISH_FIELD_LABELS[f.trim()] ?? f.trim());
+  return `Ainda falta preencher para publicar: ${fields.join(", ")}.`;
+}
+
 interface ActionDef {
   action: string;
   label: string;
@@ -140,7 +156,7 @@ export function EventStatusControl({
     if (justification) body.justification = justification;
     const { ok, data } = await apiSend(statusUrl, "POST", body);
     if (ok) router.refresh();
-    const error = typeof data.error === "string" ? data.error : undefined;
+    const error = typeof data.error === "string" ? translatePublishError(data.error) : undefined;
     return error ? { ok, error } : { ok };
   }
 
