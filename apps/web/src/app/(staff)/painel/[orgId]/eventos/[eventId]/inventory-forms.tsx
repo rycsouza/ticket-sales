@@ -31,28 +31,20 @@ function useSubmit(onOk: () => void) {
   return { busy, error, send, setError };
 }
 
-const KIND_OPTIONS = [
-  { value: "FULL", label: "Inteira" },
-  { value: "HALF", label: "Meia-entrada" },
-  { value: "COURTESY", label: "Cortesia" },
-  { value: "PROMOTIONAL", label: "Promocional" },
-  { value: "CUSTOM", label: "Personalizada" },
-];
-
 export function NewTicketTypeForm({ orgId, eventId }: { orgId: string; eventId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [kind, setKind] = useState("FULL");
   const { busy, error, send } = useSubmit(() => {
     setName("");
-    setKind("FULL");
     setOpen(false);
     router.refresh();
   });
 
   function submit() {
-    void send(`/api/orgs/${orgId}/events/${eventId}/ticket-types`, { name: name.trim(), kind });
+    // "kind" is an internal classification (reports/rules); the producer no
+    // longer picks it — every type defaults to FULL until we need otherwise.
+    void send(`/api/orgs/${orgId}/events/${eventId}/ticket-types`, { name: name.trim(), kind: "FULL" });
   }
 
   const nameTooShort = name.trim().length === 0;
@@ -98,19 +90,6 @@ export function NewTicketTypeForm({ orgId, eventId }: { orgId: string; eventId: 
               placeholder="Ex.: Pista"
               autoFocus
             />
-          </Field>
-          <Field
-            label="Categoria de preço"
-            htmlFor="tt-kind"
-            hint="Classificação para relatórios e regras. Não altera o preço, definido no lote."
-          >
-            <Select id="tt-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
-              {KIND_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
           </Field>
           {error && <p className="text-small text-danger">{error}</p>}
         </form>

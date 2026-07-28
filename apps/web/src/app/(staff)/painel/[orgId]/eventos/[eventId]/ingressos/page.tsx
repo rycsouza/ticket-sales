@@ -5,14 +5,7 @@ import { getServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
-import {
-  BATCH_STATUS,
-  fmtBRL,
-  fmtDateTime,
-  statusMeta,
-  TICKET_KIND,
-  ticketKindLabel,
-} from "@/lib/status";
+import { BATCH_STATUS, fmtBRL, fmtDateTime, statusMeta } from "@/lib/status";
 import { ActionButton } from "../../../../ui";
 import { NewBatchForm, NewTicketTypeForm } from "../inventory-forms";
 
@@ -74,14 +67,12 @@ export default async function EventInventory({
           {ticketTypes.map((type) => {
             const typeBatches = batches.filter((b) => b.ticketTypeId === type.id);
             const sold = typeBatches.reduce((s, b) => s + b.quantitySold, 0);
-            const kindMeta = statusMeta(TICKET_KIND, type.kind);
             return (
               <Card key={type.id}>
                 <CardHeader
                   title={
                     <span className="flex flex-wrap items-center gap-2">
                       {type.name}
-                      <Badge tone={kindMeta.tone}>{ticketKindLabel(type.kind)}</Badge>
                       {!type.active && <Badge tone="neutral">Oculto</Badge>}
                     </span>
                   }

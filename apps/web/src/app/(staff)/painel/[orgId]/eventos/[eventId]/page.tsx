@@ -258,23 +258,16 @@ export default async function EventOverview({
       {/* Local e endereço — editável, com autofill por CEP. */}
       <Card>
         <CardHeader
-          title="Local e endereço"
-          description="Onde o evento acontece. Digite o CEP para preencher o endereço automaticamente."
+          title="Local"
+          description="Onde o evento acontece. Aparece na página e vira o pino no mapa."
         />
         <CardBody>
           <EventLocationForm
             apiBase={`/api/orgs/${orgId}/events/${eventId}`}
             initial={{
               venueName: event.venueName ?? "",
-              postalCode: event.postalCode ?? "",
-              addressLine: event.addressLine ?? "",
-              addressNumber: event.addressNumber ?? "",
-              addressComplement: event.addressComplement ?? "",
-              neighborhood: event.neighborhood ?? "",
               city: event.city ?? "",
               state: event.state ?? "",
-              latitude: event.latitude,
-              longitude: event.longitude,
             }}
           />
         </CardBody>
