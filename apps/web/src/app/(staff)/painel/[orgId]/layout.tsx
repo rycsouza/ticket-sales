@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
+import { currentUserIsPlatformAdmin } from "@/lib/platform-admin";
 import { PanelShell } from "../panel-shell";
 
 // The producer panel is private — keep it out of search indexes.
@@ -26,10 +27,13 @@ export default async function PanelLayout({
   const current = orgs.find((o) => o.organization.id === orgId);
   if (!current) redirect("/painel");
 
+  const isPlatformAdmin = await currentUserIsPlatformAdmin();
+
   return (
     <PanelShell
       org={{ id: orgId, name: current.organization.name }}
       multiOrg={orgs.length > 1}
+      isPlatformAdmin={isPlatformAdmin}
     >
       {children}
     </PanelShell>

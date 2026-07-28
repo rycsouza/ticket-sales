@@ -403,6 +403,16 @@ function buildServices() {
         sumBatchCommitted: (orgId, eventId) => batches.sumCommittedByEvent(orgId, eventId),
         countBatches: (orgId, eventId) => batches.countByEvent(orgId, eventId),
       },
+      // DEC-003: new events inherit the org's default platform fee.
+      organizations: {
+        getFeeDefaults: async (orgId) => {
+          const org = await organizations.findById(orgId);
+          return {
+            platformFeeBps: org?.defaultPlatformFeeBps ?? 0,
+            feeMode: org?.defaultFeeMode ?? "PRODUCER",
+          };
+        },
+      },
       audit,
       clock: systemClock,
     }),

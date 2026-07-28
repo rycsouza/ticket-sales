@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import { Button, Field, Input, Modal, Select } from "@/components/ui";
+import { Button, Field, Input, Modal } from "@/components/ui";
 import { AddressFields, addressToPayload, emptyAddress, type AddressValue } from "../address-fields";
 
 function slugify(value: string): string {
@@ -20,8 +20,6 @@ const EMPTY = {
   title: "",
   startsAt: "",
   capacityTotal: "",
-  feePercent: "10",
-  feeMode: "PRODUCER",
 };
 
 export function NewEventForm({ orgId }: { orgId: string }) {
@@ -43,8 +41,6 @@ export function NewEventForm({ orgId }: { orgId: string }) {
       const body: Record<string, unknown> = {
         title: form.title.trim(),
         slug: slugify(form.title),
-        feeMode: form.feeMode,
-        platformFeeBps: Math.round(Number(form.feePercent) * 100),
       };
       Object.assign(body, addressToPayload(address));
       if (form.startsAt) body.startsAt = new Date(form.startsAt).toISOString();
@@ -131,30 +127,6 @@ export function NewEventForm({ orgId }: { orgId: string }) {
                 value={form.capacityTotal}
                 onChange={(e) => set("capacityTotal", e.target.value)}
               />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Taxa (%)" htmlFor="ev-fee">
-              <Input
-                id="ev-fee"
-                type="number"
-                min={0}
-                max={100}
-                step="0.1"
-                value={form.feePercent}
-                onChange={(e) => set("feePercent", e.target.value)}
-              />
-            </Field>
-            <Field label="Quem paga a taxa" htmlFor="ev-feemode">
-              <Select
-                id="ev-feemode"
-                value={form.feeMode}
-                onChange={(e) => set("feeMode", e.target.value)}
-              >
-                <option value="PRODUCER">Produtora (deduz do repasse)</option>
-                <option value="BUYER">Comprador (soma ao total)</option>
-              </Select>
             </Field>
           </div>
 

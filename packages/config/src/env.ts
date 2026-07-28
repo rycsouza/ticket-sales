@@ -61,6 +61,11 @@ const serverEnvSchema = z.object({
 
   // Public base URL for buyer-facing links (ticket pages, e-mails)
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
+
+  // DEC-003 — comma-separated allowlist of e-mails that may access the
+  // platform-admin surface (fee configuration, external payouts). There is no
+  // platform-admin ROLE; this env allowlist is the gate. Absent → no admins.
+  PLATFORM_ADMIN_EMAILS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

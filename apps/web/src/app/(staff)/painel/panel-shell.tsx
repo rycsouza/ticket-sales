@@ -11,6 +11,7 @@ import {
   Receipt,
   Sparkles,
   ScanLine,
+  ShieldCheck,
   LogOut,
   X,
   Ticket,
@@ -83,17 +84,19 @@ async function logoutRequest(): Promise<void> {
 export function PanelShell({
   org,
   multiOrg,
+  isPlatformAdmin = false,
   children,
 }: {
   org: NavOrg;
   multiOrg: boolean;
+  isPlatformAdmin?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="min-h-svh bg-page">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
-        <SidebarContent org={org} multiOrg={multiOrg} />
+        <SidebarContent org={org} multiOrg={multiOrg} isPlatformAdmin={isPlatformAdmin} />
       </aside>
 
       {/* Mobile top bar (brand + org context + search) */}
@@ -111,7 +114,7 @@ export function PanelShell({
       </div>
 
       {/* Mobile bottom nav */}
-      <MobileBottomNav org={org} multiOrg={multiOrg} />
+      <MobileBottomNav org={org} multiOrg={multiOrg} isPlatformAdmin={isPlatformAdmin} />
     </div>
   );
 }
@@ -127,7 +130,15 @@ function BrandMark() {
   );
 }
 
-function MobileBottomNav({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
+function MobileBottomNav({
+  org,
+  multiOrg,
+  isPlatformAdmin,
+}: {
+  org: NavOrg;
+  multiOrg: boolean;
+  isPlatformAdmin: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -241,6 +252,18 @@ function MobileBottomNav({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) 
                   Portaria
                 </Link>
               </li>
+              {isPlatformAdmin && (
+                <li>
+                  <Link
+                    href="/plataforma"
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                  >
+                    <ShieldCheck className="size-5 shrink-0" strokeWidth={1.75} />
+                    Plataforma
+                  </Link>
+                </li>
+              )}
               {multiOrg && (
                 <li>
                   <Link
@@ -299,7 +322,15 @@ function NavSearch({ orgId, onNavigate }: { orgId: string; onNavigate?: () => vo
   );
 }
 
-function SidebarContent({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
+function SidebarContent({
+  org,
+  multiOrg,
+  isPlatformAdmin,
+}: {
+  org: NavOrg;
+  multiOrg: boolean;
+  isPlatformAdmin: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const items = navItems(org.id);
@@ -365,6 +396,15 @@ function SidebarContent({ org, multiOrg }: { org: NavOrg; multiOrg: boolean }) {
           <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
           Portaria
         </Link>
+        {isPlatformAdmin && (
+          <Link
+            href="/plataforma"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
+          >
+            <ShieldCheck className="size-5 shrink-0" strokeWidth={1.75} />
+            Plataforma
+          </Link>
+        )}
       </nav>
 
       {/* Footer */}
