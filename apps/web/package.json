@@ -17,6 +17,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@upstash/qstash": "^2.11.2",
     "clsx": "^2.1.1",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.25.0",
     "next": "^16.2.10",
     "postcss": "^8.5.19",

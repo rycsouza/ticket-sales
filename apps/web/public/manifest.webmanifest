@@ -1,0 +1,19 @@
+{
+  "name": "Portaria — Ingressos",
+  "short_name": "Portaria",
+  "description": "Validação de ingressos na entrada do evento (com modo offline).",
+  "start_url": "/checkin",
+  "scope": "/checkin",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "/checkin-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
