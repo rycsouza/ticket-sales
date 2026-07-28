@@ -81,7 +81,9 @@ const BLOCK_LABEL: Record<PageBlockType, string> = {
 const ADD_GROUPS: { label: string; types: PageBlockType[] }[] = [
   { label: "Destaque", types: ["hero", "countdown"] },
   { label: "Conteúdo", types: ["description", "lineup", "faq"] },
-  { label: "Mídia", types: ["gallery", "video"] },
+  // Galeria de fotos foi descontinuada — a capa em carrossel cobre esse caso.
+  // (Blocos de galeria já salvos seguem editáveis/removíveis pela lista.)
+  { label: "Mídia", types: ["video"] },
   { label: "Informações do evento", types: ["location", "organizer"] },
 ];
 
@@ -757,25 +759,10 @@ function BlockConfigForm({
     case "location":
       return (
         <>
-          <Field label="Título da seção (opcional)" htmlFor={`${block.id}-heading`}>
-            <Input
-              id={`${block.id}-heading`}
-              value={block.config.heading ?? ""}
-              maxLength={80}
-              onChange={(e) => setConfig({ heading: e.target.value || undefined })}
-              placeholder="Local"
-            />
-          </Field>
-          <Field label="Observação (opcional)" htmlFor={`${block.id}-note`}>
-            <Textarea
-              id={`${block.id}-note`}
-              rows={2}
-              maxLength={500}
-              value={block.config.note ?? ""}
-              onChange={(e) => setConfig({ note: e.target.value || undefined })}
-              placeholder="Ex.: Estacionamento no local, entrada pela rua lateral…"
-            />
-          </Field>
+          <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-small text-ink-muted">
+            O local é puxado dos <strong className="text-ink-soft">detalhes do evento</strong>. Aqui
+            você só decide se ele aparece (e onde) no checkout.
+          </p>
           <Toggle
             label="Mostrar mapa e botão “como chegar”"
             checked={block.config.showMap}

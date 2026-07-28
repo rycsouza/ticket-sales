@@ -22,6 +22,7 @@ const OVERLAY_CLASS: Record<HeroConfig["overlay"], string> = {
  */
 export function HeroBlock({ event, config }: { event: PublicEventView; config: HeroConfig }) {
   const dateLabel = formatEventDate(event.startsAt, event.timezone);
+  const endLabel = formatEventDate(event.endsAt, event.timezone);
   const { bannerUrl, logoUrl } = event.page;
   const showLogo = config.showLogo && Boolean(logoUrl);
   // Cover source: the new multi-image config, falling back to the legacy single
@@ -34,7 +35,13 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
       {config.showDate && dateLabel && (
         <p className="flex items-center gap-2">
           <CalendarDays className="size-4 shrink-0 text-ink-muted" />
-          {dateLabel}
+          {endLabel ? `Início: ${dateLabel}` : dateLabel}
+        </p>
+      )}
+      {config.showDate && endLabel && (
+        <p className="flex items-center gap-2">
+          <CalendarDays className="size-4 shrink-0 text-ink-muted" />
+          Término: {endLabel}
         </p>
       )}
       {event.venueName && (

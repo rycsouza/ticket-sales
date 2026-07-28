@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Field, Input, Textarea } from "@/components/ui";
+import { Button, Field, Input } from "@/components/ui";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -20,7 +20,6 @@ export function EventDetailsForm({
   apiBase: string;
   initial: {
     title: string;
-    description: string;
     startsAt: string | null;
     endsAt: string | null;
     capacityTotal: number | null;
@@ -29,7 +28,6 @@ export function EventDetailsForm({
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
-  const [description, setDescription] = useState(initial.description);
   const [startsAt, setStartsAt] = useState(toLocalInput(initial.startsAt));
   const [endsAt, setEndsAt] = useState(toLocalInput(initial.endsAt));
   const [capacity, setCapacity] = useState(initial.capacityTotal ? String(initial.capacityTotal) : "");
@@ -52,7 +50,6 @@ export function EventDetailsForm({
       // Details (title/description/dates/per-order cap) via the details endpoint.
       const details: Record<string, unknown> = {};
       if (title.trim()) details.title = title.trim();
-      if (description.trim()) details.description = description.trim();
       if (startsAt) details.startsAt = new Date(startsAt).toISOString();
       if (endsAt) details.endsAt = new Date(endsAt).toISOString();
       if (maxPerOrder !== "") details.maxTicketsPerOrder = Number(maxPerOrder);
@@ -97,14 +94,10 @@ export function EventDetailsForm({
       <Field label="Título" htmlFor="ed-title">
         <Input id="ed-title" value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
-      <Field label="Descrição" htmlFor="ed-desc" hint="Aparece na página do evento.">
-        <Textarea
-          id="ed-desc"
-          rows={4}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-      </Field>
+      <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-small text-ink-muted">
+        A descrição do evento fica em <strong className="text-ink-soft">Página</strong> → bloco
+        Descrição.
+      </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Início" htmlFor="ed-start">
           <Input

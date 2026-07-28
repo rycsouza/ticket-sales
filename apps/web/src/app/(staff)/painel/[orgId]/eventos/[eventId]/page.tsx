@@ -263,14 +263,13 @@ export default async function EventOverview({
       <Card>
         <CardHeader
           title="Detalhes do evento"
-          description="Título, descrição, datas e capacidade. Tudo o que você definiu na criação."
+          description="Título, datas e capacidade. A descrição fica na aba Página."
         />
         <CardBody>
           <EventDetailsForm
             apiBase={`/api/orgs/${orgId}/events/${eventId}`}
             initial={{
               title: event.title,
-              description: event.description ?? "",
               startsAt: event.startsAt ? event.startsAt.toISOString() : null,
               endsAt: event.endsAt ? event.endsAt.toISOString() : null,
               capacityTotal: event.capacityTotal,
