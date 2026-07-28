@@ -19,6 +19,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonVariants,
   Card,
   CardBody,
   CardHeader,
@@ -521,6 +522,15 @@ export function PageEditor({
         <Button loading={busy} disabled={!colorValid || !dirty} onClick={() => void save()}>
           {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
+        <a
+          href={`/painel/${orgId}/eventos/${eventId}/preview`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ variant: "outline" })}
+        >
+          <Eye className="size-4" />
+          Pré-visualizar
+        </a>
         <span className="text-small" role="status" aria-live="polite">
           {busy ? (
             <span className="text-ink-muted">Salvando…</span>

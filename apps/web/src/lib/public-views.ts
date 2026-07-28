@@ -86,7 +86,7 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
   return event ? buildPublicEventView(event) : null;
 }
 
-async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
+export async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
   const now = new Date();
   const [batches, ticketTypes, pageRow, organizerIdentity, offers, couponsAvailable] =
