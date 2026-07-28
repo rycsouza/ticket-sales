@@ -38,6 +38,9 @@ const heroBlockSchema = z
         showTitle: z.boolean().default(true),
         showDate: z.boolean().default(true),
         overlay: z.enum(["none", "dark", "brand"]).default("dark"),
+        // Capa: uma ou mais imagens. Com 2+ vira carrossel no checkout; a 1ª é
+        // também o card social (bannerUrl). Vazio → cai no banner/texto legado.
+        images: z.array(assetUrlSchema).max(8).default([]),
       })
       .strict(),
   })
@@ -274,7 +277,7 @@ export function defaultPageBlocks(): PageBlock[] {
       id: "hero",
       type: "hero",
       visible: true,
-      config: { showLogo: false, showTitle: true, showDate: true, overlay: "dark" },
+      config: { showLogo: false, showTitle: true, showDate: true, overlay: "dark", images: [] },
     },
     { id: "description", type: "description", visible: true, config: { text: null } },
     { id: "tickets", type: "tickets", visible: true, config: {} },

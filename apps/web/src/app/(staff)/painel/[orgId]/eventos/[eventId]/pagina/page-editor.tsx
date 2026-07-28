@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
@@ -41,6 +42,26 @@ interface EditorPage {
   backgroundUrl: string | null;
   theme: "light" | "dark";
   blocks: PageBlock[];
+}
+
+/**
+ * Backward-compat: cover images now live on the hero block (config.images) and
+ * render as a carousel. Events saved before this had a single page-level
+ * bannerUrl — seed it as the hero's first cover so it stays visible/manageable.
+ */
+function seedHeroCovers(blocks: PageBlock[], bannerUrl: string | null): PageBlock[] {
+  if (!bannerUrl) return blocks;
+  return blocks.map((b) =>
+    b.type === "hero" && b.config.images.length === 0
+      ? { ...b, config: { ...b.config, images: [bannerUrl] } }
+      : b,
+  );
+}
+
+/** First hero cover — mirrored back into bannerUrl for the social/OG card. */
+function heroCover0(blocks: PageBlock[]): string | null {
+  const hero = blocks.find((b) => b.type === "hero");
+  return hero && hero.config.images.length > 0 ? hero.config.images[0]! : null;
 }
 
 const BLOCK_LABEL: Record<PageBlockType, string> = {
@@ -93,7 +114,7 @@ function newBlock(type: PageBlockType, existing: PageBlock[]): PageBlock {
         id,
         type,
         visible: true,
-        config: { showLogo: true, showTitle: true, showDate: true, overlay: "dark" },
+        config: { showLogo: true, showTitle: true, showDate: true, overlay: "dark", images: [] },
       };
     case "description":
       return { id, type, visible: true, config: { text: null } };
@@ -136,7 +157,9 @@ export function PageEditor({
     faviconUrl: initial.faviconUrl,
     backgroundUrl: initial.backgroundUrl,
   });
-  const [blocks, setBlocks] = useState<PageBlock[]>(initial.blocks);
+  const [blocks, setBlocks] = useState<PageBlock[]>(() =>
+    seedHeroCovers(initial.blocks, initial.bannerUrl),
+  );
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -159,7 +182,7 @@ export function PageEditor({
         faviconUrl: initial.faviconUrl,
         backgroundUrl: initial.backgroundUrl,
       },
-      blocks: initial.blocks,
+      blocks: seedHeroCovers(initial.blocks, initial.bannerUrl),
     }),
   );
   const current = useMemo(
@@ -234,16 +257,18 @@ export function PageEditor({
         setError(problem);
         return;
       }
+      // Keep the social/OG card in sync with the first cover image.
+      const nextImages = { ...images, bannerUrl: heroCover0(cleaned!) };
       const res = await fetch(`/api/orgs/${orgId}/events/${eventId}/page`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brandColor: brandColor === "" ? null : brandColor.toLowerCase(),
           theme,
-          logoUrl: images.logoUrl,
-          bannerUrl: images.bannerUrl,
-          faviconUrl: images.faviconUrl,
-          backgroundUrl: images.backgroundUrl,
+          logoUrl: nextImages.logoUrl,
+          bannerUrl: nextImages.bannerUrl,
+          faviconUrl: nextImages.faviconUrl,
+          backgroundUrl: nextImages.backgroundUrl,
           blocks: cleaned,
         }),
       });
@@ -252,8 +277,9 @@ export function PageEditor({
         setError(data.error ?? "Falha ao salvar a página.");
         return;
       }
+      setImages(nextImages);
       setBlocks(cleaned!);
-      setBaseline(JSON.stringify({ brandColor, theme, images, blocks: cleaned }));
+      setBaseline(JSON.stringify({ brandColor, theme, images: nextImages, blocks: cleaned }));
       setSaved(true);
       router.refresh();
     } finally {
@@ -357,19 +383,10 @@ export function PageEditor({
             </p>
           </div>
 
-          <ImageUploader
-            label="Banner (capa da página)"
-            hint="Proporção 16:9 · recomendado 1600×900 px · JPEG, PNG ou WebP · até 5 MB."
-            kind="banner"
-            orgId={orgId}
-            eventId={eventId}
-            url={images.bannerUrl}
-            onChange={(url) => {
-              setImages((prev) => ({ ...prev, bannerUrl: url }));
-              setSaved(false);
-            }}
-            previewClass="aspect-video w-full rounded-lg object-cover"
-          />
+          <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-small text-ink-muted">
+            As imagens de capa (uma ou várias, em carrossel) ficam no bloco{" "}
+            <strong className="text-ink-soft">Capa</strong>, mais abaixo.
+          </p>
           <ImageUploader
             label="Logo"
             hint="Fundo transparente (PNG) · recomendado 400×400 px · até 1 MB."
@@ -624,6 +641,67 @@ function BlockConfigForm({
     case "hero":
       return (
         <>
+          <div>
+            <p className="text-small font-medium text-ink-soft">Imagens de capa</p>
+            <p className="mb-2 text-caption text-ink-muted">
+              Uma imagem = capa fixa. Duas ou mais viram um carrossel no checkout. A primeira é
+              também a imagem de compartilhamento (WhatsApp/redes).
+            </p>
+            {block.config.images.length > 0 && (
+              <div className="mb-2 grid grid-cols-3 gap-2">
+                {block.config.images.map((url, i) => (
+                  <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt=""
+                      className="aspect-video w-full rounded-lg border border-line object-cover"
+                    />
+                    {i === 0 && (
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-caption font-medium text-white">
+                        Capa
+                      </span>
+                    )}
+                    <div className="absolute right-1 top-1 flex gap-1">
+                      {i > 0 && (
+                        <button
+                          type="button"
+                          aria-label="Mover para a esquerda"
+                          onClick={() => {
+                            const next = [...block.config.images];
+                            [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+                            setConfig({ images: next });
+                          }}
+                          className="rounded-md bg-surface/90 p-1 text-ink-soft shadow-sm transition-colors hover:bg-surface"
+                        >
+                          <ChevronLeft className="size-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Remover imagem"
+                        onClick={() =>
+                          setConfig({ images: block.config.images.filter((_, j) => j !== i) })
+                        }
+                        className="rounded-md bg-surface/90 p-1 text-danger shadow-sm transition-colors hover:bg-surface"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {block.config.images.length < 8 && (
+              <GalleryUpload
+                orgId={orgId}
+                eventId={eventId}
+                kind="banner"
+                label="Adicionar capa"
+                onUploaded={(url) => setConfig({ images: [...block.config.images, url] })}
+              />
+            )}
+          </div>
           <Toggle
             label="Mostrar logo"
             checked={block.config.showLogo}
@@ -981,10 +1059,14 @@ function GalleryUpload({
   orgId,
   eventId,
   onUploaded,
+  kind = "gallery",
+  label = "Adicionar foto",
 }: {
   orgId: string;
   eventId: string;
   onUploaded: (url: string) => void;
+  kind?: "gallery" | "banner";
+  label?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -994,7 +1076,7 @@ function GalleryUpload({
     setBusy(true);
     try {
       const form = new FormData();
-      form.append("kind", "gallery");
+      form.append("kind", kind);
       form.append("file", file);
       const res = await fetch(`/api/orgs/${orgId}/events/${eventId}/page/images`, {
         method: "POST",

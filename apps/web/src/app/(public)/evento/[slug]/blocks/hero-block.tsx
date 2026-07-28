@@ -1,11 +1,13 @@
 import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
 import { formatEventDate, type PublicEventView } from "@/lib/public-views";
+import { HeroCarousel } from "./hero-carousel";
 
 type HeroConfig = {
   showLogo: boolean;
   showTitle: boolean;
   showDate: boolean;
   overlay: "none" | "dark" | "brand";
+  images: string[];
 };
 
 const OVERLAY_CLASS: Record<HeroConfig["overlay"], string> = {
@@ -22,6 +24,10 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
   const dateLabel = formatEventDate(event.startsAt, event.timezone);
   const { bannerUrl, logoUrl } = event.page;
   const showLogo = config.showLogo && Boolean(logoUrl);
+  // Cover source: the new multi-image config, falling back to the legacy single
+  // banner so events saved before the carousel keep rendering their cover.
+  const covers = config.images.length > 0 ? config.images : bannerUrl ? [bannerUrl] : [];
+  const overlayClass = config.overlay !== "none" ? OVERLAY_CLASS[config.overlay] : "";
 
   const meta = (
     <div className="mt-3 space-y-1.5 text-body text-ink-soft">
@@ -47,7 +53,7 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
     </div>
   );
 
-  if (!bannerUrl) {
+  if (covers.length === 0) {
     return (
       <header className="mb-6">
         {showLogo && (
@@ -63,35 +69,48 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
     );
   }
 
+  const isCarousel = covers.length > 1;
+  const titleOverlay = (showLogo || config.showTitle) && (
+    // Display-only; pointer-events-none keeps the carousel arrows/dots clickable.
+    // Extra bottom padding on the carousel lifts the title clear of the dots row.
+    <div
+      className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 ${
+        isCarousel ? "pb-8" : ""
+      }`}
+    >
+      {showLogo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl ?? undefined}
+          alt=""
+          className="size-14 shrink-0 rounded-lg bg-surface object-contain p-1 shadow-md"
+        />
+      )}
+      {config.showTitle && (
+        <h1
+          className={`text-h1 leading-tight ${
+            config.overlay === "none" ? "text-ink" : "text-white drop-shadow"
+          }`}
+        >
+          {event.title}
+        </h1>
+      )}
+    </div>
+  );
+
   return (
     <header className="mb-6">
       <div className="relative overflow-hidden rounded-xl">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={bannerUrl} alt="" className="aspect-[16/9] w-full object-cover" />
-        {config.overlay !== "none" && (
-          <div className={`absolute inset-0 ${OVERLAY_CLASS[config.overlay]}`} aria-hidden />
+        {isCarousel ? (
+          <HeroCarousel images={covers} overlayClass={overlayClass} />
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={covers[0]} alt="" className="aspect-[16/9] w-full object-cover" />
+            {overlayClass && <div className={`absolute inset-0 ${overlayClass}`} aria-hidden />}
+          </>
         )}
-        {(showLogo || config.showTitle) && (
-          <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4">
-            {showLogo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl ?? undefined}
-                alt=""
-                className="size-14 shrink-0 rounded-lg bg-surface object-contain p-1 shadow-md"
-              />
-            )}
-            {config.showTitle && (
-              <h1
-                className={`text-h1 leading-tight ${
-                  config.overlay === "none" ? "text-ink" : "text-white drop-shadow"
-                }`}
-              >
-                {event.title}
-              </h1>
-            )}
-          </div>
-        )}
+        {titleOverlay}
       </div>
       {!config.showTitle && <h1 className="sr-only">{event.title}</h1>}
       {meta}
