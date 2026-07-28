@@ -25,6 +25,27 @@ interface Props {
    * it is discarded — the backend authoritative e-mail is never the client's.
    */
   payerEmail?: string | undefined;
+  /**
+   * Overrides the Brick's visual theme. When omitted, it is auto-detected from
+   * the nearest [data-theme] ancestor (the event's checkout theme) so the MP
+   * form matches a dark sales page instead of always rendering light.
+   */
+  theme?: "light" | "dark" | undefined;
+}
+
+/**
+ * Resolve the Mercado Pago Brick theme. The Brick is injected DOM that does NOT
+ * inherit our CSS custom properties, so it stays light on a dark page unless we
+ * tell it explicitly. We mirror the page's own data-theme (set by the event's
+ * checkout theme) and map it to the Brick's theme names.
+ */
+function resolveBrickTheme(
+  explicit: "light" | "dark" | undefined,
+  container: HTMLElement | null,
+): "default" | "dark" {
+  if (explicit) return explicit === "dark" ? "dark" : "default";
+  const themed = container?.closest("[data-theme]");
+  return themed?.getAttribute("data-theme") === "dark" ? "dark" : "default";
 }
 
 // Discarded server-side; only used to suppress the Brick's redundant e-mail field.
@@ -90,6 +111,7 @@ export function CardBrick({
   onApproved,
   onProcessing,
   payerEmail,
+  theme,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<MpBricksController | null>(null);
@@ -104,6 +126,7 @@ export function CardBrick({
         const MercadoPago = await loadSdk();
         if (cancelled || !containerRef.current) return;
         containerRef.current.id = "cardPaymentBrick_container";
+        const brickTheme = resolveBrickTheme(theme, containerRef.current);
         const mp = new MercadoPago(publicKey, { locale: "pt-BR" });
 
         controllerRef.current = await mp.bricks().create(
@@ -115,6 +138,9 @@ export function CardBrick({
               // Providing the payer e-mail hides the Brick's e-mail field.
               payer: { email: payerEmail || PLACEHOLDER_EMAIL },
             },
+            // Mirror the event's checkout theme so the MP form isn't a light
+            // block on a dark sales page (it doesn't inherit our CSS vars).
+            customization: { visual: { theme: brickTheme } },
             callbacks: {
               onReady: () => {
                 if (!cancelled) setLoading(false);
