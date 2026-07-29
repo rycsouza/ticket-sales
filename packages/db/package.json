@@ -7,8 +7,10 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "generate": "prisma generate",
+    "generate": "prisma generate && prisma generate --config prisma-platform.config.ts",
     "migrate": "prisma migrate dev",
+    "migrate:platform": "prisma migrate dev --config prisma-platform.config.ts",
+    "migrate:platform:deploy": "prisma migrate deploy --config prisma-platform.config.ts",
     "studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -16,7 +18,8 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.8.0",
-    "@prisma/client": "^7.8.0"
+    "@prisma/client": "^7.8.0",
+    "@prisma/client-runtime-utils": "7.8.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

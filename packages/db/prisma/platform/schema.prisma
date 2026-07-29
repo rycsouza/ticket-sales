@@ -1,0 +1,49 @@
+// Prisma schema — PLATFORM DB (docs/MULTITENANT.md §2.1).
+// O plano de controle do multi-tenant: registro de tenants com connection
+// string CIFRADA (AES-256-GCM — packages/db/src/encryption.ts). Identidade
+// global (users/sessions/memberships) e roteamento (PublicRef) chegam no MT-2/3.
+//
+// Convenções herdadas do schema de aplicação:
+// - segredos nunca em claro: URLs cifradas, tokens sempre como hash
+// - DateTime = timestamptz UTC
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../src/generated/platform-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URLs live in prisma-platform.config.ts (Prisma 7)
+}
+
+enum TenantStatus {
+  // Registrado, banco ainda sendo criado/migrado — não serve tráfego.
+  PROVISIONING
+  ACTIVE
+  // Bloqueado (inadimplência, abuso, offboarding) — fail-closed.
+  SUSPENDED
+}
+
+/// Registro de tenants — o "mapa" da plataforma. `id` ESPELHA o
+/// `Organization.id` dentro do banco do próprio tenant (mesma UUID), para que
+/// o `ctx.organizationId` da sessão roteie sem tabela de tradução.
+model Tenant {
+  id     String       @id
+  slug   String       @unique
+  name   String
+  status TenantStatus @default(PROVISIONING)
+  plan   String       @default("pilot")
+
+  /// Connection string pooled do banco do tenant, cifrada com
+  /// ENCRYPTION_KEY_PLATFORM_DB: base64( iv[12] | authTag[16] | ciphertext ).
+  /// Decifrada apenas em runtime, no servidor, para abrir a conexão.
+  databaseUrlEncrypted String
+  /// Conexão direta (migrations/fan-out), cifrada. Opcional.
+  directUrlEncrypted   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}

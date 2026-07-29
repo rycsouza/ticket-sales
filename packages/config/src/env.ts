@@ -12,8 +12,21 @@ const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
   // Neon Postgres — pooled URL for runtime, direct URL for migrations only.
+  // Transitional single-DB mode (docs/MULTITENANT.md §9): after MT-5 this is
+  // dev-only convenience; production has no default database (fail-closed).
   DATABASE_URL: z.string().url(),
   DIRECT_URL: z.string().url().optional(),
+
+  // Multi-tenant control plane (docs/MULTITENANT.md). Optional while the
+  // migration is staged; required in production from MT-5 on.
+  PLATFORM_DATABASE_URL: z.string().url().optional(),
+  PLATFORM_DIRECT_URL: z.string().url().optional(),
+  // AES-256-GCM key (32 bytes / 64 hex) that encrypts tenant connection
+  // strings at rest. Generate with: openssl rand -hex 32
+  ENCRYPTION_KEY_PLATFORM_DB: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "must be 64 hex chars (32 bytes)")
+    .optional(),
 
   // Upstash
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),

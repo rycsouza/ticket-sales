@@ -21,3 +21,6 @@ dist/
 .DS_Store
 coverage/
 .vercel/
+
+# Prisma generated clients (rebuilt by `pnpm db:generate` / postinstall)
+packages/db/src/generated/
