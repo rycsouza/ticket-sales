@@ -222,7 +222,7 @@ export function BuyersClient({
               setComm(e.target.value as Comm);
               setPage(0);
             }}
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             <option value="all">Toda comunicação</option>
             <option value="active">Comunicações ativas</option>
@@ -235,7 +235,7 @@ export function BuyersClient({
               setPeriod(e.target.value as Period);
               setPage(0);
             }}
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             {PERIODS.map((p) => (
               <option key={p.key} value={p.key}>
@@ -247,7 +247,7 @@ export function BuyersClient({
             aria-label="Ordenar"
             value={sort}
             onChange={(e) => setSort(e.target.value as Sort)}
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             <option value="recent">Compra mais recente</option>
             <option value="spent">Maior valor comprado</option>

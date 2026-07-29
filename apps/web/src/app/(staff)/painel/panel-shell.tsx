@@ -185,7 +185,7 @@ function MobileBottomNav({
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
+                    "flex flex-col items-center gap-0.5 py-2.5 text-caption font-medium transition-colors",
                     active ? "text-brand" : "text-ink-muted",
                   )}
                 >
@@ -202,7 +202,7 @@ function MobileBottomNav({
               aria-haspopup="menu"
               aria-expanded={moreOpen}
               className={cn(
-                "flex w-full flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
+                "flex w-full flex-col items-center gap-0.5 py-2.5 text-caption font-medium transition-colors",
                 moreActive || moreOpen ? "text-brand" : "text-ink-muted",
               )}
             >
@@ -247,7 +247,7 @@ function MobileBottomNav({
                       onClick={() => setMoreOpen(false)}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium transition-colors",
+                        "flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium transition-colors",
                         active ? "bg-brand-soft text-brand" : "text-ink-soft hover:bg-hover",
                       )}
                     >
@@ -261,7 +261,7 @@ function MobileBottomNav({
                 <Link
                   href="/checkin"
                   onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
                 >
                   <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
                   Portaria
@@ -272,7 +272,7 @@ function MobileBottomNav({
                   <Link
                     href="/plataforma"
                     onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
                   >
                     <ShieldCheck className="size-5 shrink-0" strokeWidth={1.75} />
                     Plataforma
@@ -284,7 +284,7 @@ function MobileBottomNav({
                   <Link
                     href="/painel"
                     onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
                   >
                     <ArrowLeftRight className="size-5 shrink-0" strokeWidth={1.75} />
                     Trocar organização
@@ -298,7 +298,7 @@ function MobileBottomNav({
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-body font-medium text-ink-muted transition-colors hover:bg-hover hover:text-ink"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-muted transition-colors hover:bg-hover hover:text-ink"
                 >
                   <LogOut className="size-5 shrink-0" strokeWidth={1.75} />
                   Sair
