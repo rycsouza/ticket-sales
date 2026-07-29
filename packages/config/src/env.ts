@@ -11,10 +11,10 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
-  // Neon Postgres — pooled URL for runtime, direct URL for migrations only.
-  // Transitional single-DB mode (docs/MULTITENANT.md §9): after MT-5 this is
-  // dev-only convenience; production has no default database (fail-closed).
-  DATABASE_URL: z.string().url(),
+  // Legacy single-DB URLs (docs/MULTITENANT.md §9). Since MT-5 the app runtime
+  // NEVER uses these — tenants resolve via the platform registry (fail-closed).
+  // Kept for tooling only: prisma CLI, ops scripts and integration tests.
+  DATABASE_URL: z.string().url().optional(),
   DIRECT_URL: z.string().url().optional(),
 
   // Multi-tenant control plane (docs/MULTITENANT.md). Optional while the
@@ -88,7 +88,7 @@ let cached: ServerEnv | undefined;
 /** Parse and cache env. Throws with a readable message when invalid. */
 export function loadServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv {
   if (cached) return cached;
-  if (source === process.env && !source.DATABASE_URL) {
+  if (source === process.env && !source.PLATFORM_DATABASE_URL) {
     // Monorepo dev: Next only auto-loads app-local .env files, while secrets
     // live in the repo-root .env (gitignored). Harmless no-op when the file
     // does not exist (e.g. on Vercel, where env comes from the platform).

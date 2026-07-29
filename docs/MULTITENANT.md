@@ -218,11 +218,11 @@ Cada estágio é deployável. Progresso nas tasks MT-1..MT-5.
 | Estágio | Entrega | Estado |
 |---|---|---|
 | **MT-1 Fundação** | Platform schema (`Tenant`), cifra, `getPlatformPrisma`/`getTenantDb`, fix do `??=`, env/config/scripts, tenants legados registrados apontando para o banco atual. Zero mudança de comportamento. | ✅ |
-| **MT-2 Split lógico** | Identidade global move para o platform schema; `getPlatformServices()` × `getTenantServices(orgId)`; refs soft de membership. Ainda 1 banco físico. | — |
-| **MT-3 Roteamento** | `PublicRef` + reserva de ref **antes** da escrita no tenant; webhook/rotas públicas resolvendo pela plataforma; Redis + invalidação. | — |
-| **MT-4 Operação** | Provisionamento via API Neon; fan-out de migrations; jobs (retention/sweeps) por tenant. | — |
-| **MT-5 Corte** | Re-provisionar as orgs de dev em projetos próprios; remover o banco default do runtime (fail-closed pleno); atualizar ARQUITETURA §6. | — |
-| *(futuro)* | Domínio próprio por produtora: tabela `tenant_domains` + resolução por host no middleware — o desenho do Sport55 encaixa aqui sem mudança de modelo. | — |
+| **MT-2 Split lógico** | Identidade global move para o platform DB (dados copiados); `getPlatformServices()`; audit de plataforma; FKs cruzadas viram refs soft. | ✅ |
+| **MT-3 Roteamento** | `PublicRef` + reserva de ref **antes** da escrita no tenant; webhook/rotas públicas/staff resolvendo pela plataforma (`getTenantServices`); Redis + backfill. | ✅ |
+| **MT-4 Operação** | `provision-tenant.mts` (URL pronta / database dev / projeto Neon via API); `migrate-tenants.mts` (fan-out com dedupe por banco); jobs (sweep/retention) e sitemap por tenant. | ✅ |
+| **MT-5 Corte** | Orgs de dev re-provisionadas em bancos dedicados (dados copiados+validados por `copy-tenant-data.mts`); `getServices()` legado REMOVIDO — não existe banco default no runtime (fail-closed pleno). | ✅ |
+| *(futuro)* | Domínio próprio por produtora: tabela `tenant_domains` + resolução por host no middleware — o desenho do Sport55 encaixa aqui sem mudança de modelo. Em produção, trocar `--create-database` por `--neon-project` (1 projeto Neon por tenant). | — |
 
 **Consistência sem transação cross-DB** (regra dos estágios 3+): a ref
 pública é **reservada na plataforma antes** de gravar no tenant; falha no

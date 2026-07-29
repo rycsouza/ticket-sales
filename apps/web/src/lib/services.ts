@@ -72,12 +72,7 @@ import {
   MercadoPagoAdapter,
   UpstashRedisCache,
 } from "@ingressos/adapters";
-import {
-  getPlatformPrisma,
-  getPrisma,
-  TenantDbResolver,
-  type PrismaClient,
-} from "@ingressos/db";
+import { getPlatformPrisma, TenantDbResolver, type PrismaClient } from "@ingressos/db";
 
 /**
  * Composition root — the ONLY place where concrete adapters meet the domain.
@@ -245,14 +240,14 @@ function buildPlatformServices() {
 type PlatformServices = ReturnType<typeof buildPlatformServices>;
 
 /**
- * Grafo de serviços de NEGÓCIO de um tenant. Sem argumento usa o banco único
- * legado (DATABASE_URL — transição, morre no MT-5); com um client, monta o
- * grafo sobre o banco DAQUELE tenant (getTenantServices).
+ * Grafo de serviços de NEGÓCIO de um tenant, montado sobre o banco DAQUELE
+ * tenant (getTenantServices). Desde o MT-5 NÃO existe banco default: todo
+ * acesso a dado de negócio passa pelo registro da plataforma (fail-closed).
  */
-function buildServices(tenantPrisma?: PrismaClient) {
+function buildServices(tenantPrisma: PrismaClient) {
   // Fail fast on invalid configuration (NFR boot validation)
   const env = loadServerEnv();
-  const prisma = tenantPrisma ?? getPrisma(env.DATABASE_URL);
+  const prisma = tenantPrisma;
 
   // Identity/auth live on the PLATFORM DB (MT-2) — tenant services receive the
   // platform-backed repos by injection (cross-DB object graph, same contracts).
@@ -526,7 +521,6 @@ function buildServices(tenantPrisma?: PrismaClient) {
 type Services = ReturnType<typeof buildServices>;
 
 const globalForServices = globalThis as unknown as {
-  services?: Services;
   platformServices?: PlatformServices;
   tenantServices?: Map<string, Services>;
   tenantResolver?: TenantDbResolver;
@@ -536,11 +530,6 @@ const globalForServices = globalThis as unknown as {
 export function getPlatformServices(): PlatformServices {
   globalForServices.platformServices ??= buildPlatformServices();
   return globalForServices.platformServices;
-}
-
-export function getServices(): Services {
-  globalForServices.services ??= buildServices();
-  return globalForServices.services;
 }
 
 /**

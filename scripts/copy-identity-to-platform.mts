@@ -13,6 +13,33 @@ import { getPlatformPrisma } from "../packages/db/src/platform.js";
 
 loadDotenv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.env") });
 
+/**
+ * Timestamps: as colunas são `timestamp` SEM fuso (convenção do projeto: valor
+ * = hora UTC). O driver HTTP do Neon devolve string naive e o parse aplicaria
+ * o fuso LOCAL, deslocando tudo (+4h em -04). Serializar como ISO-UTC no SQL
+ * elimina a ambiguidade na origem.
+ */
+async function selectAllIsoUtc(
+  db: ReturnType<typeof neon>,
+  table: string,
+  where = "",
+  params: unknown[] = [],
+): Promise<Record<string, unknown>[]> {
+  const cols = (await db.query(
+    `SELECT column_name, data_type FROM information_schema.columns
+     WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`,
+    [table],
+  )) as { column_name: string; data_type: string }[];
+  const list = cols
+    .map((c) =>
+      c.data_type.startsWith("timestamp")
+        ? `to_char("${c.column_name}", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "${c.column_name}"`
+        : `"${c.column_name}"`,
+    )
+    .join(", ");
+  return (await db.query(`SELECT ${list} FROM "${table}" ${where}`, params)) as Record<string, unknown>[];
+}
+
 const legacyUrl = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const platformUrl = process.env.PLATFORM_DATABASE_URL;
 if (!legacyUrl || !platformUrl) {
@@ -35,7 +62,7 @@ const TABLES = [
 ] as const;
 
 for (const { table, model } of TABLES) {
-  const rows = (await legacy.query(`SELECT * FROM "${table}"`)) as Record<string, unknown>[];
+  const rows = await selectAllIsoUtc(legacy, table);
   if (!commit) {
     console.log(`${table}: ${rows.length} linha(s) a copiar (dry-run)`);
     continue;
@@ -46,8 +73,13 @@ for (const { table, model } of TABLES) {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const delegate = (platform as any)[model];
-  const result = await delegate.createMany({ data: rows, skipDuplicates: true });
-  console.log(`${table}: ${rows.length} lida(s), ${result.count} inserida(s) (duplicadas puladas)`);
+  // Upsert por linha: idempotente E corretivo (re-run conserta timestamps
+  // deslocados por execuções anteriores).
+  for (const row of rows) {
+    const { id, ...rest } = row as { id: string } & Record<string, unknown>;
+    await delegate.upsert({ where: { id }, create: { id, ...rest }, update: rest });
+  }
+  console.log(`${table}: ${rows.length} upsert(s)`);
 }
 if (!commit) console.log("\nDRY-RUN — repita com --commit para copiar.");
 process.exit(0);

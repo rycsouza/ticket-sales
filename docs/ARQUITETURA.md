@@ -168,10 +168,10 @@ Comunicação entre módulos: por **chamada direta de serviço** (in-process) ou
 
 - **ORM:** **Prisma** (coerente com o CLAUDE_SECURITY_RULES). Para os pontos críticos de concorrência, descemos para **SQL/transação explícita** via Prisma (`$transaction`, `$queryRaw` parametrizado) — ORM não abstrai bem operações atômicas condicionais.
 - **Neon:** connection string **pooled** (PgBouncer) para os handlers serverless; string **direta** só para migrations. Neon *branching* serve para ambientes de dev/preview.
-- **Isolamento multi-tenant (defesa em profundidade):**
-  1. `organization_id` obrigatório em toda tabela de negócio da produtora.
-  2. **Repositórios escopados por padrão** — a assinatura exige o `organizationId` do contexto; não existe query "solta". É a defesa primária contra IDOR/BOLA (CLAUDE_SECURITY_RULES §6–7).
-  3. **RLS no Postgres como hardening** (Fase 7): política por `organization_id` usando `SET app.current_org`. Fica como camada extra, não como única defesa.
+- **Isolamento multi-tenant — FÍSICO desde a migração database-per-tenant (ver [MULTITENANT.md](MULTITENANT.md), fonte de verdade):**
+  1. **Um banco Neon por produtora**; identidade global (users/sessões/memberships) e roteamento (`PublicRef`) vivem no **platform DB**. A borda resolve o tenant (path+membership ou identificador público) e abre a conexão DAQUELE banco — fail-closed, sem banco default em produção.
+  2. `organization_id` continua obrigatório em toda tabela de negócio e **repositórios continuam escopados** — defesa em profundidade + o dado carrega o dono (export/migração triviais). Segue sendo a defesa contra IDOR/BOLA (CLAUDE_SECURITY_RULES §6–7).
+  3. RLS deixou de ser necessário como camada extra: o isolamento primário é físico. (A nota histórica de RLS na Fase 7 fica superada.)
 - **Dinheiro:** **inteiro na menor unidade** (centavos), tipo `BigInt`. Proibido ponto flutuante (BR-FIN-001).
 - **Datas:** UTC no banco; exibição no fuso do evento/usuário.
 - **IDs públicos:** não sequenciais previsíveis (UUID/ULID) onde a exposição amplia risco; tokens de ingresso são segredo (ver §14).
