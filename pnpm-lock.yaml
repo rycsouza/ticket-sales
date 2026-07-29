@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@neondatabase/serverless':
+        specifier: ^1.1.0
+        version: 1.1.0
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2

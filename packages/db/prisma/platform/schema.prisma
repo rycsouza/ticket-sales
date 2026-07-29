@@ -47,3 +47,287 @@ model Tenant {
 
   @@index([status])
 }
+
+// ---------------------------------------------------------------------------
+// Identidade GLOBAL (MT-2) — movida do schema de aplicação. Um usuário pertence
+// a N organizações; no login o tenant ainda não é conhecido, então users,
+// sessões, memberships e convites vivem no plano de controle.
+// ---------------------------------------------------------------------------
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum FeeMode {
+  BUYER // added on top of the buyer's total (service fee)
+  PRODUCER // deducted from the producer payout
+}
+
+model Organization {
+  id     String             @id @default(uuid(7))
+  status OrganizationStatus @default(ACTIVE)
+
+  // Slug único global para a URL do painel (/painel/<slug>) — evita expor o
+  // UUID. Gerado a partir do nome na criação; nunca sequencial.
+  slug String @unique
+
+  // FR-ORG-001: nome, documento, contatos e endereço
+  name     String
+  document String? // CNPJ/CPF — validated in service layer
+  email    String?
+  phone    String?
+
+  addressStreet     String?
+  addressNumber     String?
+  addressComplement String?
+  addressDistrict   String?
+  addressCity       String?
+  addressState      String?
+  addressZip        String?
+
+  // FR-ORG-009: identidade pública
+  publicName   String?
+  supportEmail String?
+  supportPhone String?
+  logoUrl      String?
+
+  // DEC-003: platform fee defaults, set ONLY by platform admins. New events
+  // inherit these at creation (seed); each event may then be overridden.
+  defaultPlatformFeeBps Int     @default(0)
+  defaultFeeMode        FeeMode @default(PRODUCER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  invites     Invite[]
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id     String     @id @default(uuid(7))
+  status UserStatus @default(ACTIVE)
+
+  email           String    @unique
+  name            String
+  // Null until first password is set (e.g. invite not yet accepted).
+  // Argon2id hash — never plaintext (FR-AUTH-002).
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+
+  // DEC-012 MFA (TOTP). Secret is AES-GCM encrypted at rest (never plaintext);
+  // backup codes stored as SHA-256 hashes. Enabled only after the first code
+  // is confirmed.
+  mfaEnabled     Boolean  @default(false)
+  mfaSecretEnc   String?
+  mfaBackupCodes String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships     Membership[]
+  sessions        Session[]
+  trustedDevices  TrustedDevice[]
+  sentInvites     Invite[]        @relation("InviteInvitedBy")
+  acceptedInvites Invite[]        @relation("InviteAcceptedBy")
+}
+
+// DEC-012 — a device the user chose to trust, skipping the TOTP step until it
+// expires. Only the SHA-256 hash of the device token is stored (raw token lives
+// in an httpOnly cookie).
+model TrustedDevice {
+  id        String   @id @default(uuid(7))
+  userId    String
+  tokenHash String   @unique
+  label     String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+}
+
+// PRD §8.1 — papéis por organização
+enum MembershipRole {
+  OWNER
+  ADMIN
+  EVENT_MANAGER
+  FINANCE
+  SUPPORT
+  GATE_COORDINATOR
+  CHECKIN_OPERATOR
+  PROMOTER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model Membership {
+  id             String           @id @default(uuid(7))
+  organizationId String
+  userId         String
+  role           MembershipRole
+  status         MembershipStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  // FR-ORG-006: one membership per user per organization
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model Invite {
+  id             String         @id @default(uuid(7))
+  organizationId String
+  email          String
+  role           MembershipRole
+  status         InviteStatus   @default(PENDING)
+
+  // SHA-256 of the raw token; raw token exists only in the invite e-mail
+  tokenHash String   @unique
+  // FR-ORG-004: validade e uso único
+  expiresAt DateTime
+
+  invitedByUserId  String
+  acceptedByUserId String?
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  invitedBy    User         @relation("InviteInvitedBy", fields: [invitedByUserId], references: [id])
+  acceptedBy   User?        @relation("InviteAcceptedBy", fields: [acceptedByUserId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([email])
+}
+
+model Session {
+  id     String @id @default(uuid(7))
+  userId String
+
+  // SHA-256 of the opaque session token (raw token only in the cookie)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  ip         String?
+  userAgent  String?
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria da PLATAFORMA — ações sem escopo de org (auth, convites, registro)
+// e ações de admin da plataforma. Append-only, como o AuditEvent do tenant.
+// ---------------------------------------------------------------------------
+
+model PlatformAuditEvent {
+  id String @id @default(uuid(7))
+
+  // Nullable: platform-level actions have no organization scope
+  organizationId String?
+  actorUserId    String?
+  actorType      String  @default("user")
+
+  action        String
+  resourceType  String
+  resourceId    String?
+  justification String?
+
+  before Json?
+  after  Json?
+
+  correlationId String
+  ip            String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([actorUserId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks do PSP (MT-3) — dedupe GLOBAL por provider_event_id acontece na
+// plataforma, ANTES de rotear o evento ao tenant (docs/MULTITENANT.md §3).
+// ---------------------------------------------------------------------------
+
+enum PaymentEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+model PaymentEvent {
+  id       String             @id @default(uuid(7))
+  provider String
+  status   PaymentEventStatus @default(RECEIVED)
+
+  providerEventId       String  @unique
+  providerTransactionId String?
+  type                  String
+
+  payload Json
+  error   String?
+
+  correlationId String
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status, receivedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Roteamento por identificador público (MT-3, docs/MULTITENANT.md §2.1).
+// Além de rotear (identificador → org → banco), o unique (kind,key) PRESERVA a
+// unicidade global que o Postgres único garantia (Event.slug, Order.code…).
+// Reservar a ref AQUI antes de gravar no tenant.
+// ---------------------------------------------------------------------------
+
+enum PublicRefKind {
+  EVENT_SLUG
+  ORDER_CODE
+  TICKET_TOKEN
+  PROMOTER_CODE
+  PROVIDER_TX
+}
+
+model PublicRef {
+  kind           PublicRefKind
+  key            String
+  organizationId String
+
+  createdAt DateTime @default(now())
+
+  @@id([kind, key])
+  @@index([organizationId])
+}

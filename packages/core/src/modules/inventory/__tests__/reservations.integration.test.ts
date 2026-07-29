@@ -30,10 +30,20 @@ describe.skipIf(!DATABASE_URL)("PrismaReservationStore against real Postgres", (
     prisma = getPrisma(DATABASE_URL as string);
     store = new PrismaReservationStore(prisma);
 
-    const org = await prisma.organization.create({
-      data: { name: `itest-concurrency-${Date.now()}`, slug: `itest-concurrency-${Date.now()}` },
-    });
-    organizationId = org.id;
+    // Identity lives in the platform DB since MT-2 — organizationId on business
+    // tables is a soft reference, so the test just uses a fresh unique id.
+    organizationId = crypto.randomUUID();
+    // Transitional: while the legacy single DB still carries the dormant
+    // Organization table + FK (pending 20260729020000 migration), satisfy the
+    // constraint with a throwaway row. No-ops once the table is dropped.
+    await prisma
+      .$executeRawUnsafe(
+        `INSERT INTO "Organization" (id, slug, name, "updatedAt") VALUES ($1, $2, $3, NOW()) ON CONFLICT (id) DO NOTHING`,
+        organizationId,
+        `itest-${organizationId}`,
+        "itest-concurrency",
+      )
+      .catch(() => undefined);
 
     const event = await prisma.event.create({
       data: {
@@ -69,7 +79,10 @@ describe.skipIf(!DATABASE_URL)("PrismaReservationStore against real Postgres", (
     await prisma.salesBatch.deleteMany({ where: { organizationId } });
     await prisma.ticketType.deleteMany({ where: { organizationId } });
     await prisma.event.deleteMany({ where: { organizationId } });
-    await prisma.organization.delete({ where: { id: organizationId } });
+    // Transitional cleanup of the throwaway dormant-table row (see beforeAll).
+    await prisma
+      .$executeRawUnsafe(`DELETE FROM "Organization" WHERE id = $1`, organizationId)
+      .catch(() => undefined);
   }, 60_000);
 
   it(

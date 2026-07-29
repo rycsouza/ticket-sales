@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@ingressos/db";
+// Identity is GLOBAL (MT-2): these repositories run on the PLATFORM DB client.
+import type { PlatformPrismaClient } from "@ingressos/db";
 import type {
   InviteRecord,
   InviteStatus,
@@ -144,7 +145,7 @@ const userSelect = {
 } as const;
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async createWithOwner(
     data: {
@@ -231,7 +232,7 @@ export interface PublicOrganizationIdentity {
  * Everything else about the organization never leaves the server.
  */
 export class PrismaPublicOrganizationReader {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async findIdentityById(organizationId: string): Promise<PublicOrganizationIdentity | null> {
     return this.prisma.organization.findUnique({
@@ -242,7 +243,7 @@ export class PrismaPublicOrganizationReader {
 }
 
 export class PrismaMembershipRepository implements MembershipRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async findByOrgAndUser(organizationId: string, userId: string) {
     return this.prisma.membership.findFirst({
@@ -292,7 +293,7 @@ export class PrismaMembershipRepository implements MembershipRepository {
 }
 
 export class PrismaInviteRepository implements InviteRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async create(data: {
     organizationId: string;
@@ -344,7 +345,7 @@ export class PrismaInviteRepository implements InviteRepository {
 }
 
 export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email }, select: userSelect });

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@ingressos/db";
+import type { PlatformPrismaClient, PrismaClient } from "@ingressos/db";
 
 /**
  * Audit trail (EP-12). Append-only: this repository exposes no update or
@@ -96,6 +96,60 @@ export class PrismaAuditRepository implements AuditRepository, AuditReader {
 
   async append(entry: AuditEntry): Promise<void> {
     await this.prisma.auditEvent.create({
+      data: {
+        organizationId: entry.organizationId ?? null,
+        actorUserId: entry.actorUserId ?? null,
+        actorType: entry.actorType ?? "user",
+        action: entry.action,
+        resourceType: entry.resourceType,
+        resourceId: entry.resourceId ?? null,
+        justification: entry.justification ?? null,
+        correlationId: entry.correlationId,
+        ip: entry.ip ?? null,
+        ...(entry.before !== undefined ? { before: entry.before as object } : {}),
+        ...(entry.after !== undefined ? { after: entry.after as object } : {}),
+      },
+    });
+  }
+}
+
+/**
+ * Platform-plane audit (MT-2, docs/MULTITENANT.md §2.1): actions with no
+ * tenant scope (auth, registration, invites, platform-admin operations) land
+ * in PlatformAuditEvent on the PLATFORM DB. Same append-only contract; the
+ * tenant AuditEvent keeps org-scoped business history.
+ */
+export class PrismaPlatformAuditRepository implements AuditRepository, AuditReader {
+  constructor(private readonly prisma: PlatformPrismaClient) {}
+
+  async listByResource(organizationId: string, resourceType: string, resourceId: string) {
+    return this.prisma.platformAuditEvent.findMany({
+      where: { organizationId, resourceType, resourceId },
+      select: auditReadSelect,
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async listByResources(
+    organizationId: string,
+    refs: { resourceType: string; resourceId: string }[],
+  ) {
+    if (refs.length === 0) return [];
+    return this.prisma.platformAuditEvent.findMany({
+      where: {
+        organizationId,
+        OR: refs.map((ref) => ({
+          resourceType: ref.resourceType,
+          resourceId: ref.resourceId,
+        })),
+      },
+      select: auditReadSelect,
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async append(entry: AuditEntry): Promise<void> {
+    await this.prisma.platformAuditEvent.create({
       data: {
         organizationId: entry.organizationId ?? null,
         actorUserId: entry.actorUserId ?? null,

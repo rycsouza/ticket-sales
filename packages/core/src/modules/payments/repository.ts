@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@ingressos/db";
+import type { PlatformPrismaClient, PrismaClient } from "@ingressos/db";
 import type {
   PaymentEventProcessStatus,
   PaymentEventRecord,
@@ -172,8 +172,10 @@ const eventSelect = {
   status: true,
 } as const;
 
+// Webhook dedupe is GLOBAL (unique providerEventId) and happens BEFORE tenant
+// routing (MT-3) — this repository runs on the PLATFORM DB client.
 export class PrismaPaymentEventRepository implements PaymentEventRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async claim(data: {
     provider: string;

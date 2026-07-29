@@ -4,4 +4,4 @@ export type {
   AuditReadRecord,
   AuditRepository,
 } from "./repository";
-export { PrismaAuditRepository } from "./repository";
+export { PrismaAuditRepository, PrismaPlatformAuditRepository } from "./repository";

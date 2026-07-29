@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@ingressos/db";
+// Identity is GLOBAL (MT-2): these repositories run on the PLATFORM DB client.
+import type { PlatformPrismaClient } from "@ingressos/db";
 
 export interface SessionRecord {
   id: string;
@@ -35,7 +36,7 @@ export interface TrustedDeviceRepository {
 }
 
 export class PrismaTrustedDeviceRepository implements TrustedDeviceRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async create(data: {
     userId: string;
@@ -71,7 +72,7 @@ const sessionSelect = {
 } as const;
 
 export class PrismaSessionRepository implements SessionRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PlatformPrismaClient) {}
 
   async create(data: {
     userId: string;

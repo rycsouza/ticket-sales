@@ -18,6 +18,7 @@
     "postinstall": "pnpm --filter @ingressos/db run generate"
   },
   "devDependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "dotenv": "^17.4.2",
     "turbo": "^2.10.5",
     "typescript": "^7.0.2",

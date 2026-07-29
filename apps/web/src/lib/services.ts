@@ -16,6 +16,7 @@ import {
   PaymentsService,
   PromotersService,
   PrismaAuditRepository,
+  PrismaPlatformAuditRepository,
   PrismaCommissionEntryRepository,
   PrismaCommissionRuleRepository,
   PrismaCouponRepository,
@@ -68,7 +69,7 @@ import {
   MercadoPagoAdapter,
   UpstashRedisCache,
 } from "@ingressos/adapters";
-import { getPrisma } from "@ingressos/db";
+import { getPlatformPrisma, getPrisma } from "@ingressos/db";
 
 /**
  * Composition root — the ONLY place where concrete adapters meet the domain.
@@ -134,21 +135,108 @@ function buildMailer(env: ReturnType<typeof loadServerEnv>): MailerPort {
   };
 }
 
-function buildServices() {
-  // Fail fast on invalid configuration (NFR boot validation)
+/**
+ * Plano de CONTROLE (docs/MULTITENANT.md §2.1) — identidade global (users,
+ * sessões, memberships, convites, organizações), auditoria de plataforma e
+ * dedupe de webhook. Roda no PLATFORM DB, obrigatório desde o MT-2: um usuário
+ * pertence a N orgs e no login o tenant ainda não é conhecido.
+ */
+function buildPlatformServices() {
   const env = loadServerEnv();
-  const prisma = getPrisma(env.DATABASE_URL);
+  if (!env.PLATFORM_DATABASE_URL) {
+    // Fail fast e claro: sem o plano de controle não existe login nem tenant.
+    throw new Error(
+      "PLATFORM_DATABASE_URL is required since MT-2 (multi-tenant control plane — docs/MULTITENANT.md §9)",
+    );
+  }
+  const prisma = getPlatformPrisma(env.PLATFORM_DATABASE_URL);
 
-  const audit = new PrismaAuditRepository(prisma);
+  const audit = new PrismaPlatformAuditRepository(prisma);
   const users = new PrismaUserRepository(prisma);
   const memberships = new PrismaMembershipRepository(prisma);
   const organizations = new PrismaOrganizationRepository(prisma);
   const invites = new PrismaInviteRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);
+  const trustedDevices = new PrismaTrustedDeviceRepository(prisma);
+  const publicOrganizations = new PrismaPublicOrganizationReader(prisma);
+  const paymentEvents = new PrismaPaymentEventRepository(prisma);
+
+  const passwordHasher = new Argon2PasswordHasher();
+  const cache = buildCache();
+  const mailer = buildMailer(env);
+
+  const auth = new AuthService({
+    users,
+    sessions,
+    audit,
+    cache,
+    clock: systemClock,
+    passwordHasher,
+    // DEC-012: TOTP MFA is enforced only when the encryption key is configured.
+    ...(env.MFA_ENCRYPTION_KEY
+      ? {
+          mfa: {
+            key: loadKey(env.MFA_ENCRYPTION_KEY),
+            issuer: "Ingressos",
+            trustedDevices,
+          },
+        }
+      : {}),
+    // E-mail 2FA — enabled by flag + a real mailer; takes precedence over TOTP.
+    ...(env.EMAIL_2FA_ENABLED === "true" && env.MAILTRAP_API_TOKEN
+      ? {
+          email2fa: {
+            mailer,
+            issuer: "Ingressos",
+            trustedDevices,
+          },
+        }
+      : {}),
+  });
+
+  const identity = new IdentityService({
+    organizations,
+    memberships,
+    invites,
+    users,
+    audit,
+    clock: systemClock,
+    passwordHasher,
+  });
+
+  return {
+    audit,
+    users,
+    memberships,
+    organizations,
+    invites,
+    sessions,
+    trustedDevices,
+    publicOrganizations,
+    paymentEvents,
+    auth,
+    identity,
+  };
+}
+
+type PlatformServices = ReturnType<typeof buildPlatformServices>;
+
+function buildServices() {
+  // Fail fast on invalid configuration (NFR boot validation)
+  const env = loadServerEnv();
+  const prisma = getPrisma(env.DATABASE_URL);
+
+  // Identity/auth live on the PLATFORM DB (MT-2) — tenant services receive the
+  // platform-backed repos by injection (cross-DB object graph, same contracts).
+  const platform = getPlatformServices();
+  const memberships = platform.memberships;
+  const organizations = platform.organizations;
+  const publicOrganizations = platform.publicOrganizations;
+
+  const audit = new PrismaAuditRepository(prisma);
   const events = new PrismaEventRepository(prisma);
   const eventPages = new PrismaEventPageRepository(prisma);
   const publicEventPages = new PrismaPublicEventPageReader(prisma);
-  const publicOrganizations = new PrismaPublicOrganizationReader(prisma);
   const sectors = new PrismaSectorRepository(prisma);
   const ticketTypes = new PrismaTicketTypeRepository(prisma);
   const batches = new PrismaSalesBatchRepository(prisma);
@@ -157,7 +245,8 @@ function buildServices() {
   const orderRepo = new PrismaOrderRepository(prisma);
   const ticketRepo = new PrismaTicketRepository(prisma);
   const paymentRepo = new PrismaPaymentRepository(prisma);
-  const paymentEventRepo = new PrismaPaymentEventRepository(prisma);
+  // Webhook dedupe is global — lives on the platform DB (MT-2/3).
+  const paymentEventRepo = platform.paymentEvents;
   const notificationRepo = new PrismaNotificationRepository(prisma);
   const promoterRepo = new PrismaPromoterRepository(prisma);
   const promoterAssignments = new PrismaPromoterAssignmentRepository(prisma);
@@ -172,7 +261,6 @@ function buildServices() {
   const checkinAssignments = new PrismaCheckinAssignmentRepository(prisma);
   const checkinRepo = new PrismaCheckinRepository(prisma);
 
-  const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
   const psp = buildPsp(env);
   const mailer = buildMailer(env);
@@ -356,43 +444,10 @@ function buildServices() {
       memberships,
       clock: systemClock,
     }),
-    identity: new IdentityService({
-      organizations,
-      memberships,
-      invites,
-      users,
-      audit,
-      clock: systemClock,
-      passwordHasher,
-    }),
-    auth: new AuthService({
-      users,
-      sessions,
-      audit,
-      cache,
-      clock: systemClock,
-      passwordHasher,
-      // DEC-012: TOTP MFA is enforced only when the encryption key is configured.
-      ...(env.MFA_ENCRYPTION_KEY
-        ? {
-            mfa: {
-              key: loadKey(env.MFA_ENCRYPTION_KEY),
-              issuer: "Ingressos",
-              trustedDevices: new PrismaTrustedDeviceRepository(prisma),
-            },
-          }
-        : {}),
-      // E-mail 2FA — enabled by flag + a real mailer; takes precedence over TOTP.
-      ...(env.EMAIL_2FA_ENABLED === "true" && env.MAILTRAP_API_TOKEN
-        ? {
-            email2fa: {
-              mailer,
-              issuer: "Ingressos",
-              trustedDevices: new PrismaTrustedDeviceRepository(prisma),
-            },
-          }
-        : {}),
-    }),
+    // Identity/auth are PLATFORM services (MT-2) — exposed here so the 200+
+    // existing call sites keep working unchanged.
+    identity: platform.identity,
+    auth: platform.auth,
     events: new EventsService({
       events,
       sectors,
@@ -435,7 +490,16 @@ function buildServices() {
 
 type Services = ReturnType<typeof buildServices>;
 
-const globalForServices = globalThis as unknown as { services?: Services };
+const globalForServices = globalThis as unknown as {
+  services?: Services;
+  platformServices?: PlatformServices;
+};
+
+/** Plano de controle: identidade global + roteamento (docs/MULTITENANT.md). */
+export function getPlatformServices(): PlatformServices {
+  globalForServices.platformServices ??= buildPlatformServices();
+  return globalForServices.platformServices;
+}
 
 export function getServices(): Services {
   globalForServices.services ??= buildServices();

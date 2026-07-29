@@ -20,191 +20,10 @@ datasource db {
 // Identity & access (EP-01)
 // ---------------------------------------------------------------------------
 
-enum OrganizationStatus {
-  ACTIVE
-  SUSPENDED
-}
-
-model Organization {
-  id     String             @id @default(uuid(7))
-  status OrganizationStatus @default(ACTIVE)
-
-  // Slug único global para a URL do painel (/painel/<slug>) — evita expor o
-  // UUID. Gerado a partir do nome na criação; nunca sequencial.
-  slug String @unique
-
-  // FR-ORG-001: nome, documento, contatos e endereço
-  name     String
-  document String? // CNPJ/CPF — validated in service layer
-  email    String?
-  phone    String?
-
-  addressStreet     String?
-  addressNumber     String?
-  addressComplement String?
-  addressDistrict   String?
-  addressCity       String?
-  addressState      String?
-  addressZip        String?
-
-  // FR-ORG-009: identidade pública
-  publicName   String?
-  supportEmail String?
-  supportPhone String?
-  logoUrl      String?
-
-  // DEC-003: platform fee defaults, set ONLY by platform admins. New events
-  // inherit these at creation (seed); each event may then be overridden.
-  defaultPlatformFeeBps Int     @default(0)
-  defaultFeeMode        FeeMode @default(PRODUCER)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  memberships Membership[]
-  invites     Invite[]
-  events      Event[]
-  auditEvents AuditEvent[]
-}
-
-enum UserStatus {
-  ACTIVE
-  SUSPENDED
-}
-
-model User {
-  id     String     @id @default(uuid(7))
-  status UserStatus @default(ACTIVE)
-
-  email           String    @unique
-  name            String
-  // Null until first password is set (e.g. invite not yet accepted).
-  // Argon2id hash — never plaintext (FR-AUTH-002).
-  passwordHash    String?
-  emailVerifiedAt DateTime?
-
-  // DEC-012 MFA (TOTP). Secret is AES-GCM encrypted at rest (never plaintext);
-  // backup codes stored as SHA-256 hashes. Enabled only after the first code
-  // is confirmed.
-  mfaEnabled     Boolean  @default(false)
-  mfaSecretEnc   String?
-  mfaBackupCodes String[] @default([])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  memberships     Membership[]
-  sessions        Session[]
-  trustedDevices  TrustedDevice[]
-  sentInvites     Invite[]     @relation("InviteInvitedBy")
-  acceptedInvites Invite[]     @relation("InviteAcceptedBy")
-}
-
-// DEC-012 — a device the user chose to trust, skipping the TOTP step until it
-// expires. Only the SHA-256 hash of the device token is stored (raw token lives
-// in an httpOnly cookie).
-model TrustedDevice {
-  id        String   @id @default(uuid(7))
-  userId    String
-  tokenHash String   @unique
-  label     String?
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId, expiresAt])
-}
-
-// PRD §8.1 — papéis por organização
-enum MembershipRole {
-  OWNER
-  ADMIN
-  EVENT_MANAGER
-  FINANCE
-  SUPPORT
-  GATE_COORDINATOR
-  CHECKIN_OPERATOR
-  PROMOTER
-}
-
-enum MembershipStatus {
-  ACTIVE
-  SUSPENDED
-  REVOKED
-}
-
-model Membership {
-  id             String           @id @default(uuid(7))
-  organizationId String
-  userId         String
-  role           MembershipRole
-  status         MembershipStatus @default(ACTIVE)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  user         User         @relation(fields: [userId], references: [id])
-
-  // FR-ORG-006: one membership per user per organization
-  @@unique([organizationId, userId])
-  @@index([userId])
-}
-
-enum InviteStatus {
-  PENDING
-  ACCEPTED
-  REVOKED
-  EXPIRED
-}
-
-model Invite {
-  id             String         @id @default(uuid(7))
-  organizationId String
-  email          String
-  role           MembershipRole
-  status         InviteStatus   @default(PENDING)
-
-  // SHA-256 of the raw token; raw token exists only in the invite e-mail
-  tokenHash String   @unique
-  // FR-ORG-004: validade e uso único
-  expiresAt DateTime
-
-  invitedByUserId  String
-  acceptedByUserId String?
-  acceptedAt       DateTime?
-  revokedAt        DateTime?
-
-  createdAt DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  invitedBy    User         @relation("InviteInvitedBy", fields: [invitedByUserId], references: [id])
-  acceptedBy   User?        @relation("InviteAcceptedBy", fields: [acceptedByUserId], references: [id])
-
-  @@index([organizationId, status])
-  @@index([email])
-}
-
-model Session {
-  id     String @id @default(uuid(7))
-  userId String
-
-  // SHA-256 of the opaque session token (raw token only in the cookie)
-  tokenHash String   @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-
-  ip         String?
-  userAgent  String?
-  lastUsedAt DateTime?
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId, expiresAt])
-}
+// Identidade global (Organization/User/TrustedDevice/Membership/Invite/Session)
+// vive no PLATFORM DB desde o MT-2 — ver prisma/platform/schema.prisma e
+// docs/MULTITENANT.md §2. Tabelas de negócio carregam organizationId como
+// referência SOFT (sem FK): o dono do dado é resolvido pelo plano de controle.
 
 // ---------------------------------------------------------------------------
 // Events & inventory (EP-02)
@@ -286,7 +105,6 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id])
   sectors      Sector[]
   ticketTypes  TicketType[]
   salesBatches SalesBatch[]
@@ -441,8 +259,6 @@ model AuditEvent {
   ip            String?
 
   createdAt DateTime @default(now())
-
-  organization Organization? @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, createdAt])
   @@index([resourceType, resourceId])
@@ -618,35 +434,6 @@ model Payment {
 
   @@index([orderId])
   @@index([organizationId, status])
-}
-
-enum PaymentEventStatus {
-  RECEIVED
-  PROCESSED
-  IGNORED
-  FAILED
-}
-
-// FR-PAY-006: webhooks persisted BEFORE processing; unique provider event id
-// makes duplicated deliveries harmless.
-model PaymentEvent {
-  id       String             @id @default(uuid(7))
-  provider String
-  status   PaymentEventStatus @default(RECEIVED)
-
-  providerEventId       String  @unique
-  providerTransactionId String?
-  type                  String
-
-  payload Json
-  error   String?
-
-  correlationId String
-
-  receivedAt  DateTime  @default(now())
-  processedAt DateTime?
-
-  @@index([status, receivedAt])
 }
 
 // PRD §11.4 (transfer returns to VALID — it is not a resting state)
