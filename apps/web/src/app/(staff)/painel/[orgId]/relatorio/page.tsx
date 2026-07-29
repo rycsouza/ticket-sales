@@ -161,7 +161,48 @@ export default async function OrgReport({
               title="Desempenho por evento"
               description={financeAvailable ? undefined : "Receita visível apenas para perfis com acesso ao financeiro."}
             />
-            <div className="overflow-x-auto">
+            {/* Mobile: linhas viram cards (sem scroll horizontal) */}
+            <ul className="divide-y divide-line md:hidden">
+              {rows.map(({ event, sold, finance }) => {
+                const s = statusMeta(EVENT_STATUS, event.status);
+                return (
+                  <li key={event.id} className="px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link
+                        href={`/painel/${orgSlug}/eventos/${event.slug}`}
+                        className="min-w-0 truncate font-medium text-ink hover:text-brand hover:underline"
+                      >
+                        {event.title}
+                      </Link>
+                      <Badge tone={s.tone}>{s.label}</Badge>
+                    </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-small">
+                      <div>
+                        <dt className="text-ink-muted">Vendidos</dt>
+                        <dd className="tabular-nums font-medium text-ink">
+                          {sold.toLocaleString("pt-BR")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-ink-muted">Receita bruta</dt>
+                        <dd className="tabular-nums font-medium text-ink">
+                          {finance ? fmtBRL(finance.grossSalesCents) : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-ink-muted">Saldo a receber</dt>
+                        <dd className="tabular-nums font-medium text-ink">
+                          {finance ? fmtBRL(finance.producerPayableCents) : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: tabela original */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[36rem] text-body">
                 <thead>
                   <tr className="border-b border-line text-left text-small text-ink-muted">

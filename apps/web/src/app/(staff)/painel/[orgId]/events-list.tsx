@@ -122,7 +122,7 @@ export function EventsList({
                   setPage(0);
                 }}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-small font-medium transition-colors",
+                  "rounded-full px-3 py-2 text-small font-medium transition-colors sm:py-1.5",
                   active ? "bg-brand text-brand-fg" : "bg-hover text-ink-soft hover:bg-selected",
                 )}
               >

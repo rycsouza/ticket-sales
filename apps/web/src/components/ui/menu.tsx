@@ -76,7 +76,8 @@ export function Menu({
         <div
           role="menu"
           className={cn(
-            "absolute top-full z-30 mt-1 min-w-[12rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg",
+            // max-w/max-h impedem vazamento da viewport em telas estreitas
+            "absolute top-full z-30 mt-1 max-h-[60svh] min-w-[12rem] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface py-1 shadow-lg",
             align === "end" ? "right-0" : "left-0",
           )}
         >
@@ -108,7 +109,8 @@ export function MenuItem({
 }) {
   const ctx = useContext(MenuContext);
   const className = cn(
-    "flex w-full items-center gap-2.5 px-3 py-2 text-left text-body transition-colors",
+    // py maior no mobile (~44px de alvo); densidade original no desktop
+    "flex w-full items-center gap-2.5 px-3 py-3 text-left text-body transition-colors sm:py-2",
     disabled
       ? "cursor-not-allowed text-ink-faint"
       : destructive
