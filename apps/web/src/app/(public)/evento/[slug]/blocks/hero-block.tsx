@@ -1,5 +1,6 @@
 import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
-import { formatEventDate, type PublicEventView } from "@/lib/public-views";
+import { formatEventDate } from "@/lib/public-view-format";
+import type { PublicEventView } from "@/lib/public-views";
 import { HeroCarousel } from "./hero-carousel";
 
 type HeroConfig = {

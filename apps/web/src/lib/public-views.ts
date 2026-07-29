@@ -168,15 +168,7 @@ export async function buildPublicEventView(event: EventRecord): Promise<PublicEv
   };
 }
 
-export function formatBRL(centsValue: number): string {
-  return (centsValue / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-export function formatEventDate(date: Date | null, timezone: string): string | null {
-  if (!date) return null;
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: timezone,
-  }).format(date);
-}
+// Pure formatters live in a server-only-free module so client components (the
+// hero, etc.) can import them without pulling server code into the bundle.
+// Re-exported here for the many server-side callers that import from this file.
+export { formatBRL, formatEventDate } from "./public-view-format";
