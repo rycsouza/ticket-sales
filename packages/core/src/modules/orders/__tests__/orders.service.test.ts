@@ -12,6 +12,7 @@ import {
 } from "../../../testing/fakes-events";
 import { InMemoryOrderRepository, InMemoryReservationStore } from "../../../testing/fakes-sales";
 import { OrdersService } from "../service";
+import { RESERVATION_TTL_MINUTES } from "../types";
 import type { EventRecord } from "../../events/types";
 
 const ORG = "org_sales";
@@ -85,7 +86,7 @@ describe("createOrder", () => {
     expect(order.status).toBe("AWAITING_PAYMENT");
     expect(order.totalCents).toBe(30_000); // 3 × R$100 from the DB, not client
     expect(order.code).toHaveLength(12);
-    expect(expiresAt.getTime()).toBe(env.clock.now().getTime() + 5 * 60 * 1000);
+    expect(expiresAt.getTime()).toBe(env.clock.now().getTime() + RESERVATION_TTL_MINUTES * 60 * 1000);
 
     const items = await env.orders.listItems(ORG, order.id);
     expect(items).toHaveLength(3);
@@ -232,7 +233,7 @@ describe("expireDueOrders", () => {
     );
     expect(env.batch.quantityReserved).toBe(4);
 
-    env.clock.advance(16 * 60 * 1000);
+    env.clock.advance((RESERVATION_TTL_MINUTES + 1) * 60 * 1000);
 
     expect(await env.service.expireDueOrders()).toBe(1);
     expect(env.batch.quantityReserved).toBe(0);
@@ -278,7 +279,7 @@ describe("markOrderPaid", () => {
       { eventId: env.event.id, items: [{ batchId: env.batch.id, quantity: 4 }], buyer },
       { correlationId: "c" },
     );
-    env.clock.advance(16 * 60 * 1000);
+    env.clock.advance((RESERVATION_TTL_MINUTES + 1) * 60 * 1000);
     await env.service.expireDueOrders();
 
     expect(await env.service.markOrderPaid(ORG, order.id, { correlationId: "c" })).toBe(false);

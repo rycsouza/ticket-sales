@@ -10,7 +10,7 @@ import type {
 } from "../../ports/psp";
 import type { AuditRepository } from "../audit/repository";
 import type { OrderRepository } from "../orders/repository";
-import type { OrderRecord } from "../orders/types";
+import { RESERVATION_TTL_MINUTES, type OrderRecord } from "../orders/types";
 import type { PaymentEventRepository, PaymentRepository } from "./repository";
 import type { PaymentRecord, PaymentStatus } from "./types";
 
@@ -258,8 +258,11 @@ export class PaymentsService {
     const attempt = await this.deps.payments.countByOrder(order.organizationId, order.id);
     const idempotencyKey = `pix:${order.id}:${attempt}`;
 
-    // Pix charge dies together with the inventory reservation (BR alignment)
-    const chargeExpiresAt = order.expiresAt ?? new Date(now.getTime() + 5 * 60 * 1000);
+    // Pix charge dies together with the inventory reservation (BR alignment).
+    // A payment that lands after this is auto-refunded by Mercado Pago, so the
+    // fallback matches the reservation window — never a short, refund-prone one.
+    const chargeExpiresAt =
+      order.expiresAt ?? new Date(now.getTime() + RESERVATION_TTL_MINUTES * 60 * 1000);
 
     const charge = await this.deps.psp.createPixCharge({
       orderId: order.id,

@@ -14,6 +14,7 @@ import {
   InMemoryReservationStore,
 } from "../../../testing/fakes-sales";
 import { OrdersService } from "../../orders/service";
+import { RESERVATION_TTL_MINUTES } from "../../orders/types";
 import { PaymentsService } from "../service";
 import type { EventRecord } from "../../events/types";
 
@@ -175,7 +176,7 @@ describe("createPixChargeForOrder", () => {
 
   it("rejects an expired order", async () => {
     const env = await setup();
-    env.clock.advance(16 * 60 * 1000);
+    env.clock.advance((RESERVATION_TTL_MINUTES + 1) * 60 * 1000);
     await expect(
       env.service.createPixChargeForOrder(env.order.code, "maria@teste.com", meta),
     ).rejects.toThrow(ConflictError);
@@ -517,7 +518,7 @@ describe("createCardChargeForOrder — synchronous card (FR-CHK-014)", () => {
 
   it("refuses an expired order", async () => {
     const env = await setup();
-    env.clock.advance(16 * 60 * 1000);
+    env.clock.advance((RESERVATION_TTL_MINUTES + 1) * 60 * 1000);
     await expect(
       env.service.createCardChargeForOrder(ORG, env.order.id, card, meta),
     ).rejects.toThrow(ConflictError);

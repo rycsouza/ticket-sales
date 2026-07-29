@@ -74,5 +74,15 @@ export interface OrderItemRecord {
   unitPriceCents: number;
 }
 
-/** How long a checkout holds inventory before expiring (FR-INV-005). */
-export const RESERVATION_TTL_MINUTES = 5;
+/**
+ * How long a checkout holds inventory before expiring (FR-INV-005).
+ *
+ * This is ALSO the Pix charge window: the Pix `date_of_expiration` is set to the
+ * order's `expiresAt` (payments.chargePix). Mercado Pago automatically REFUNDS a
+ * Pix payment that arrives after `date_of_expiration`, so this must be generous
+ * enough that a real buyer (open bank app → copy code → confirm → PSP settles)
+ * pays well within it. A short window (e.g. 5 min) makes legitimate payments land
+ * after expiry and get auto-refunded. Keep reservation and Pix window equal so a
+ * payment is never accepted after the hold was already released.
+ */
+export const RESERVATION_TTL_MINUTES = 30;
