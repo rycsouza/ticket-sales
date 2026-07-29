@@ -55,12 +55,21 @@ export interface AuthServiceDeps {
     | undefined;
 }
 
+export type SecondFactorMethod = "email" | "totp";
+
 /** Discriminated login outcome (DEC-012). Without a second factor it is always authenticated. */
 export type LoginResult =
   | { status: "authenticated"; rawToken: string; expiresAt: Date; userId: string }
   | { status: "mfa_setup_required"; challengeToken: string }
   | { status: "mfa_required"; challengeToken: string }
-  | { status: "email_2fa_required"; challengeToken: string };
+  | { status: "email_2fa_required"; challengeToken: string }
+  // Both factors are configured: the user picks one at login (chooseSecondFactor).
+  | {
+      status: "two_factor_required";
+      challengeToken: string;
+      methods: SecondFactorMethod[];
+      canSetupTotp: boolean;
+    };
 
 export interface MfaCompletion {
   status: "authenticated";
@@ -174,36 +183,37 @@ export class AuthService {
       throw new UnauthenticatedError("Invalid credentials");
     }
 
-    // Second factor on untrusted devices. E-mail OTP takes precedence over
-    // TOTP; when neither is configured, behave exactly as before.
-    if (this.deps.email2fa) {
+    // Second factor on untrusted devices. When BOTH factors are configured the
+    // user picks one at login (two_factor_required + chooseSecondFactor); when
+    // only one is configured, behave exactly as before. Trusted devices share a
+    // single table, so one check covers whichever factor is active.
+    const email2fa = this.deps.email2fa;
+    const mfa = this.deps.mfa;
+    if (email2fa || mfa) {
       const now = this.deps.clock.now();
+      const trustedDevices = mfa?.trustedDevices ?? email2fa!.trustedDevices;
       const trusted =
         opts?.trustedDeviceToken !== undefined &&
-        (await this.deps.email2fa.trustedDevices.isValid(
-          user.id,
-          hashToken(opts.trustedDeviceToken),
-          now,
-        ));
+        (await trustedDevices.isValid(user.id, hashToken(opts.trustedDeviceToken), now));
+
       if (!trusted) {
-        return {
-          status: "email_2fa_required",
-          challengeToken: await this.issueEmailOtp(user, meta),
-        };
-      }
-    } else if (this.deps.mfa) {
-      const now = this.deps.clock.now();
-      if (!user.mfaEnabled) {
-        return { status: "mfa_setup_required", challengeToken: await this.issueChallenge(user.id, "setup") };
-      }
-      const trusted =
-        opts?.trustedDeviceToken !== undefined &&
-        (await this.deps.mfa.trustedDevices.isValid(
-          user.id,
-          hashToken(opts.trustedDeviceToken),
-          now,
-        ));
-      if (!trusted) {
+        if (email2fa && mfa) {
+          const methods: SecondFactorMethod[] = ["email"];
+          if (user.mfaEnabled) methods.push("totp");
+          return {
+            status: "two_factor_required",
+            challengeToken: await this.issueTwoFactorChallenge(user.id),
+            methods,
+            canSetupTotp: !user.mfaEnabled,
+          };
+        }
+        if (email2fa) {
+          return { status: "email_2fa_required", challengeToken: await this.issueEmailOtp(user, meta) };
+        }
+        // mfa only
+        if (!user.mfaEnabled) {
+          return { status: "mfa_setup_required", challengeToken: await this.issueChallenge(user.id, "setup") };
+        }
         return { status: "mfa_required", challengeToken: await this.issueChallenge(user.id, "verify") };
       }
     }
@@ -344,6 +354,39 @@ export class AuthService {
     return this.completeSecondFactor(user, meta, opts, email2fa.trustedDevices);
   }
 
+  // --- Choose-at-login (both factors configured) ----------------------------
+
+  /**
+   * The user picked a second factor on the login screen. Translates the gateway
+   * challenge (issued by login) into the concrete next step, reusing the
+   * existing verify/setup flows. "email" actually sends the code here; "totp"
+   * and "totp_setup" just mint their challenge for the existing routes. The
+   * gateway token is peeked (not consumed) so the user may re-pick if a code
+   * never arrives; it expires on its own.
+   */
+  async chooseSecondFactor(
+    challengeToken: string,
+    method: "email" | "totp" | "totp_setup",
+    meta: RequestMeta,
+  ): Promise<{ kind: "email" | "totp" | "totp_setup"; challengeToken: string }> {
+    const userId = await this.peekTwoFactorChallenge(challengeToken);
+    await this.enforceMfaRateLimit(userId); // throttle repeated sends/mints
+    const user = await this.mustFindUser(userId);
+
+    if (method === "email") {
+      this.requireEmail2fa();
+      return { kind: "email", challengeToken: await this.issueEmailOtp(user, meta) };
+    }
+    this.requireMfa();
+    if (method === "totp") {
+      if (!user.mfaEnabled) throw new UnauthenticatedError();
+      return { kind: "totp", challengeToken: await this.issueChallenge(userId, "verify") };
+    }
+    // totp_setup — only when not yet enrolled.
+    if (user.mfaEnabled) throw new UnauthenticatedError();
+    return { kind: "totp_setup", challengeToken: await this.issueChallenge(userId, "setup") };
+  }
+
   /** Boundary calls this on every authenticated request. */
   async validateSession(rawToken: string): Promise<{ userId: string; sessionId: string }> {
     const session = await this.deps.sessions.findByTokenHash(hashToken(rawToken));
@@ -473,6 +516,23 @@ export class AuthService {
     const user = await this.deps.users.findById(userId);
     if (!user || user.status !== "ACTIVE") throw new UnauthenticatedError();
     return user;
+  }
+
+  /** Gateway challenge for the choose-at-login flow: authorizes EITHER factor. */
+  private async issueTwoFactorChallenge(userId: string): Promise<string> {
+    const token = generateToken();
+    await this.deps.cache.set(
+      `2fa:gateway:${token}`,
+      JSON.stringify({ userId }),
+      MFA_CHALLENGE_TTL_SECONDS,
+    );
+    return token;
+  }
+
+  private async peekTwoFactorChallenge(token: string): Promise<string> {
+    const raw = await this.deps.cache.get(`2fa:gateway:${token}`);
+    if (!raw) throw new UnauthenticatedError("Challenge expired");
+    return (JSON.parse(raw) as { userId: string }).userId;
   }
 
   private async issueChallenge(userId: string, purpose: "setup" | "verify"): Promise<string> {

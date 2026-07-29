@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { Button, Field, Input } from "@/components/ui";
 
-type Step = "credentials" | "setup" | "verify" | "backup";
+type Step = "credentials" | "choose" | "setup" | "verify" | "backup";
+type FactorOption = { key: "totp" | "email" | "totp_setup"; label: string; hint: string };
 
 export function LoginForm({
   googleEnabled = false,
@@ -31,6 +32,8 @@ export function LoginForm({
   // Which second factor is in play on the verify step.
   const [channel, setChannel] = useState<"totp" | "email">("totp");
   const verifyUrl = channel === "email" ? "/api/auth/email-2fa/verify" : "/api/auth/mfa/verify";
+  // Choose-at-login: the options offered when both factors are configured.
+  const [factorOptions, setFactorOptions] = useState<FactorOption[]>([]);
 
   async function post(url: string, body: unknown) {
     const res = await fetch(url, {
@@ -58,9 +61,26 @@ export function LoginForm({
         router.push("/painel");
         return;
       }
-      setChallenge(String(data.challengeToken));
-      if (data.status === "mfa_setup_required") {
-        const setup = await post("/api/auth/mfa/setup", { challengeToken: data.challengeToken });
+      const token = String(data.challengeToken);
+      setChallenge(token);
+      if (data.status === "two_factor_required") {
+        // Both factors configured — let the user pick (auto-advance if only one).
+        const methods = Array.isArray(data.methods) ? (data.methods as string[]) : [];
+        const options: FactorOption[] = [];
+        if (methods.includes("totp"))
+          options.push({ key: "totp", label: "App autenticador", hint: "Código do seu app (Google Authenticator, Authy…)" });
+        if (methods.includes("email"))
+          options.push({ key: "email", label: "Código por e-mail", hint: "Enviamos um código de 6 dígitos para o seu e-mail" });
+        if (data.canSetupTotp)
+          options.push({ key: "totp_setup", label: "Configurar app autenticador", hint: "Vincule um app de autenticação a esta conta" });
+        if (options.length === 1) {
+          await chooseMethod(options[0]!.key, token);
+        } else {
+          setFactorOptions(options);
+          setStep("choose");
+        }
+      } else if (data.status === "mfa_setup_required") {
+        const setup = await post("/api/auth/mfa/setup", { challengeToken: token });
         setSecret(String(setup.data.secret ?? ""));
         setOtpauthUri(String(setup.data.otpauthUri ?? ""));
         setStep("setup");
@@ -70,6 +90,43 @@ export function LoginForm({
       } else {
         setChannel("totp");
         setStep("verify");
+      }
+    } catch {
+      setError("Falha de conexão. Tente novamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** User picked a factor on the "choose" step (or a single option auto-advanced). */
+  async function chooseMethod(method: FactorOption["key"], gatewayToken: string) {
+    setError(null);
+    setBusy(true);
+    try {
+      const { ok, data } = await post("/api/auth/2fa/choose", {
+        challengeToken: gatewayToken,
+        method,
+      });
+      if (!ok) {
+        setError("Não foi possível continuar. Tente outra opção.");
+        setStep("choose");
+        return;
+      }
+      const next = String(data.challengeToken);
+      setChallenge(next);
+      setCode("");
+      if (data.kind === "email") {
+        setChannel("email");
+        setStep("verify");
+      } else if (data.kind === "totp") {
+        setChannel("totp");
+        setStep("verify");
+      } else {
+        // totp_setup — fetch the enrollment secret, then show the QR.
+        const setup = await post("/api/auth/mfa/setup", { challengeToken: next });
+        setSecret(String(setup.data.secret ?? ""));
+        setOtpauthUri(String(setup.data.otpauthUri ?? ""));
+        setStep("setup");
       }
     } catch {
       setError("Falha de conexão. Tente novamente.");
@@ -127,6 +184,31 @@ export function LoginForm({
         <Button size="lg" className="w-full" onClick={() => router.push("/painel")}>
           Guardei — continuar
         </Button>
+      </div>
+    );
+  }
+
+  if (step === "choose") {
+    return (
+      <div className="space-y-4">
+        <p className="text-body text-ink-soft">
+          Como você quer confirmar sua identidade?
+        </p>
+        <div className="space-y-2">
+          {factorOptions.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              disabled={busy}
+              onClick={() => void chooseMethod(opt.key, challenge)}
+              className="flex w-full flex-col items-start gap-0.5 rounded-lg border border-line-strong bg-surface px-4 py-3 text-left transition-colors hover:border-brand hover:bg-hover disabled:opacity-60"
+            >
+              <span className="text-body font-medium text-ink">{opt.label}</span>
+              <span className="text-small text-ink-muted">{opt.hint}</span>
+            </button>
+          ))}
+        </div>
+        {errorBox}
       </div>
     );
   }
@@ -191,6 +273,19 @@ export function LoginForm({
         >
           {isSetup ? "Ativar e entrar" : "Verificar"}
         </Button>
+        {factorOptions.length > 1 && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setCode("");
+              setStep("choose");
+            }}
+            className="block w-full text-center text-small font-medium text-ink-muted underline"
+          >
+            Escolher outra forma
+          </button>
+        )}
       </div>
     );
   }

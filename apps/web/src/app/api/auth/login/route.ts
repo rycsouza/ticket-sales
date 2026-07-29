@@ -13,6 +13,14 @@ export const POST = route(async (request, { correlationId }) => {
   });
 
   // MFA gates (DEC-012): no session yet — return the challenge for the next step.
+  if (result.status === "two_factor_required") {
+    return NextResponse.json({
+      status: result.status,
+      challengeToken: result.challengeToken,
+      methods: result.methods,
+      canSetupTotp: result.canSetupTotp,
+    });
+  }
   if (result.status !== "authenticated") {
     return NextResponse.json({ status: result.status, challengeToken: result.challengeToken });
   }

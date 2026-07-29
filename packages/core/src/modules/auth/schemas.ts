@@ -37,3 +37,12 @@ export const mfaVerifySchema = z
   })
   .strict();
 export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;
+
+// Choose-at-login: which second factor the user picked on the login screen.
+export const secondFactorChoiceSchema = z
+  .object({
+    challengeToken,
+    method: z.enum(["email", "totp", "totp_setup"]),
+  })
+  .strict();
+export type SecondFactorChoiceInput = z.infer<typeof secondFactorChoiceSchema>;
