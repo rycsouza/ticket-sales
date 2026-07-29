@@ -32,7 +32,7 @@ export function DescriptionBlock({
   if (!text) return null;
 
   return (
-    <section className="mb-6">
+    <section>
       {config.heading && (
         <h2 className="mb-2 text-small font-semibold uppercase tracking-wide text-ink-muted">
           {config.heading}

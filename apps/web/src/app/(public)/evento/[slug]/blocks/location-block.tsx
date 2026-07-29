@@ -37,7 +37,7 @@ export function LocationBlock({
   const mapQuery = textQuery || (hasCoords ? `${event.latitude},${event.longitude}` : "");
 
   return (
-    <section className="mb-6">
+    <section>
       <h2 className="mb-2 text-small font-semibold uppercase tracking-wide text-ink-muted">
         {config.heading ?? "Local"}
       </h2>

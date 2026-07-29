@@ -1,6 +1,7 @@
 import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
 import { formatEventDate } from "@/lib/public-view-format";
 import type { PublicEventView } from "@/lib/public-views";
+import { StepOneOnly } from "../checkout-flow";
 import { HeroCarousel } from "./hero-carousel";
 
 type HeroConfig = {
@@ -31,7 +32,11 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
   const covers = config.images.length > 0 ? config.images : bannerUrl ? [bannerUrl] : [];
   const overlayClass = config.overlay !== "none" ? OVERLAY_CLASS[config.overlay] : "";
 
+  // The event meta (dates, venue, age rating) only matters while the buyer is
+  // choosing tickets. From step 2 on it collapses — same as the countdown and
+  // location blocks — so the form / Pix isn't pushed below a tall header.
   const meta = (
+    <StepOneOnly>
     <div className="mt-3 space-y-1.5 text-body text-ink-soft">
       {config.showDate && dateLabel && (
         <p className="flex items-center gap-2">
@@ -59,11 +64,12 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
         </p>
       )}
     </div>
+    </StepOneOnly>
   );
 
   if (covers.length === 0) {
     return (
-      <header className="mb-6">
+      <header>
         {showLogo && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl ?? undefined} alt="" className="mb-3 h-12 w-auto object-contain" />
@@ -107,7 +113,7 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
   );
 
   return (
-    <header className="mb-6">
+    <header>
       <div className="relative overflow-hidden rounded-xl">
         {isCarousel ? (
           <HeroCarousel images={covers} overlayClass={overlayClass} />
