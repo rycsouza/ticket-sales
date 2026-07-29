@@ -170,6 +170,12 @@ function buildPlatformServices() {
   const paymentEvents = new PrismaPaymentEventRepository(prisma);
   // Roteamento por identificador público (docs/MULTITENANT.md §2.1/§3).
   const refs = new PrismaPublicRefRepository(prisma);
+  // Enumeração de tenants ATIVOS — usada pelos jobs cross-tenant (fan-out) e
+  // pelo sitemap. Só ids: nada de URL/segredo sai daqui.
+  const tenants = {
+    listActive: async (): Promise<{ id: string }[]> =>
+      prisma.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true } }),
+  };
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
@@ -228,6 +234,7 @@ function buildPlatformServices() {
     publicOrganizations,
     paymentEvents,
     refs,
+    tenants,
     cache,
     psp,
     auth,

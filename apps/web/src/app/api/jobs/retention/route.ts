@@ -3,7 +3,7 @@ import { Receiver } from "@upstash/qstash";
 import { loadServerEnv } from "@ingressos/config";
 import { UnauthenticatedError } from "@ingressos/core";
 import { route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices, getTenantServices } from "@/lib/services";
 
 /**
  * DEC-010 (LGPD) retention job — anonymizes buyers inactive beyond the window.
@@ -30,7 +30,13 @@ export const POST = route(async (request, { correlationId }) => {
     throw new UnauthenticatedError();
   }
 
-  const anonymized = await getServices().customers.runRetention(new Date(), 200);
+  // Fan-out por tenant (docs/MULTITENANT.md) — retenção LGPD por banco.
+  let anonymized = 0;
+  for (const tenant of await getPlatformServices().tenants.listActive()) {
+    const services = await getTenantServices(tenant.id).catch(() => null);
+    if (!services) continue;
+    anonymized += await services.customers.runRetention(new Date(), 200);
+  }
   if (anonymized > 0) {
     console.info(`[retention] correlationId=${correlationId} anonymized=${anonymized}`);
   }

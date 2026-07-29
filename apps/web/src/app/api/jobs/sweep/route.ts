@@ -3,7 +3,7 @@ import { Receiver } from "@upstash/qstash";
 import { loadServerEnv } from "@ingressos/config";
 import { UnauthenticatedError } from "@ingressos/core";
 import { route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices, getTenantServices } from "@/lib/services";
 
 /**
  * Reservation/order expiry sweep (FR-INV-007, BR-INV-003), invoked by a
@@ -36,7 +36,15 @@ export const POST = route(async (request, { correlationId }) => {
     throw new UnauthenticatedError();
   }
 
-  const expired = await getServices().orders.expireDueOrders(200);
+  // Fan-out por tenant (docs/MULTITENANT.md): cada banco varre os próprios
+  // pedidos vencidos. Idempotente — tenants legados no mesmo banco físico
+  // repetem a varredura sem efeito (transições guardadas).
+  let expired = 0;
+  for (const tenant of await getPlatformServices().tenants.listActive()) {
+    const services = await getTenantServices(tenant.id).catch(() => null);
+    if (!services) continue; // tenant indisponível não derruba o job
+    expired += await services.orders.expireDueOrders(200);
+  }
 
   if (expired > 0) {
     console.info(`[sweep] correlationId=${correlationId} expiredOrders=${expired}`);
