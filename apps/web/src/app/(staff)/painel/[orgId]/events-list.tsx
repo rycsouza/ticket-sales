@@ -146,7 +146,7 @@ export function EventsList({
         </Card>
       ) : (
         <>
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {paged.map((e) => (
               <li key={e.id}>
                 <EventCard orgSlug={orgSlug} event={e} />
@@ -208,7 +208,7 @@ function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }
               {event.startsAt ? fmtDateTime(event.startsAt) : "Data a definir"}
             </span>
             {location && (
-              <span className="inline-flex items-center gap-1.5">
+              <span className="flex min-w-0 items-center gap-1.5">
                 <MapPin className="size-3.5 shrink-0" />
                 <span className="truncate">{location}</span>
               </span>

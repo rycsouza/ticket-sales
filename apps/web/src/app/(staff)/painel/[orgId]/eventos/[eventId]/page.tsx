@@ -122,7 +122,7 @@ export default async function EventOverview({
       )}
 
       {/* KPIs — only metrics with a real source. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Ingressos vendidos"
           value={soldQty.toLocaleString("pt-BR")}
@@ -160,7 +160,7 @@ export default async function EventOverview({
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Sales summary */}
         <Card className="lg:col-span-2">
           <CardHeader title="Resumo de vendas" />

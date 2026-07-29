@@ -217,7 +217,7 @@ function NewProductForm({
 
   return (
     <form
-      className="grid gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_10rem_auto] sm:items-end"
+      className="grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_10rem_auto] sm:items-end"
       onSubmit={async (e) => {
         e.preventDefault();
         const ok = await onSubmit(`/api/orgs/${orgId}/products`, "POST", {
@@ -300,7 +300,7 @@ function NewOfferForm({
       }}
     >
       <p className="text-small font-semibold uppercase tracking-wide text-ink-muted">Nova oferta</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Tipo" htmlFor="no-kind">
           <Select id="no-kind" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="ORDER_BUMP">Order bump (no resumo)</option>
@@ -320,7 +320,7 @@ function NewOfferForm({
       </div>
 
       {targetType === "product" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Produto" htmlFor="no-product">
             <Select id="no-product" value={productId} onChange={(e) => setProductId(e.target.value)}>
               <option value="">Selecione…</option>
@@ -354,7 +354,7 @@ function NewOfferForm({
           </Field>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Evento" htmlFor="no-event">
             <Select
               id="no-event"
@@ -390,7 +390,7 @@ function NewOfferForm({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Título (opcional)" htmlFor="no-title" hint="Chamada exibida ao comprador.">
           <Input
             id="no-title"

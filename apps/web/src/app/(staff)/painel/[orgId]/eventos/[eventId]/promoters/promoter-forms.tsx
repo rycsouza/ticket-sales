@@ -66,7 +66,7 @@ export function NewCouponForm({
           void send(`${apiBase}/coupons`, body);
         }}
       >
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Field label="Código">
             <Input
               value={form.code}
@@ -147,7 +147,7 @@ export function NewRuleForm({
           void send(`${apiBase}/commission-rules`, body);
         }}
       >
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Field label="Tipo">
             <Select
               value={form.type}

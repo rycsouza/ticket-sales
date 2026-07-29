@@ -85,7 +85,7 @@ export default async function AfiliadosPage({
         <CreatePromoterForm orgId={orgId} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="lg:col-span-2">
           <CardHeader title="Promoters da organização" />
           {promoters.length === 0 ? (

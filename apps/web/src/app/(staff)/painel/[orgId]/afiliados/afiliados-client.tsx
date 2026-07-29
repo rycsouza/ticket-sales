@@ -80,7 +80,7 @@ export function CreatePromoterForm({ orgId }: { orgId: string }) {
           <Field label="Nome do afiliado">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" maxLength={120} />
           </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="E-mail (opcional)">
               <Input
                 type="email"

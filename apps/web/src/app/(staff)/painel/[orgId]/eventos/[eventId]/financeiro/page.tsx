@@ -76,7 +76,7 @@ export default async function FinancePage({
         </a>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
           label="Saldo a receber"
           value={fmtBRL(summary.producerPayableCents)}
@@ -95,7 +95,7 @@ export default async function FinancePage({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="lg:col-span-2">
           <CardHeader
             title="Composição do resultado"
