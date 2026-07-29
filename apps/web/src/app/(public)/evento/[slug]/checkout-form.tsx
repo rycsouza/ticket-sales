@@ -462,7 +462,7 @@ export function CheckoutForm({
   );
 
   return (
-    <section className="space-y-4 pb-24 sm:pb-0">
+    <section className="space-y-4">
       <StepIndicator current={step} />
 
       {/* Step 1 — Ingressos */}

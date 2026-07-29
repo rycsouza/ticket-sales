@@ -97,7 +97,11 @@ export function EventPageView({
       )}
       <div
         data-theme={event.page.theme}
-        className="relative min-h-svh bg-page text-ink px-3 py-5 sm:px-4 sm:py-8"
+        // Extra bottom room on mobile clears the fixed action / CTA bar. It lives
+        // here (page level), not on the checkout section, so it only pads the true
+        // bottom of the page and never opens a gap between blocks (e.g. before a
+        // Local block that renders after the checkout on step 1).
+        className="relative min-h-svh bg-page text-ink px-3 pt-5 pb-24 sm:px-4 sm:py-8"
       >
         {event.page.backgroundUrl && (
           <div
