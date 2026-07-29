@@ -200,12 +200,14 @@ export function OrderPayment({
   return (
     <div className="space-y-4">
       <div className={cardClass}>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <p className="text-small text-ink-muted">Pedido</p>
             <p className="font-mono text-h3 font-bold text-ink">{order.code}</p>
           </div>
-          <Badge tone={status.tone}>{status.label}</Badge>
+          <Badge tone={status.tone} className="shrink-0">
+            {status.label}
+          </Badge>
         </div>
         <p className="mt-2 text-body text-ink-soft">
           Total: <strong className="tabular-nums">{formatBRL(order.totalCents)}</strong>
