@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readJsonBody, requestMetaFrom, route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 const changeStatusSchema = z
@@ -16,7 +16,7 @@ export const PATCH = route<{ orgId: string; membershipId: string }>(
   async (request, { params, correlationId }) => {
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
     const input = changeStatusSchema.parse(await readJsonBody(request));
-    const services = getServices();
+    const services = await getTenantServices(params.orgId);
 
     const updated = await services.identity.changeMembershipStatus(
       ctx,

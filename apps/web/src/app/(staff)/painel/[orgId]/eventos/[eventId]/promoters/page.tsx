@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Link2, Ticket, UserPlus, Users } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import {
   toCommissionRuleResponse,
@@ -29,7 +29,7 @@ export default async function PromotersPage({
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
-  const s = getServices();
+  const s = (await getTenantServices(org.id));
 
   const event = await s.events.getEventBySlugOrId(ctx, eventParam).catch(() => null);
   const eventId = event?.id ?? eventParam;

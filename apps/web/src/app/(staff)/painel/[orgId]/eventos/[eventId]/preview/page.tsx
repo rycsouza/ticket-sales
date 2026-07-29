@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { buildPublicEventView } from "@/lib/public-views";
 import { PreviewClient } from "./preview-client";
 
@@ -28,7 +28,7 @@ export default async function EventPreviewPage({
 
   let event;
   try {
-    event = await getServices().events.getEventBySlugOrId(ctx, eventParam);
+    event = await (await getTenantServices(org.id)).events.getEventBySlugOrId(ctx, eventParam);
   } catch {
     redirect(`/painel/${org.slug}`);
   }

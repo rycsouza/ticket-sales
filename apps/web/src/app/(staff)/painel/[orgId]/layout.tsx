@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
 import { currentUserIsPlatformAdmin } from "@/lib/platform-admin";
 import { PanelShell } from "../panel-shell";
@@ -24,7 +24,7 @@ export default async function PanelLayout({
 }) {
   const { orgId: orgParam } = await params;
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
+  const orgs = await getPlatformServices().identity.listMyOrganizations(userId);
   const current = orgs.find(
     (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
   );

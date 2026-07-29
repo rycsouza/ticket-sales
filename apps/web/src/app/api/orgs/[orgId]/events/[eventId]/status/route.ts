@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ValidationFailedError, type EventRecord, type RequestContext } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { toEventResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 const statusActionSchema = z
@@ -30,7 +30,7 @@ export const POST = route<{ orgId: string; eventId: string }>(
   async (request, { params, correlationId }) => {
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
     const input = statusActionSchema.parse(await readJsonBody(request));
-    const { events } = getServices();
+    const { events } = (await getTenantServices(params.orgId));
 
     const event = await applyAction(events, ctx, params.eventId, input);
 
@@ -39,7 +39,7 @@ export const POST = route<{ orgId: string; eventId: string }>(
 );
 
 async function applyAction(
-  events: ReturnType<typeof getServices>["events"],
+  events: Awaited<ReturnType<typeof getTenantServices>>["events"],
   ctx: RequestContext,
   eventId: string,
   input: z.infer<typeof statusActionSchema>,

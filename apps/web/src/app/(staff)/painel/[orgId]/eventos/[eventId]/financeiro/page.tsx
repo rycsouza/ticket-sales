@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Download } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
@@ -20,11 +20,11 @@ export default async function FinancePage({
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
-  const eventId = (await getServices().events.getEventBySlugOrId(ctx, eventParam)).id;
+  const eventId = (await (await getTenantServices(org.id)).events.getEventBySlugOrId(ctx, eventParam)).id;
 
   let summary;
   try {
-    summary = await getServices().finance.getEventFinancialSummary(ctx, eventId);
+    summary = await (await getTenantServices(org.id)).finance.getEventFinancialSummary(ctx, eventId);
   } catch {
     return (
       <Card>
@@ -38,8 +38,8 @@ export default async function FinancePage({
   }
 
   const [payables, promoters] = await Promise.all([
-    getServices().finance.getEventPromoterPayables(ctx, eventId).catch(() => []),
-    getServices()
+    (await getTenantServices(org.id)).finance.getEventPromoterPayables(ctx, eventId).catch(() => []),
+    (await getTenantServices(org.id))
       .promoters.listPromoters(ctx)
       .then((r) => r.map(toPromoterResponse))
       .catch(() => []),

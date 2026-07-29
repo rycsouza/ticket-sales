@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink, MessageCircle } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventResponse, toOrderSearchRowResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
@@ -24,7 +24,7 @@ export default async function BuyerDetailPage({
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
   const backHref = `/painel/${orgSlug}/clientes`;
 
   let segment;

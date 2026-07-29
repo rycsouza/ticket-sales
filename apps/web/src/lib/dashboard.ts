@@ -3,7 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { RequestContext } from "@ingressos/core";
-import { getServices } from "./services";
+import { getPlatformServices } from "./services";
 import { SESSION_COOKIE } from "./session";
 
 /**
@@ -15,7 +15,7 @@ export async function requireDashboardUser(): Promise<{ userId: string }> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) redirect("/entrar");
   try {
-    return await getServices().auth.validateSession(token);
+    return await getPlatformServices().auth.validateSession(token);
   } catch {
     redirect("/entrar");
   }
@@ -40,7 +40,7 @@ export async function resolveOrg(
   orgParam: string,
   userId: string,
 ): Promise<{ id: string; slug: string; name: string; role: string }> {
-  const orgs = await getServices().identity.listMyOrganizations(userId);
+  const orgs = await getPlatformServices().identity.listMyOrganizations(userId);
   const match = orgs.find(
     (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
   );

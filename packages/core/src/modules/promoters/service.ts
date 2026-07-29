@@ -7,6 +7,7 @@ import {
 } from "../../shared/errors";
 import { generateToken, hashToken } from "../../shared/tokens";
 import type { ClockPort } from "../../ports/clock";
+import type { PublicRefPort } from "../../ports/refs";
 import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { MembershipRecord } from "../identity/types";
@@ -100,6 +101,11 @@ export interface PromotersServiceDeps {
   orders: PromoterOrderReader;
   audit: AuditRepository;
   clock: ClockPort;
+  /**
+   * Roteamento multi-tenant (docs/MULTITENANT.md): registra o hash do token do
+   * relatório na plataforma para /afiliado/[token] achar o banco do tenant.
+   */
+  refs?: PublicRefPort | undefined;
 }
 
 // Crockford-like base32 (no ambiguous chars) for shareable link/coupon refs.
@@ -139,6 +145,11 @@ export class PromotersService {
       contactPhone: input.contactPhone,
       reportTokenHash: hashToken(reportToken),
     });
+    await this.deps.refs?.reserve(
+      "PROMOTER_REPORT",
+      hashToken(reportToken),
+      ctx.organizationId,
+    );
     await this.deps.audit.append({
       organizationId: ctx.organizationId,
       actorUserId: ctx.userId,
@@ -200,6 +211,11 @@ export class PromotersService {
       ctx.organizationId,
       promoterId,
       hashToken(reportToken),
+    );
+    await this.deps.refs?.reserve(
+      "PROMOTER_REPORT",
+      hashToken(reportToken),
+      ctx.organizationId,
     );
     await this.deps.audit.append({
       organizationId: ctx.organizationId,

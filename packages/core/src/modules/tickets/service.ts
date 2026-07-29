@@ -2,6 +2,7 @@ import type { RequestContext } from "../../shared/context";
 import { ConflictError, NotFoundOrForbiddenError } from "../../shared/errors";
 import { generateToken, hashToken } from "../../shared/tokens";
 import type { ClockPort } from "../../ports/clock";
+import type { PublicRefPort } from "../../ports/refs";
 import type { AuditReadRecord, AuditReader, AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { OrderRepository } from "../orders/repository";
@@ -18,6 +19,12 @@ export interface TicketsServiceDeps {
   memberships?: MembershipLookup | undefined;
   auditReader?: AuditReader | undefined;
   clock?: ClockPort | undefined;
+  /**
+   * Roteamento multi-tenant (docs/MULTITENANT.md): registra o hash do token na
+   * plataforma para /t/[token] descobrir o banco do tenant. Best-effort: um
+   * registro ausente degrada para 404 do link até a reconciliação/backfill.
+   */
+  refs?: PublicRefPort | undefined;
 }
 
 export class TicketsService {
@@ -65,7 +72,10 @@ export class TicketsService {
         participantEmail: order.buyerEmail,
       });
       // null = another issuer raced us on this item — skip, don't fail.
-      if (ticket) issued.push({ ticket, rawToken });
+      if (ticket) {
+        issued.push({ ticket, rawToken });
+        await this.deps.refs?.reserve("TICKET_TOKEN", ticket.tokenHash, organizationId);
+      }
     }
 
     if (issued.length > 0) {
@@ -107,8 +117,12 @@ export class TicketsService {
     for (const ticket of tickets) {
       if (ticket.status !== "VALID") continue;
       const rawToken = generateToken();
-      await this.deps.tickets.updateTokenHash(organizationId, ticket.id, hashToken(rawToken));
-      rotated.push({ ticket: { ...ticket, tokenHash: hashToken(rawToken) }, rawToken });
+      const newHash = hashToken(rawToken);
+      await this.deps.tickets.updateTokenHash(organizationId, ticket.id, newHash);
+      // Routing: register the new hash; the stale one resolves to the same org
+      // and dies at the tenant lookup (harmless), so no release is needed.
+      await this.deps.refs?.reserve("TICKET_TOKEN", newHash, organizationId);
+      rotated.push({ ticket: { ...ticket, tokenHash: newHash }, rawToken });
     }
 
     if (rotated.length > 0) {
@@ -260,6 +274,7 @@ export class TicketsService {
     const rawToken = generateToken();
     const tokenHash = hashToken(rawToken);
     await this.deps.tickets.updateTokenHash(ctx.organizationId, ticketId, tokenHash);
+    await this.deps.refs?.reserve("TICKET_TOKEN", tokenHash, ctx.organizationId);
     await this.deps.tickets.updateParticipant(ctx.organizationId, ticketId, input);
 
     await this.deps.audit.append({

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { toBatchResponse, toEventResponse, toOfferResponse, toProductResponse } from "@/lib/serializers";
 import { PageHeader } from "@/components/ui";
 import { OffersManager } from "./offers-client";
@@ -13,7 +13,7 @@ export default async function OffersPage({ params }: { params: Promise<{ orgId: 
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
 
   const [products, offers, events] = await Promise.all([
     services.offers.listProducts(ctx).then((r) => r.map(toProductResponse)).catch(() => []),

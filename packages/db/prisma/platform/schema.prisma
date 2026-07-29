@@ -315,9 +315,11 @@ model PaymentEvent {
 
 enum PublicRefKind {
   EVENT_SLUG
+  EVENT_ID
   ORDER_CODE
   TICKET_TOKEN
   PROMOTER_CODE
+  PROMOTER_REPORT
   PROVIDER_TX
 }
 

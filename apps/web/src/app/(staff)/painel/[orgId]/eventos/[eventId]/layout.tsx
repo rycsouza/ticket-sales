@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, MapPin } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventResponse } from "@/lib/serializers";
 import { fmtDateTime } from "@/lib/status";
@@ -32,7 +32,7 @@ export default async function EventLayout({
 
   let event;
   try {
-    event = toEventResponse(await getServices().events.getEventBySlugOrId(ctx, eventParam));
+    event = toEventResponse(await (await getTenantServices(org.id)).events.getEventBySlugOrId(ctx, eventParam));
   } catch {
     redirect(`/painel/${orgSlug}`);
   }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { NotFoundOrForbiddenError, orderCardPaymentSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServicesForOrderAccess } from "@/lib/services";
 
 /**
  * Card charge for the buyer's order (FR-CHK-014, NFR-SEC-008). The card is
@@ -14,7 +14,9 @@ export const POST = route(async (request, { correlationId }) => {
   await enforceRateLimit("order-pay-card", clientIpFrom(request), 15, 5 * 60);
 
   const input = orderCardPaymentSchema.parse(await readJsonBody(request));
-  const services = getServices();
+  // Multi-tenant: a credencial (token forte ou código) resolve o tenant dono
+  // ANTES de qualquer query (docs/MULTITENANT.md §3).
+  const services = await getTenantServicesForOrderAccess(input);
 
   let target: { organizationId: string; orderId: string };
   if (input.token) {

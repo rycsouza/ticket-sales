@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eventPageImageKindSchema, ValidationFailedError } from "@ingressos/core";
 import { route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 // Hard cap acima do maior limite por tipo (banner 5 MB) — o serviço aplica o
@@ -29,7 +29,7 @@ export const POST = route<{ orgId: string; eventId: string }>(
     }
 
     const body = new Uint8Array(await file.arrayBuffer());
-    const { url } = await getServices().eventPage.uploadImage(
+    const { url } = await (await getTenantServices(params.orgId)).eventPage.uploadImage(
       ctx,
       params.eventId,
       kind,

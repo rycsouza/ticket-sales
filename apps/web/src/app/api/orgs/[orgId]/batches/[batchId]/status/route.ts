@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readJsonBody, route } from "@/lib/http";
 import { toBatchResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 const batchActionSchema = z
@@ -16,7 +16,7 @@ export const POST = route<{ orgId: string; batchId: string }>(
   async (request, { params, correlationId }) => {
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
     const input = batchActionSchema.parse(await readJsonBody(request));
-    const { inventory } = getServices();
+    const { inventory } = (await getTenantServices(params.orgId));
 
     const batch =
       input.action === "open"

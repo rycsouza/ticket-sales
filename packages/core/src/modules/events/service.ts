@@ -5,6 +5,7 @@ import {
   ValidationFailedError,
 } from "../../shared/errors";
 import type { ClockPort } from "../../ports/clock";
+import type { PublicRefPort } from "../../ports/refs";
 import type { AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
 import type { EventRepository, SectorRepository } from "./repository";
@@ -54,6 +55,13 @@ export interface EventsServiceDeps {
   organizations: OrganizationFeeReader;
   audit: AuditRepository;
   clock: ClockPort;
+  /**
+   * Roteamento multi-tenant (docs/MULTITENANT.md): reserva slug/id do evento
+   * na plataforma ANTES de gravar no tenant — garante unicidade GLOBAL do slug
+   * (por-banco não basta com um banco por tenant) e permite que /evento/[slug]
+   * descubra o banco certo. Opcional para testes unitários.
+   */
+  refs?: PublicRefPort | undefined;
 }
 
 export class EventsService {
@@ -65,7 +73,7 @@ export class EventsService {
 
     // Public URL is /evento/<slug> — slug is globally unique. Keep the client's
     // slug when free; otherwise append a numeric suffix (never fail on it).
-    const slug = await this.resolveUniqueSlug(input.slug);
+    const slug = await this.resolveUniqueSlug(input.slug, ctx.organizationId);
 
     // DEC-003: the producer never sets the fee. New events INHERIT the org's
     // default (seeded server-side); a platform admin may override it later.
@@ -77,6 +85,10 @@ export class EventsService {
       platformFeeBps: feeDefaults.platformFeeBps,
       feeMode: feeDefaults.feeMode,
     });
+
+    // Rota pública por id (API pública /api/public/events/[id]) — best-effort:
+    // o id é um UUIDv7 recém-gerado, colisão é impossível na prática.
+    await this.deps.refs?.reserve("EVENT_ID", event.id, ctx.organizationId);
 
     await this.deps.audit.append({
       organizationId: ctx.organizationId,
@@ -91,12 +103,21 @@ export class EventsService {
     return event;
   }
 
-  /** Ensure a globally-unique slug, appending -2, -3… when the base is taken. */
-  private async resolveUniqueSlug(base: string): Promise<string> {
-    if (!(await this.deps.events.findAnyBySlug(base))) return base;
+  /**
+   * Ensure a globally-unique slug, appending -2, -3… when the base is taken.
+   * Uniqueness is arbitrated by the PLATFORM (reserve-before-write) when the
+   * refs port is wired; the local check remains as a fast path/fallback.
+   */
+  private async resolveUniqueSlug(base: string, organizationId: string): Promise<string> {
+    const free = async (candidate: string): Promise<boolean> => {
+      if (await this.deps.events.findAnyBySlug(candidate)) return false;
+      if (!this.deps.refs) return true;
+      return this.deps.refs.reserve("EVENT_SLUG", candidate, organizationId);
+    };
+    if (await free(base)) return base;
     for (let n = 2; n <= 100; n++) {
       const candidate = `${base}-${n}`;
-      if (!(await this.deps.events.findAnyBySlug(candidate))) return candidate;
+      if (await free(candidate)) return candidate;
     }
     return `${base}-${Math.random().toString(36).slice(2, 8)}`;
   }

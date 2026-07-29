@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Info, Lock, LockOpen, Ticket } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
@@ -26,7 +26,7 @@ export default async function EventInventory({
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
 
   let event;
   try {

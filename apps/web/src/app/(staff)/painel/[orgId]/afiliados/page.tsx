@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { HandCoins, Ticket, Users } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import {
   toCommissionRuleResponse,
@@ -30,7 +30,7 @@ export default async function AfiliadosPage({
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
-  const s = getServices();
+  const s = (await getTenantServices(org.id));
 
   let promoters;
   try {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { mfaVerifySchema } from "@ingressos/core";
 import { readJsonBody, requestMetaFrom, route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { setSessionCookie, setTrustedDeviceCookie } from "@/lib/session";
 
 /** DEC-012 — confirm enrollment with the first code; enables MFA + backup codes. */
@@ -9,7 +9,7 @@ export const POST = route(async (request, { correlationId }) => {
   const input = mfaVerifySchema.parse(await readJsonBody(request));
   const meta = requestMetaFrom(request, correlationId);
 
-  const result = await getServices().auth.confirmMfaSetup(input.challengeToken, input.code, meta, {
+  const result = await getPlatformServices().auth.confirmMfaSetup(input.challengeToken, input.code, meta, {
     trustDevice: input.trustDevice,
   });
 

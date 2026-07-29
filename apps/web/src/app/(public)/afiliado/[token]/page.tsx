@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BarChart3, MousePointerClick, Receipt, Wallet } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { hashToken } from "@ingressos/core";
+import { getTenantServicesByRef } from "@/lib/services";
 
 // Tokenized private report — never indexed, always fresh (the token is the key).
 export const metadata: Metadata = { title: "Relatório do afiliado", robots: { index: false, follow: false } };
@@ -16,8 +17,13 @@ export default async function AffiliateReportPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const report = await getServices()
-    .promoters.getPromoterReportByToken(decodeURIComponent(token))
+  // Multi-tenant: o hash do token de relatório resolve a org dona
+  // (docs/MULTITENANT.md §3); token desconhecido cai no mesmo estado vazio.
+  const report = await getTenantServicesByRef(
+    "PROMOTER_REPORT",
+    hashToken(decodeURIComponent(token)),
+  )
+    .then(({ services }) => services.promoters.getPromoterReportByToken(decodeURIComponent(token)))
     .catch(() => null);
 
   if (!report) {

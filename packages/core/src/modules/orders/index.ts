@@ -4,6 +4,7 @@ export * from "./repository";
 export {
   OrdersService,
   generateOrderCode,
+  orderAccessCacheKey,
   type OrdersServiceDeps,
   type PublicEventReader,
   type PublicBatchReader,

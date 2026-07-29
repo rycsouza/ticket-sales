@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { createOrganizationSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { requireAuth } from "@/lib/session";
 
 export const POST = route(async (request, { correlationId }) => {
   const { userId } = await requireAuth(request);
   const input = createOrganizationSchema.parse(await readJsonBody(request));
 
-  const organization = await getServices().identity.createOrganization(input, {
+  const organization = await getPlatformServices().identity.createOrganization(input, {
     userId,
     correlationId,
   });
@@ -21,7 +21,7 @@ export const POST = route(async (request, { correlationId }) => {
 
 export const GET = route(async (request) => {
   const { userId } = await requireAuth(request);
-  const organizations = await getServices().identity.listMyOrganizations(userId);
+  const organizations = await getPlatformServices().identity.listMyOrganizations(userId);
 
   return NextResponse.json({
     organizations: organizations.map(({ organization, role }) => ({

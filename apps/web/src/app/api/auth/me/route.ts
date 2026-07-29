@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { requireAuth } from "@/lib/session";
 
 export const GET = route(async (request) => {
   const { userId } = await requireAuth(request);
-  const services = getServices();
+  const services = getPlatformServices();
 
   const organizations = await services.identity.listMyOrganizations(userId);
 

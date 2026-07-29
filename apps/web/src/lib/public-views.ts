@@ -1,7 +1,7 @@
 import "server-only";
 
 import { defaultPageBlocks, parseStoredBlocks, type EventRecord, type PageBlock } from "@ingressos/core";
-import { getServices } from "./services";
+import { getTenantServices, resolveOrgByRef } from "./services";
 
 export interface PublicBatchView {
   id: string;
@@ -75,20 +75,33 @@ export interface PublicEventView {
  * Curated public view of a PUBLISHED event (FR-CHK-001..003). Shared by the
  * JSON API and the SSR page so both expose exactly the same allowlist —
  * internal counters and organization data never leave the server.
+ *
+ * Multi-tenant (docs/MULTITENANT.md §3): the public identifier resolves the
+ * OWNING org on the platform first, then the query runs on THAT tenant's DB.
+ * Unknown ref → null → generic 404 (fail-closed, anti-enumeration).
  */
 export async function getPublicEventView(eventId: string): Promise<PublicEventView | null> {
-  const event = await getServices().publicEvents.findPublishedById(eventId);
-  return event ? buildPublicEventView(event) : null;
+  const organizationId = await resolveOrgByRef("EVENT_ID", eventId);
+  if (!organizationId) return null;
+  const services = await getTenantServices(organizationId);
+  const event = await services.publicEvents.findPublishedById(eventId);
+  return event ? buildPublicEventView(event, services) : null;
 }
 
 /** Resolve a published event by its globally-unique public slug (/evento/<slug>). */
 export async function getPublicEventViewBySlug(slug: string): Promise<PublicEventView | null> {
-  const event = await getServices().publicEvents.findPublishedBySlug(slug);
-  return event ? buildPublicEventView(event) : null;
+  const organizationId = await resolveOrgByRef("EVENT_SLUG", slug);
+  if (!organizationId) return null;
+  const services = await getTenantServices(organizationId);
+  const event = await services.publicEvents.findPublishedBySlug(slug);
+  return event ? buildPublicEventView(event, services) : null;
 }
 
-export async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
-  const services = getServices();
+export async function buildPublicEventView(
+  event: EventRecord,
+  tenantServices?: Awaited<ReturnType<typeof getTenantServices>>,
+): Promise<PublicEventView> {
+  const services = tenantServices ?? (await getTenantServices(event.organizationId));
   const now = new Date();
   const [batches, ticketTypes, pageRow, organizerIdentity, offers, couponsAvailable] =
     await Promise.all([

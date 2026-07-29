@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { loginSchema } from "@ingressos/core";
 import { readJsonBody, requestMetaFrom, route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { readTrustedDeviceToken, setSessionCookie } from "@/lib/session";
 
 export const POST = route(async (request, { correlationId }) => {
   const input = loginSchema.parse(await readJsonBody(request));
   const meta = requestMetaFrom(request, correlationId);
 
-  const result = await getServices().auth.login(input, meta, {
+  const result = await getPlatformServices().auth.login(input, meta, {
     trustedDeviceToken: readTrustedDeviceToken(request),
   });
 

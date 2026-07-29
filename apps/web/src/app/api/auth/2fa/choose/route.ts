@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { secondFactorChoiceSchema } from "@ingressos/core";
 import { readJsonBody, requestMetaFrom, route } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 
 /**
  * Choose-at-login (DEC-012): the user picked a second factor. Returns the
@@ -12,7 +12,7 @@ export const POST = route(async (request, { correlationId }) => {
   const input = secondFactorChoiceSchema.parse(await readJsonBody(request));
   const meta = requestMetaFrom(request, correlationId);
 
-  const result = await getServices().auth.chooseSecondFactor(
+  const result = await getPlatformServices().auth.chooseSecondFactor(
     input.challengeToken,
     input.method,
     meta,

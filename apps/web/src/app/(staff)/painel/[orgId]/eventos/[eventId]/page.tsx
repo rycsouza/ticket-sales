@@ -16,7 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { EventFinancialSummary } from "@ingressos/core";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
@@ -36,7 +36,7 @@ export default async function EventOverview({
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
 
   let event;
   try {

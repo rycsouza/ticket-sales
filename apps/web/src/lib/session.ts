@@ -2,7 +2,7 @@ import "server-only";
 
 import type { NextResponse } from "next/server";
 import { UnauthenticatedError, type RequestContext } from "@ingressos/core";
-import { getServices } from "./services";
+import { getPlatformServices } from "./services";
 
 export const SESSION_COOKIE = "session";
 export const TRUSTED_DEVICE_COOKIE = "mfa_device";
@@ -74,7 +74,7 @@ export interface AuthenticatedUser {
 export async function requireAuth(request: Request): Promise<AuthenticatedUser> {
   const rawToken = readSessionToken(request);
   if (!rawToken) throw new UnauthenticatedError();
-  const { userId, sessionId } = await getServices().auth.validateSession(rawToken);
+  const { userId, sessionId } = await getPlatformServices().auth.validateSession(rawToken);
   return { userId, sessionId, rawToken };
 }
 

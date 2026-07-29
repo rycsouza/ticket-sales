@@ -44,6 +44,8 @@ import {
   PrismaPublicEventPageReader,
   PrismaPublicEventReader,
   PrismaPublicOrganizationReader,
+  PrismaPublicRefRepository,
+  NotFoundOrForbiddenError,
   PrismaReservationStore,
   PrismaSalesBatchRepository,
   PrismaSectorRepository,
@@ -55,6 +57,7 @@ import {
   TicketsService,
   ValidationFailedError,
   loadKey,
+  orderAccessCacheKey,
   systemClock,
   type CachePort,
   type MailerPort,
@@ -69,7 +72,12 @@ import {
   MercadoPagoAdapter,
   UpstashRedisCache,
 } from "@ingressos/adapters";
-import { getPlatformPrisma, getPrisma } from "@ingressos/db";
+import {
+  getPlatformPrisma,
+  getPrisma,
+  TenantDbResolver,
+  type PrismaClient,
+} from "@ingressos/db";
 
 /**
  * Composition root — the ONLY place where concrete adapters meet the domain.
@@ -160,10 +168,15 @@ function buildPlatformServices() {
   const trustedDevices = new PrismaTrustedDeviceRepository(prisma);
   const publicOrganizations = new PrismaPublicOrganizationReader(prisma);
   const paymentEvents = new PrismaPaymentEventRepository(prisma);
+  // Roteamento por identificador público (docs/MULTITENANT.md §2.1/§3).
+  const refs = new PrismaPublicRefRepository(prisma);
 
   const passwordHasher = new Argon2PasswordHasher();
   const cache = buildCache();
   const mailer = buildMailer(env);
+  // 1 conta de PSP para a plataforma inteira (DEC-002 — recebedora única). O
+  // webhook verifica a assinatura AQUI, antes de saber o tenant.
+  const psp = buildPsp(env);
 
   const auth = new AuthService({
     users,
@@ -214,6 +227,9 @@ function buildPlatformServices() {
     trustedDevices,
     publicOrganizations,
     paymentEvents,
+    refs,
+    cache,
+    psp,
     auth,
     identity,
   };
@@ -221,10 +237,15 @@ function buildPlatformServices() {
 
 type PlatformServices = ReturnType<typeof buildPlatformServices>;
 
-function buildServices() {
+/**
+ * Grafo de serviços de NEGÓCIO de um tenant. Sem argumento usa o banco único
+ * legado (DATABASE_URL — transição, morre no MT-5); com um client, monta o
+ * grafo sobre o banco DAQUELE tenant (getTenantServices).
+ */
+function buildServices(tenantPrisma?: PrismaClient) {
   // Fail fast on invalid configuration (NFR boot validation)
   const env = loadServerEnv();
-  const prisma = getPrisma(env.DATABASE_URL);
+  const prisma = tenantPrisma ?? getPrisma(env.DATABASE_URL);
 
   // Identity/auth live on the PLATFORM DB (MT-2) — tenant services receive the
   // platform-backed repos by injection (cross-DB object graph, same contracts).
@@ -232,6 +253,8 @@ function buildServices() {
   const memberships = platform.memberships;
   const organizations = platform.organizations;
   const publicOrganizations = platform.publicOrganizations;
+  // Reservas/roteamento de identificadores públicos (docs/MULTITENANT.md §3).
+  const refs = platform.refs;
 
   const audit = new PrismaAuditRepository(prisma);
   const events = new PrismaEventRepository(prisma);
@@ -269,6 +292,7 @@ function buildServices() {
   // (coupon discount + attribution). It depends on repositories, not services.
   const promotersService = new PromotersService({
     promoters: promoterRepo,
+    refs,
     assignments: promoterAssignments,
     links: promoterLinks,
     coupons: couponRepo,
@@ -293,6 +317,7 @@ function buildServices() {
   const ordersService = new OrdersService({
     orders: orderRepo,
     reservations,
+    refs,
     publicEvents,
     batches,
     audit,
@@ -311,6 +336,7 @@ function buildServices() {
   const ticketsService = new TicketsService({
     tickets: ticketRepo,
     orders: orderRepo,
+    refs,
     audit,
     memberships,
     auditReader: audit,
@@ -398,6 +424,7 @@ function buildServices() {
 
   const paymentsService = new PaymentsService({
     payments: paymentRepo,
+    refs,
     paymentEvents: paymentEventRepo,
     orders: orderRepo,
     orderCoordinator: ordersService,
@@ -451,6 +478,7 @@ function buildServices() {
     events: new EventsService({
       events,
       sectors,
+      refs,
       memberships,
       inventory: {
         sumBatchQuantityTotal: (orgId, eventId) =>
@@ -493,6 +521,8 @@ type Services = ReturnType<typeof buildServices>;
 const globalForServices = globalThis as unknown as {
   services?: Services;
   platformServices?: PlatformServices;
+  tenantServices?: Map<string, Services>;
+  tenantResolver?: TenantDbResolver;
 };
 
 /** Plano de controle: identidade global + roteamento (docs/MULTITENANT.md). */
@@ -504,4 +534,104 @@ export function getPlatformServices(): PlatformServices {
 export function getServices(): Services {
   globalForServices.services ??= buildServices();
   return globalForServices.services;
+}
+
+/**
+ * Grafo de serviços do TENANT resolvido pelo plano de controle
+ * (docs/MULTITENANT.md §3–4): orgId → Tenant ACTIVE → URL decifrada → client →
+ * grafo, cacheado por org por instância. Fail-closed: org desconhecida,
+ * suspensa ou indecifrável vira o MESMO 404 genérico de recurso inexistente
+ * (anti-enumeração) — nunca um erro que confirme a existência do tenant.
+ */
+export async function getTenantServices(organizationId: string): Promise<Services> {
+  const cache = (globalForServices.tenantServices ??= new Map<string, Services>());
+  const hit = cache.get(organizationId);
+  if (hit) return hit;
+
+  const env = loadServerEnv();
+  if (!env.PLATFORM_DATABASE_URL || !env.ENCRYPTION_KEY_PLATFORM_DB) {
+    throw new Error(
+      "PLATFORM_DATABASE_URL and ENCRYPTION_KEY_PLATFORM_DB are required (docs/MULTITENANT.md §9)",
+    );
+  }
+  globalForServices.tenantResolver ??= new TenantDbResolver({
+    platformUrl: env.PLATFORM_DATABASE_URL,
+    encryptionKeyHex: env.ENCRYPTION_KEY_PLATFORM_DB,
+  });
+
+  let client: PrismaClient;
+  try {
+    client = await globalForServices.tenantResolver.getTenantDb(organizationId);
+  } catch {
+    // TenantResolutionError (ou qualquer falha de resolução) → 404 genérico.
+    throw new NotFoundOrForbiddenError();
+  }
+  const services = buildServices(client);
+  cache.set(organizationId, services);
+  return services;
+}
+
+/** TTL do cache de resolução de refs — refs são imutáveis; 24h é conservador. */
+const REF_CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * Resolve um identificador público → orgId via plataforma, com cache Redis
+ * (chave SEMPRE escopada pela ref — nunca mistura tenants). Retorna null para
+ * ref desconhecida; a borda mapeia para 404 genérico.
+ */
+export async function resolveOrgByRef(
+  kind: Parameters<PlatformServices["refs"]["resolve"]>[0],
+  key: string,
+): Promise<string | null> {
+  const platform = getPlatformServices();
+  const cacheKey = `tenant:ref:${kind}:${key}`;
+  const cached = await platform.cache.get(cacheKey).catch(() => null);
+  if (cached) return cached;
+  const organizationId = await platform.refs.resolve(kind, key);
+  if (organizationId) {
+    await platform.cache.set(cacheKey, organizationId, REF_CACHE_TTL_SECONDS).catch(() => undefined);
+  }
+  return organizationId;
+}
+
+/**
+ * Açúcar para a borda pública: resolve a ref e devolve o grafo do tenant dono,
+ * ou lança o 404 genérico quando a ref não existe (fail-closed).
+ */
+export async function getTenantServicesByRef(
+  kind: Parameters<PlatformServices["refs"]["resolve"]>[0],
+  key: string,
+): Promise<{ organizationId: string; services: Services }> {
+  const organizationId = await resolveOrgByRef(kind, key);
+  if (!organizationId) throw new NotFoundOrForbiddenError();
+  return { organizationId, services: await getTenantServices(organizationId) };
+}
+
+/**
+ * Roteia o acesso de comprador a um pedido (token forte OU código+e-mail) para
+ * o tenant dono. O token resolve pelo cache compartilhado (o payload já carrega
+ * a org); o código resolve por PublicRef. Credencial desconhecida → 404 genérico
+ * — indistinguível de pedido inexistente (anti-enumeração).
+ */
+export async function getTenantServicesForOrderAccess(input: {
+  token?: string | undefined;
+  code?: string | undefined;
+}): Promise<Services> {
+  if (input.token) {
+    const raw = await getPlatformServices().cache.get(orderAccessCacheKey(input.token));
+    if (!raw) throw new NotFoundOrForbiddenError();
+    try {
+      const parsed = JSON.parse(raw) as { organizationId?: string };
+      if (!parsed.organizationId) throw new Error("bad payload");
+      return await getTenantServices(parsed.organizationId);
+    } catch {
+      throw new NotFoundOrForbiddenError();
+    }
+  }
+  if (input.code) {
+    const organizationId = await resolveOrgByRef("ORDER_CODE", input.code);
+    if (!organizationId) throw new NotFoundOrForbiddenError();
+    return getTenantServices(organizationId);
+  }
+  throw new NotFoundOrForbiddenError();
 }

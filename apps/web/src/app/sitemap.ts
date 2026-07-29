@@ -13,6 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
+    // TODO(MT-5): fan-out por tenant — hoje lê o banco único legado.
     const events = await getServices().publicEvents.listPublished();
     for (const event of events) {
       entries.push({

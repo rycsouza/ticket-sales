@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { linkPromoterSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { toPromoterAssignmentResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 /** FR-PRM-003 — link a promoter to an event; list linked promoters. */
@@ -11,7 +11,7 @@ export const POST = route<{ orgId: string; eventId: string }>(
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
     const input = linkPromoterSchema.parse(await readJsonBody(request));
 
-    const assignment = await getServices().promoters.linkPromoterToEvent(
+    const assignment = await (await getTenantServices(params.orgId)).promoters.linkPromoterToEvent(
       ctx,
       params.eventId,
       input,
@@ -25,7 +25,7 @@ export const GET = route<{ orgId: string; eventId: string }>(
   async (request, { params, correlationId }) => {
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
 
-    const assignments = await getServices().promoters.listEventAssignments(ctx, params.eventId);
+    const assignments = await (await getTenantServices(params.orgId)).promoters.listEventAssignments(ctx, params.eventId);
 
     return NextResponse.json({ promoters: assignments.map(toPromoterAssignmentResponse) });
   },

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createOrderSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServicesByRef } from "@/lib/services";
 
 /** Public checkout (FR-CHK-005..017): guest purchase, no account needed. */
 export const POST = route(async (request, { correlationId }) => {
@@ -15,7 +15,10 @@ export const POST = route(async (request, { correlationId }) => {
   const contactKey = input.buyer.email ?? input.buyer.phone ?? ip;
   await enforceRateLimit("public-order-contact", contactKey, 10, 5 * 60);
 
-  const { order, expiresAt, accessToken } = await getServices().orders.createOrder(input, {
+  // Multi-tenant: o eventId do checkout resolve a org dona na plataforma; o
+  // pedido é criado no banco DAQUELE tenant (docs/MULTITENANT.md §3).
+  const { services } = await getTenantServicesByRef("EVENT_ID", input.eventId);
+  const { order, expiresAt, accessToken } = await services.orders.createOrder(input, {
     correlationId,
   });
 

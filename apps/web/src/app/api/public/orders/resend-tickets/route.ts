@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ConflictError, NotFoundOrForbiddenError, orderAccessSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServicesForOrderAccess } from "@/lib/services";
 
 /**
  * Ticket recovery (FR-TKT-006, NFR-AVL-006): rotates every ticket token of
@@ -18,7 +18,9 @@ export const POST = route(async (request, { correlationId }) => {
   // stable key. Each call kills live QR codes — it must never be cheap to spam.
   await enforceRateLimit("resend-tickets-order", input.token ?? input.code ?? "", 3, 10 * 60);
 
-  const services = getServices();
+  // Multi-tenant: a credencial (token forte ou código) resolve o tenant dono
+  // ANTES de qualquer query (docs/MULTITENANT.md §3).
+  const services = await getTenantServicesForOrderAccess(input);
   let order;
   if (input.token) {
     order = await services.orders.getOrderByAccessToken(input.token);

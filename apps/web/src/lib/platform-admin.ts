@@ -3,7 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { loadServerEnv } from "@ingressos/config";
-import { getServices } from "./services";
+import { getPlatformServices } from "./services";
 import { SESSION_COOKIE } from "./session";
 
 /**
@@ -31,8 +31,8 @@ export async function currentUserIsPlatformAdmin(): Promise<boolean> {
   try {
     const token = (await cookies()).get(SESSION_COOKIE)?.value;
     if (!token) return false;
-    const { userId } = await getServices().auth.validateSession(token);
-    const user = await getServices().auth.getUserById(userId);
+    const { userId } = await getPlatformServices().auth.validateSession(token);
+    const user = await getPlatformServices().auth.getUserById(userId);
     return isPlatformAdminEmail(user?.email);
   } catch {
     return false;
@@ -47,8 +47,8 @@ export async function resolvePlatformAdmin(): Promise<{ userId: string; email: s
   try {
     const token = (await cookies()).get(SESSION_COOKIE)?.value;
     if (!token) return null;
-    const { userId } = await getServices().auth.validateSession(token);
-    const user = await getServices().auth.getUserById(userId);
+    const { userId } = await getPlatformServices().auth.validateSession(token);
+    const user = await getPlatformServices().auth.getUserById(userId);
     if (!user || !isPlatformAdminEmail(user.email)) return null;
     return { userId, email: user.email };
   } catch {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requestMetaFrom } from "@/lib/http";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { setSessionCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     if (!claims?.email) return fail("google_falhou");
 
     const meta = requestMetaFrom(request, randomUUID());
-    const result = await getServices().auth.loginWithFederatedIdentity(
+    const result = await getPlatformServices().auth.loginWithFederatedIdentity(
       {
         email: claims.email,
         name: claims.name ?? "",

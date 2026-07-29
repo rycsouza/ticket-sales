@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getPlatformServices, getTenantServices } from "@/lib/services";
 import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, Badge } from "@/components/ui";
 import { EVENT_STATUS, statusMeta } from "@/lib/status";
@@ -19,9 +19,9 @@ export default async function PlatformOrgPage({
 }) {
   await requirePlatformAdmin();
   const { orgId } = await params;
-  const s = getServices();
-
-  const org = await s.identity.getOrganizationAsPlatformAdmin(orgId);
+  // Identidade vem do plano de controle; negócio vem do banco DO tenant.
+  const org = await getPlatformServices().identity.getOrganizationAsPlatformAdmin(orgId);
+  const s = await getTenantServices(orgId);
   const events = await s.events.listEventsAsPlatformAdmin(orgId);
 
   // Producer payable per event (for the external-payout context).

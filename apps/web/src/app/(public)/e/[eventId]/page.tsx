@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { getServices } from "@/lib/services";
+import { getTenantServicesByRef } from "@/lib/services";
 
 const paramsSchema = z.string().uuid();
 
@@ -19,7 +19,10 @@ export default async function LegacyEventRedirect({
   const parsed = paramsSchema.safeParse(eventId);
   if (!parsed.success) notFound();
 
-  const event = await getServices().publicEvents.findPublishedById(parsed.data);
+  // Multi-tenant: o id resolve a org dona na plataforma (docs/MULTITENANT.md §3).
+  const event = await getTenantServicesByRef("EVENT_ID", parsed.data)
+    .then(({ services }) => services.publicEvents.findPublishedById(parsed.data))
+    .catch(() => null);
   if (!event) notFound();
 
   redirect(`/evento/${event.slug}`);

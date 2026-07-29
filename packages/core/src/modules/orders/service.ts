@@ -7,6 +7,7 @@ import {
 import { cents, percentageOf } from "../../shared/money";
 import type { CachePort } from "../../ports/cache";
 import type { ClockPort } from "../../ports/clock";
+import type { PublicRefPort } from "../../ports/refs";
 import type { AuditRepository } from "../audit/repository";
 import type { EventRecord } from "../events/types";
 import type { ReservationStore } from "../inventory/reservations";
@@ -96,6 +97,12 @@ export interface OrdersServiceDeps {
   offers?: OfferCheckoutResolver | undefined;
   /** Optional: short-lived buyer access tokens (Print 4). Absent → code+e-mail only. */
   cache?: CachePort | undefined;
+  /**
+   * Roteamento multi-tenant (docs/MULTITENANT.md): reserva o código público do
+   * pedido na plataforma ANTES do insert no tenant, para /pedido descobrir o
+   * banco certo e o código continuar globalmente único.
+   */
+  refs?: PublicRefPort | undefined;
 }
 
 /**
@@ -104,10 +111,15 @@ export interface OrdersServiceDeps {
  */
 const ORDER_ACCESS_TTL_SECONDS = 2 * 60 * 60;
 
-/** Cache key for a buyer access token — only a HASH is stored, never the raw token. */
-function orderAccessKey(token: string): string {
+/**
+ * Cache key for a buyer access token — only a HASH is stored, never the raw
+ * token. Exported so the multi-tenant edge can resolve the owning org from the
+ * shared cache BEFORE knowing which tenant DB to open (docs/MULTITENANT.md §3).
+ */
+export function orderAccessCacheKey(token: string): string {
   return `order-access:${createHash("sha256").update(token).digest("hex")}`;
 }
+const orderAccessKey = orderAccessCacheKey;
 
 // Crockford-like base32 (no 0/O/1/I) — public order codes are unguessable
 // enough combined with the buyer-email check and rate limiting.
@@ -254,10 +266,21 @@ export class OrdersService {
       throw new ValidationFailedError("Informe nome e e-mail para concluir a compra.");
     }
 
+    // Reserve the public code on the platform BEFORE the tenant insert
+    // (reserve-then-write — docs/MULTITENANT.md §8). Collisions are near
+    // impossible (32^12), but the loop keeps the guarantee explicit.
+    let code = generateOrderCode();
+    if (this.deps.refs) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (await this.deps.refs.reserve("ORDER_CODE", code, event.organizationId)) break;
+        code = generateOrderCode();
+      }
+    }
+
     const order = await this.deps.orders.createPendingOrder({
       organizationId: event.organizationId,
       eventId: event.id,
-      code: generateOrderCode(),
+      code,
       buyerName,
       buyerEmail,
       buyerDocument: input.buyer.document,

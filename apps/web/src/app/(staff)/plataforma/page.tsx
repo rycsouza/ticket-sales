@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, ShieldCheck } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { Badge, Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 
@@ -17,7 +17,7 @@ function feeLabel(bps: number, mode: "BUYER" | "PRODUCER"): string {
 /** Platform-admin home: every organization + its default fee (DEC-003). */
 export default async function PlatformAdminPage() {
   await requirePlatformAdmin();
-  const orgs = await getServices().identity.listAllOrganizationsAsPlatformAdmin();
+  const orgs = await getPlatformServices().identity.listAllOrganizationsAsPlatformAdmin();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">

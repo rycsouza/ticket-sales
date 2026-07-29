@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { searchOrdersSchema } from "@ingressos/core";
 import { route } from "@/lib/http";
 import { toOrderSearchRowResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 /** FR-ADM-001 — order search for the support console (org-scoped, bounded). */
@@ -18,7 +18,7 @@ export const GET = route<{ orgId: string }>(async (request, { params, correlatio
   };
   const input = searchOrdersSchema.parse(raw);
 
-  const orders = await getServices().support.searchOrders(ctx, input);
+  const orders = await (await getTenantServices(params.orgId)).support.searchOrders(ctx, input);
 
   return NextResponse.json({ orders: orders.map(toOrderSearchRowResponse) });
 });

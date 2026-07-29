@@ -5,6 +5,7 @@
 import type { CachePort } from "../ports/cache";
 import type { ClockPort } from "../ports/clock";
 import type { PasswordHasherPort } from "../ports/password-hasher";
+import type { PublicRefKind, PublicRefPort } from "../ports/refs";
 import type {
   AuditEntry,
   AuditReadRecord,
@@ -53,6 +54,30 @@ export class FakePasswordHasher implements PasswordHasherPort {
 
   async verify(hash: string, plaintext: string): Promise<boolean> {
     return hash === `hashed:${plaintext}`;
+  }
+}
+
+/** Mapa (kind,key)→org em memória — reproduz a atomicidade da reserva. */
+export class FakePublicRefRegistry implements PublicRefPort {
+  readonly refs = new Map<string, string>();
+
+  private k(kind: PublicRefKind, key: string) {
+    return `${kind}:${key}`;
+  }
+
+  async reserve(kind: PublicRefKind, key: string, organizationId: string): Promise<boolean> {
+    const existing = this.refs.get(this.k(kind, key));
+    if (existing !== undefined) return existing === organizationId;
+    this.refs.set(this.k(kind, key), organizationId);
+    return true;
+  }
+
+  async resolve(kind: PublicRefKind, key: string): Promise<string | null> {
+    return this.refs.get(this.k(kind, key)) ?? null;
+  }
+
+  async release(kind: PublicRefKind, key: string, organizationId: string): Promise<void> {
+    if (this.refs.get(this.k(kind, key)) === organizationId) this.refs.delete(this.k(kind, key));
   }
 }
 

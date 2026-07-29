@@ -1,7 +1,7 @@
 import "server-only";
 
 import { RateLimitExceededError } from "@ingressos/core";
-import { getServices } from "./services";
+import { getPlatformServices } from "./services";
 
 /**
  * Public-endpoint abuse protection (CLAUDE_SECURITY_RULES §20). Counters live
@@ -13,7 +13,7 @@ export async function enforceRateLimit(
   limit: number,
   windowSeconds: number,
 ): Promise<void> {
-  const attempts = await getServices().cache.increment(
+  const attempts = await getPlatformServices().cache.increment(
     `rl:${bucket}:${identifier}`,
     windowSeconds,
   );

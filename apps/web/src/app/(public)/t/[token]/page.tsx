@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
-import { NotFoundOrForbiddenError } from "@ingressos/core";
+import { hashToken, NotFoundOrForbiddenError } from "@ingressos/core";
 import { formatEventDate } from "@/lib/public-views";
-import { getServices } from "@/lib/services";
+import { getTenantServicesByRef } from "@/lib/services";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { TicketQr } from "./ticket-qr";
 
@@ -24,9 +24,12 @@ export default async function TicketPage({ params }: { params: Promise<{ token: 
   const { token } = await params;
   if (token.length < 20 || token.length > 200) notFound();
 
-  const services = getServices();
+  // Multi-tenant: o HASH do token resolve a org dona; a leitura roda no banco
+  // do tenant (docs/MULTITENANT.md §3). Ref/token desconhecido → 404 genérico.
+  let services;
   let ticket;
   try {
+    ({ services } = await getTenantServicesByRef("TICKET_TOKEN", hashToken(token)));
     ticket = await services.ticketsService.getPublicTicket(token);
   } catch (error) {
     if (error instanceof NotFoundOrForbiddenError) notFound();

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { transferTicketSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { toTicketResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 /**
@@ -15,7 +15,7 @@ export const POST = route<{ orgId: string; ticketId: string }>(
     const ctx = await requireOrgContext(request, params.orgId, correlationId);
     const input = transferTicketSchema.parse(await readJsonBody(request));
 
-    const { ticket, rawToken } = await getServices().ticketsService.transferTicket(
+    const { ticket, rawToken } = await (await getTenantServices(params.orgId)).ticketsService.transferTicket(
       ctx,
       params.ticketId,
       input,

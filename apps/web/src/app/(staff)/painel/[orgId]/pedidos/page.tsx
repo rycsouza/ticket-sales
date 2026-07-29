@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { toEventResponse } from "@/lib/serializers";
 import { PageHeader } from "@/components/ui";
 import { OrdersSearch } from "./search-client";
@@ -14,7 +14,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ orgId: 
   const ctx = dashboardCtx(org.id, userId);
 
   // Event list powers the per-event filter; failures degrade to an empty list.
-  const events = (await getServices().events.listEvents(ctx).catch(() => [])).map(toEventResponse);
+  const events = (await (await getTenantServices(org.id)).events.listEvents(ctx).catch(() => [])).map(toEventResponse);
 
   return (
     <>

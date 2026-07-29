@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { NotFoundOrForbiddenError, orderAccessSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServicesForOrderAccess } from "@/lib/services";
 
 /**
  * Buyer order status (FR-CHK-017/018). POST on purpose: code+email are
@@ -14,7 +14,9 @@ export const POST = route(async (request, { correlationId }) => {
   await enforceRateLimit("order-lookup", clientIpFrom(request), 120, 5 * 60);
 
   const input = orderAccessSchema.parse(await readJsonBody(request));
-  const services = getServices();
+  // Multi-tenant: a credencial (token forte ou código) resolve o tenant dono
+  // ANTES de qualquer query (docs/MULTITENANT.md §3).
+  const services = await getTenantServicesForOrderAccess(input);
 
   let order;
   if (input.token) {

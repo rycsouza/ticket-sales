@@ -2,6 +2,7 @@ import { cents } from "../../shared/money";
 import { ConflictError, NotFoundOrForbiddenError } from "../../shared/errors";
 import type { CachePort } from "../../ports/cache";
 import type { ClockPort } from "../../ports/clock";
+import type { PublicRefPort } from "../../ports/refs";
 import type {
   NormalizedPspEvent,
   PspPort,
@@ -75,6 +76,14 @@ export interface PaymentsServiceDeps {
   refundCoordinator?: RefundSettlementCoordinator | undefined;
   /** Optional: throttles gateway reconciliation so polling never hammers the PSP. */
   cache?: CachePort | undefined;
+  /**
+   * Roteamento multi-tenant (docs/MULTITENANT.md §3): registra o id da
+   * transação do PSP na plataforma para o WEBHOOK (que não traz nenhuma pista
+   * de tenant) descobrir o banco certo. Best-effort write-after: se falhar, o
+   * evento do webhook fica FAILED e a redelivery do provedor + a reconciliação
+   * da página do pedido curam a janela.
+   */
+  refs?: PublicRefPort | undefined;
 }
 
 /**
@@ -196,6 +205,10 @@ export class PaymentsService {
       providerTransactionId: charge.providerTransactionId,
       correlationId: meta.correlationId,
     });
+    // Webhook routing (docs/MULTITENANT.md §3) — best-effort, see deps.refs.
+    await this.deps.refs
+      ?.reserve("PROVIDER_TX", charge.providerTransactionId, order.organizationId)
+      .catch(() => undefined);
 
     await this.deps.audit.append({
       organizationId: order.organizationId,
@@ -286,6 +299,10 @@ export class PaymentsService {
       expiresAt: charge.expiresAt,
       correlationId: meta.correlationId,
     });
+    // Webhook routing (docs/MULTITENANT.md §3) — best-effort, see deps.refs.
+    await this.deps.refs
+      ?.reserve("PROVIDER_TX", charge.providerTransactionId, order.organizationId)
+      .catch(() => undefined);
 
     await this.deps.audit.append({
       organizationId: order.organizationId,

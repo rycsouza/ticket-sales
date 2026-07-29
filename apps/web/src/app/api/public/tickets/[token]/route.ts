@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { hashToken } from "@ingressos/core";
 import { route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServicesByRef } from "@/lib/services";
 
 const tokenSchema = z.string().min(20).max(200);
 
@@ -15,7 +16,9 @@ export const GET = route<{ token: string }>(async (request, { params }) => {
   await enforceRateLimit("public-ticket", clientIpFrom(request), 60, 5 * 60);
 
   const rawToken = tokenSchema.parse(params.token);
-  const services = getServices();
+  // Multi-tenant: o HASH do token resolve a org dona (o token cru nunca sai
+  // da requisição); a leitura roda no banco do tenant (docs/MULTITENANT.md §3).
+  const { services } = await getTenantServicesByRef("TICKET_TOKEN", hashToken(rawToken));
 
   const ticket = await services.ticketsService.getPublicTicket(rawToken);
   const event = await services.publicEvents.findPublishedById(ticket.eventId);

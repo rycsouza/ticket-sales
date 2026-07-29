@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Ticket } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { SESSION_COOKIE } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
@@ -33,7 +33,7 @@ export default async function LoginPage({
   let hasValidSession = false;
   if (token) {
     try {
-      await getServices().auth.validateSession(token);
+      await getPlatformServices().auth.validateSession(token);
       hasValidSession = true;
     } catch {
       // Invalid/expired session — fall through and render the login form.

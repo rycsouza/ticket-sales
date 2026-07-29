@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse } from "@/lib/serializers";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -23,7 +23,7 @@ export default async function OrgEvents({
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
 
   const events = (await services.events.listEvents(ctx)).map(toEventResponse);
 

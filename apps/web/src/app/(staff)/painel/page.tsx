@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronRight, Ticket } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getPlatformServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
 import { Badge } from "@/components/ui";
 import { NewOrgForm } from "./org-forms";
@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Painel — Ingressos" };
 /** Organization resolver: single org → straight to its workspace. */
 export default async function PainelHome() {
   const { userId } = await requireDashboardUser();
-  const orgs = await getServices().identity.listMyOrganizations(userId);
+  const orgs = await getPlatformServices().identity.listMyOrganizations(userId);
 
   if (orgs.length === 1) redirect(`/painel/${orgs[0]!.organization.slug}`);
 

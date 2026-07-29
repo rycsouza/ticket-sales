@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, StickyNote, Ticket } from "lucide-react";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { Badge, Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import {
@@ -31,7 +31,7 @@ export default async function OrderDetailPage({
 
   let timeline;
   try {
-    timeline = await getServices().support.getOrderTimeline(ctx, orderId);
+    timeline = await (await getTenantServices(org.id)).support.getOrderTimeline(ctx, orderId);
   } catch {
     notFound();
   }

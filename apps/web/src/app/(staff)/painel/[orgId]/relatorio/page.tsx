@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, Download, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
 import type { EventFinancialSummary } from "@ingressos/core";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse, toPromoterResponse } from "@/lib/serializers";
 import {
@@ -35,7 +35,7 @@ export default async function OrgReport({
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
-  const services = getServices();
+  const services = await getTenantServices(org.id);
 
   const events = (await services.events.listEvents(ctx).catch(() => [])).map(toEventResponse);
   const eventId = evento && events.some((e) => e.id === evento) ? evento : undefined;

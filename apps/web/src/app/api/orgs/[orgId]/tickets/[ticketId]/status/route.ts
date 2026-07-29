@@ -3,7 +3,7 @@ import { z } from "zod";
 import { blockTicketSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { toTicketResponse } from "@/lib/serializers";
-import { getServices } from "@/lib/services";
+import { getTenantServices } from "@/lib/services";
 import { requireOrgContext } from "@/lib/session";
 
 const statusActionSchema = z
@@ -20,7 +20,7 @@ export const POST = route<{ orgId: string; ticketId: string }>(
     const input = statusActionSchema.parse(await readJsonBody(request));
     // Re-validate the justification through the domain schema too.
     blockTicketSchema.parse({ justification: input.justification });
-    const { ticketsService } = getServices();
+    const { ticketsService } = (await getTenantServices(params.orgId));
 
     const ticket =
       input.action === "block"

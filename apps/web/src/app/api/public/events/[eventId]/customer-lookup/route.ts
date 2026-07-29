@@ -3,7 +3,7 @@ import { z } from "zod";
 import { customerLookupSchema } from "@ingressos/core";
 import { readJsonBody, route } from "@/lib/http";
 import { clientIpFrom, enforceRateLimit } from "@/lib/rate-limit";
-import { getServices } from "@/lib/services";
+import { getTenantServices, resolveOrgByRef } from "@/lib/services";
 
 const paramsSchema = z.string().uuid();
 
@@ -19,7 +19,13 @@ export const POST = route<{ eventId: string }>(async (request, { params, correla
   const eventId = paramsSchema.parse(params.eventId);
   const input = customerLookupSchema.parse(await readJsonBody(request));
 
-  const services = getServices();
+  // Multi-tenant: o id resolve a org dona na plataforma; a query roda no
+  // banco DAQUELE tenant (docs/MULTITENANT.md §3). Ref desconhecida → 404.
+  const organizationId = await resolveOrgByRef("EVENT_ID", eventId);
+  if (!organizationId) {
+    return NextResponse.json({ error: "Evento não encontrado.", correlationId }, { status: 404 });
+  }
+  const services = await getTenantServices(organizationId);
   const event = await services.publicEvents.findPublishedById(eventId);
   if (!event) {
     return NextResponse.json({ error: "Evento não encontrado.", correlationId }, { status: 404 });
