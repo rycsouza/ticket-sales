@@ -216,6 +216,15 @@ export class IdentityService {
     return this.deps.organizations.listByUserId(userId);
   }
 
+  /**
+   * Public storefront lookup (org landing pages): resolves an org by its
+   * public slug. Callers must allowlist what they expose — treat the record
+   * as server-side only.
+   */
+  async getOrganizationBySlug(slug: string) {
+    return this.deps.organizations.findBySlug(slug);
+  }
+
   // ---------------------------------------------------------------------------
   // Platform-admin surface (DEC-003). These methods DO NOT check org membership
   // — the platform admin operates across every tenant. Authorization is the
