@@ -28,6 +28,16 @@ export interface OrgVocab {
   attendee: string;
   /** Instrução do passo 1 do checkout */
   selectTickets: string;
+  /** Vitrine pública: título da grade */
+  upcomingTitle: string;
+  /** Vitrine pública: CTA do hero */
+  upcomingCta: string;
+  /** Vitrine pública: subtítulo da grade */
+  showcaseSubtitle: string;
+  /** Vitrine pública: título do rodapé */
+  footerCtaTitle: string;
+  /** Vitrine pública: subtítulo do rodapé */
+  footerCtaSubtitle: string;
 }
 
 const VOCAB: Record<OrgNiche, OrgVocab> = {
@@ -43,6 +53,11 @@ const VOCAB: Record<OrgNiche, OrgVocab> = {
     venue: "Local",
     attendee: "participante",
     selectTickets: "Selecione seus ingressos",
+    upcomingTitle: "Próximos eventos",
+    upcomingCta: "Ver próximos eventos",
+    showcaseSubtitle: "Escolha seu evento e garanta seu ingresso — os lotes são limitados.",
+    footerCtaTitle: "Vamos pro próximo evento?",
+    footerCtaSubtitle: "Fale com a gente pelo WhatsApp e garanta seu ingresso no próximo evento.",
   },
   VIAGENS: {
     event: "viagem",
@@ -56,6 +71,11 @@ const VOCAB: Record<OrgNiche, OrgVocab> = {
     venue: "Destino",
     attendee: "viajante",
     selectTickets: "Selecione suas vagas",
+    upcomingTitle: "Próximas viagens",
+    upcomingCta: "Ver próximas viagens",
+    showcaseSubtitle: "Escolha seu destino e garanta sua vaga — as saídas são limitadas.",
+    footerCtaTitle: "Vamos planejar sua próxima viagem?",
+    footerCtaSubtitle: "Fale com a gente pelo WhatsApp e garanta sua vaga na próxima excursão.",
   },
 };
 

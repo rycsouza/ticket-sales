@@ -20,17 +20,11 @@ import {
   MoreHorizontal,
   Search,
   Globe,
-  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { orgVocab, type OrgVocab } from "@/lib/org-vocab";
 import type { OrgNiche } from "@ingressos/core";
 import { ThemeToggle, type PanelTheme } from "./theme-toggle";
-
-// Atalho pra LP artesanal da Jovitur — bespoke pra esse cliente específico,
-// não é uma funcionalidade genérica de "LP configurável" (ver decisão de
-// arquitetura: páginas por cliente são feitas sob medida, não autoatendimento).
-const JOVITUR_ORG_SLUG = "jovitur";
 
 type NavOrg = { slug: string; name: string; niche?: OrgNiche };
 
@@ -288,20 +282,16 @@ function MobileBottomNav({
                   Configurações
                 </Link>
               </li>
-              {org.slug === JOVITUR_ORG_SLUG && (
-                <li>
-                  <Link
-                    href="/jovitur"
-                    target="_blank"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                  >
-                    <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-                    Ver LP
-                    <ExternalLink className="ml-auto size-3.5 text-ink-faint" />
-                  </Link>
-                </li>
-              )}
+              <li>
+                <Link
+                  href={`/painel/${org.slug}/vitrine`}
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                >
+                  <Globe className="size-5 shrink-0" strokeWidth={1.75} />
+                  Minha página
+                </Link>
+              </li>
               {isPlatformAdmin && (
                 <li>
                   <Link
@@ -467,17 +457,13 @@ function SidebarContent({
           <Settings className="size-5 shrink-0" strokeWidth={1.75} />
           Configurações
         </Link>
-        {org.slug === JOVITUR_ORG_SLUG && (
-          <Link
-            href="/jovitur"
-            target="_blank"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-          >
-            <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-            Ver LP
-            <ExternalLink className="ml-auto size-3.5 text-ink-faint" />
-          </Link>
-        )}
+        <Link
+          href={`/painel/${org.slug}/vitrine`}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
+        >
+          <Globe className="size-5 shrink-0" strokeWidth={1.75} />
+          Minha página
+        </Link>
         {isPlatformAdmin && (
           <Link
             href="/plataforma"

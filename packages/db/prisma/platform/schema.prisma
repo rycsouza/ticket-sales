@@ -116,6 +116,41 @@ model Organization {
 
   memberships Membership[]
   invites     Invite[]
+  landingPage OrgLandingPage?
+}
+
+// Vitrine pública da produtora (/<org-slug>) — conteúdo editorial configurado
+// pelo produtor no painel. Vive no plano de controle: é identidade/marketing
+// da org, resolvida pelo slug ANTES de conhecer o banco do tenant.
+model OrgLandingPage {
+  organizationId String       @id
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Página só é servida quando habilitada; caso contrário /<slug> → 404.
+  enabled Boolean @default(false)
+
+  // Hero
+  tagline           String? // ex.: "Saindo de Três Lagoas/MS"
+  headline          String? // ex.: "Sua próxima viagem começa aqui"
+  headlineHighlight String? // palavra do headline destacada em itálico/cor
+  subheadline       String?
+  heroImageUrl      String? // Cloudinary only (validado na borda)
+  logoUrl           String? // Cloudinary only; fallback = Organization.logoUrl
+
+  // Contato/social
+  whatsapp  String? // só dígitos (DDI+DDD+número)
+  instagram String? // handle sem @
+
+  // Blocos de confiança [{icon, title, description}] — Zod-validado na borda
+  trustItems Json?
+
+  // SEO/social
+  seoTitle       String?
+  seoDescription String?
+  footerNote     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum UserStatus {

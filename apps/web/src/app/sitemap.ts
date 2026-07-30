@@ -10,9 +10,21 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: "weekly", priority: 1 },
-    // Vitrines de produtora (LPs artesanais com rota própria).
-    { url: `${base}/jovitur`, changeFrequency: "daily", priority: 0.9 },
   ];
+
+  try {
+    // Vitrines de produtora habilitadas (/<org-slug>, config no platform DB).
+    for (const storefront of await getPlatformServices().storefront.listEnabled()) {
+      entries.push({
+        url: `${base}/${storefront.orgSlug}`,
+        lastModified: storefront.updatedAt,
+        changeFrequency: "daily",
+        priority: 0.9,
+      });
+    }
+  } catch {
+    // DB indisponível no build — segue sem as vitrines.
+  }
 
   try {
     // Fan-out por tenant (docs/MULTITENANT.md); dedupe por slug cobre os

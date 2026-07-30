@@ -16,7 +16,9 @@ import {
   PaymentsService,
   PromotersService,
   PrismaAuditRepository,
+  PrismaOrgLandingPageRepository,
   PrismaPlatformAuditRepository,
+  StorefrontService,
   PrismaCommissionEntryRepository,
   PrismaCommissionRuleRepository,
   PrismaCouponRepository,
@@ -218,8 +220,16 @@ function buildPlatformServices() {
     passwordHasher,
   });
 
+  // Vitrine pública por produtora (/<org-slug>) — plano de controle.
+  const storefront = new StorefrontService({
+    pages: new PrismaOrgLandingPageRepository(prisma),
+    memberships,
+    audit,
+  });
+
   return {
     audit,
+    storefront,
     users,
     memberships,
     organizations,

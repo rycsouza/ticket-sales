@@ -17,3 +17,4 @@ export * from "./modules/customers/index";
 export * from "./modules/checkin/index";
 export * from "./modules/offers/index";
 export * from "./modules/routing/index";
+export * from "./modules/storefront/index";
