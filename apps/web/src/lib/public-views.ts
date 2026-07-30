@@ -42,6 +42,7 @@ export interface PublicOfferView {
 
 export interface PublicEventView {
   id: string;
+  slug: string;
   title: string;
   description: string | null;
   venueName: string | null;
@@ -87,6 +88,14 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
   return event ? buildPublicEventView(event) : null;
 }
 
+/** All published events for an org's public listing pages (e.g. a bespoke LP), ordered by date. */
+export async function getPublicEventViewsByOrganization(
+  organizationId: string,
+): Promise<PublicEventView[]> {
+  const events = await getServices().publicEvents.listPublishedByOrganization(organizationId);
+  return Promise.all(events.map(buildPublicEventView));
+}
+
 export async function buildPublicEventView(event: EventRecord): Promise<PublicEventView> {
   const services = getServices();
   const now = new Date();
@@ -121,6 +130,7 @@ export async function buildPublicEventView(event: EventRecord): Promise<PublicEv
 
   return {
     id: event.id,
+    slug: event.slug,
     title: event.title,
     description: event.description,
     venueName: event.venueName,
