@@ -56,6 +56,82 @@ describe("createOrganization", () => {
     expect(membership?.status).toBe("ACTIVE");
     expect(audit.byAction("organization.created")).toHaveLength(1);
   });
+
+  it("persists timezone and niche when provided (defaults otherwise)", async () => {
+    const { service, users } = setup();
+    const owner = await users.create({ email: "a@a.com", name: "Ana", passwordHash: "x" });
+
+    const travel = await service.createOrganization(
+      { name: "Agência Beta", timezone: "America/Campo_Grande", niche: "VIAGENS" },
+      { userId: owner.id, correlationId: "corr-1" },
+    );
+    expect(travel.timezone).toBe("America/Campo_Grande");
+    expect(travel.niche).toBe("VIAGENS");
+
+    const plain = await service.createOrganization(
+      { name: "Produtora Gama" },
+      { userId: owner.id, correlationId: "corr-2" },
+    );
+    expect(plain.timezone).toBe("America/Sao_Paulo");
+    expect(plain.niche).toBe("EVENTOS");
+  });
+});
+
+describe("updateOrganizationSettings", () => {
+  it("allows OWNER to change timezone/niche and audits before/after", async () => {
+    const { service, users, audit } = setup();
+    const owner = await users.create({ email: "a@a.com", name: "Ana", passwordHash: "x" });
+    const org = await service.createOrganization(
+      { name: "Produtora Alfa" },
+      { userId: owner.id, correlationId: "corr-1" },
+    );
+
+    const updated = await service.updateOrganizationSettings(ctxFor(org.id, owner.id), {
+      timezone: "America/Manaus",
+      niche: "VIAGENS",
+    });
+
+    expect(updated.timezone).toBe("America/Manaus");
+    expect(updated.niche).toBe("VIAGENS");
+    const entry = audit.byAction("organization.settings_updated")[0];
+    expect(entry?.before).toEqual({ timezone: "America/Sao_Paulo", niche: "EVENTOS" });
+    expect(entry?.after).toEqual({ timezone: "America/Manaus", niche: "VIAGENS" });
+  });
+
+  it("blocks roles without member-management permission", async () => {
+    const { service, users, memberships } = setup();
+    const owner = await users.create({ email: "a@a.com", name: "Ana", passwordHash: "x" });
+    const org = await service.createOrganization(
+      { name: "Produtora Alfa" },
+      { userId: owner.id, correlationId: "corr-1" },
+    );
+    const support = await users.create({ email: "s@s.com", name: "Sam", passwordHash: "x" });
+    await memberships.create({ organizationId: org.id, userId: support.id, role: "SUPPORT" });
+
+    await expect(
+      service.updateOrganizationSettings(ctxFor(org.id, support.id, "SUPPORT"), {
+        niche: "VIAGENS",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+  });
+
+  it("cannot touch another organization (tenant isolation)", async () => {
+    const { service, users } = setup();
+    const ownerA = await users.create({ email: "a@a.com", name: "Ana", passwordHash: "x" });
+    const ownerB = await users.create({ email: "b@b.com", name: "Bia", passwordHash: "x" });
+    const orgA = await service.createOrganization(
+      { name: "Org A" },
+      { userId: ownerA.id, correlationId: "corr-1" },
+    );
+    await service.createOrganization(
+      { name: "Org B" },
+      { userId: ownerB.id, correlationId: "corr-2" },
+    );
+
+    await expect(
+      service.updateOrganizationSettings(ctxFor(orgA.id, ownerB.id), { niche: "VIAGENS" }),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+  });
 });
 
 describe("inviteUser", () => {

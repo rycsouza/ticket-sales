@@ -11,6 +11,7 @@ import {
   Receipt,
   Sparkles,
   ScanLine,
+  Settings,
   ShieldCheck,
   LogOut,
   X,
@@ -22,14 +23,16 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { orgVocab, type OrgVocab } from "@/lib/org-vocab";
+import type { OrgNiche } from "@ingressos/core";
 import { ThemeToggle, type PanelTheme } from "./theme-toggle";
 
 // Atalho pra LP artesanal da Jovitur — bespoke pra esse cliente específico,
 // não é uma funcionalidade genérica de "LP configurável" (ver decisão de
 // arquitetura: páginas por cliente são feitas sob medida, não autoatendimento).
-const JOVITUR_ORG_SLUG = "jovitur-viagens-e-excursoes";
+const JOVITUR_ORG_SLUG = "jovitur";
 
-type NavOrg = { slug: string; name: string };
+type NavOrg = { slug: string; name: string; niche?: OrgNiche };
 
 interface NavItem {
   href: string;
@@ -40,12 +43,12 @@ interface NavItem {
   external?: boolean;
 }
 
-function navItems(orgId: string): NavItem[] {
+function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
   const base = `/painel/${orgId}`;
   return [
     {
       href: base,
-      label: "Eventos",
+      label: vocab.Events,
       icon: CalendarDays,
       match: (p) => p === base || p.startsWith(`${base}/eventos`),
     },
@@ -120,7 +123,7 @@ export function PanelShell({
           <BrandMark />
           <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
         </div>
-        <NavSearch orgId={org.slug} />
+        <NavSearch orgId={org.slug} placeholder={`Buscar ${orgVocab(org.niche).events}`} />
       </header>
 
       {/* Content — extra bottom padding on mobile clears the bottom nav */}
@@ -164,7 +167,8 @@ function MobileBottomNav({
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
-  const items = navItems(org.slug);
+  const vocab = orgVocab(org.niche);
+  const items = navItems(org.slug, vocab);
   const tabs = items.slice(0, BOTTOM_TAB_COUNT);
   const overflow = items.slice(BOTTOM_TAB_COUNT);
   const moreActive = overflow.some((i) => i.match(pathname));
@@ -271,7 +275,17 @@ function MobileBottomNav({
                   className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
                 >
                   <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
-                  Portaria
+                  {vocab.checkinArea}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={`/painel/${org.slug}/configuracoes`}
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                >
+                  <Settings className="size-5 shrink-0" strokeWidth={1.75} />
+                  Configurações
                 </Link>
               </li>
               {org.slug === JOVITUR_ORG_SLUG && (
@@ -334,7 +348,15 @@ function MobileBottomNav({
 }
 
 /** Quick search in the navbar — routes to the events list filtered by the term. */
-function NavSearch({ orgId, onNavigate }: { orgId: string; onNavigate?: () => void }) {
+function NavSearch({
+  orgId,
+  placeholder = "Buscar eventos",
+  onNavigate,
+}: {
+  orgId: string;
+  placeholder?: string;
+  onNavigate?: () => void;
+}) {
   const router = useRouter();
   const [q, setQ] = useState("");
   return (
@@ -353,8 +375,8 @@ function NavSearch({ orgId, onNavigate }: { orgId: string; onNavigate?: () => vo
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Buscar eventos"
-        aria-label="Buscar eventos"
+        placeholder={placeholder}
+        aria-label={placeholder}
         className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-8 pr-3 text-body text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
       />
     </form>
@@ -374,7 +396,8 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = navItems(org.slug);
+  const vocab = orgVocab(org.niche);
+  const items = navItems(org.slug, vocab);
 
   async function logout() {
     await logoutRequest();
@@ -399,7 +422,7 @@ function SidebarContent({
           )}
         </div>
         <div className="mt-3">
-          <NavSearch orgId={org.slug} />
+          <NavSearch orgId={org.slug} placeholder={`Buscar ${vocab.events}`} />
         </div>
       </div>
 
@@ -435,7 +458,14 @@ function SidebarContent({
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
         >
           <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
-          Portaria
+          {vocab.checkinArea}
+        </Link>
+        <Link
+          href={`/painel/${org.slug}/configuracoes`}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
+        >
+          <Settings className="size-5 shrink-0" strokeWidth={1.75} />
+          Configurações
         </Link>
         {org.slug === JOVITUR_ORG_SLUG && (
           <Link

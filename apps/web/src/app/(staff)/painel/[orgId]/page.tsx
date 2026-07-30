@@ -4,6 +4,7 @@ import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse } from "@/lib/serializers";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { orgVocab } from "@/lib/org-vocab";
 import { NewEventForm } from "./event-forms";
 import { EventsList, type EventListItem } from "./events-list";
 
@@ -22,6 +23,7 @@ export default async function OrgEvents({
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const orgSlug = org.slug;
+  const vocab = orgVocab(org.niche);
   const ctx = dashboardCtx(orgId, userId);
   const services = await getTenantServices(org.id);
 
@@ -58,18 +60,18 @@ export default async function OrgEvents({
   return (
     <>
       <PageHeader
-        title="Eventos"
-        description="Crie e gerencie os eventos da sua produtora."
-        actions={<NewEventForm orgId={orgId} orgSlug={orgSlug} />}
+        title={vocab.Events}
+        description={`Crie e gerencie ${vocab.events === "eventos" ? "os" : "as"} ${vocab.events} da sua produtora.`}
+        actions={<NewEventForm orgId={orgId} orgSlug={orgSlug} label={vocab.newEvent} />}
       />
 
       {items.length === 0 ? (
         <Card>
           <EmptyState
             icon={<CalendarDays className="size-5" />}
-            title="Nenhum evento ainda"
-            description="Crie o primeiro evento para começar a montar lotes e vender ingressos."
-            action={<NewEventForm orgId={orgId} orgSlug={orgSlug} />}
+            title={`Nenhum${vocab.event === "evento" ? "" : "a"} ${vocab.event} ainda`}
+            description={`Crie ${vocab.event === "evento" ? "o primeiro" : "a primeira"} ${vocab.event} para começar a montar lotes e vender ${vocab.tickets}.`}
+            action={<NewEventForm orgId={orgId} orgSlug={orgSlug} label={vocab.newEvent} />}
           />
         </Card>
       ) : (

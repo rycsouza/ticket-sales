@@ -22,7 +22,15 @@ const EMPTY = {
   capacityTotal: "",
 };
 
-export function NewEventForm({ orgId, orgSlug }: { orgId: string; orgSlug: string }) {
+export function NewEventForm({
+  orgId,
+  orgSlug,
+  label = "Novo evento",
+}: {
+  orgId: string;
+  orgSlug: string;
+  label?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -65,13 +73,13 @@ export function NewEventForm({ orgId, orgSlug }: { orgId: string; orgSlug: strin
   return (
     <>
       <Button leftIcon={<Plus className="size-[18px]" />} onClick={() => setOpen(true)}>
-        Novo evento
+        {label}
       </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Novo evento"
+        title={label}
         description="Você poderá publicar e ajustar tudo depois."
         footer={
           <>

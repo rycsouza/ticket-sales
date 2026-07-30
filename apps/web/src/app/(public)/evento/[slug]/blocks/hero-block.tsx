@@ -1,5 +1,5 @@
 import { CalendarDays, MapPin, ShieldAlert } from "lucide-react";
-import { formatEventDate } from "@/lib/public-view-format";
+import { EventDateTime, TimezoneDisclaimer } from "@/components/event-datetime";
 import type { PublicEventView } from "@/lib/public-views";
 import { StepOneOnly } from "../checkout-flow";
 import { HeroCarousel } from "./hero-carousel";
@@ -23,8 +23,6 @@ const OVERLAY_CLASS: Record<HeroConfig["overlay"], string> = {
  * original; com banner, a imagem vira capa com título/logo sobrepostos.
  */
 export function HeroBlock({ event, config }: { event: PublicEventView; config: HeroConfig }) {
-  const dateLabel = formatEventDate(event.startsAt, event.timezone);
-  const endLabel = formatEventDate(event.endsAt, event.timezone);
   const { bannerUrl, logoUrl } = event.page;
   const showLogo = config.showLogo && Boolean(logoUrl);
   // Cover source: the new multi-image config, falling back to the legacy single
@@ -38,17 +36,24 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
   const meta = (
     <StepOneOnly>
     <div className="mt-3 space-y-1.5 text-body text-ink-soft">
-      {config.showDate && dateLabel && (
+      {config.showDate && event.startsAt && (
         <p className="flex items-center gap-2">
           <CalendarDays className="size-4 shrink-0 text-ink-muted" />
-          {endLabel ? `Início: ${dateLabel}` : dateLabel}
+          <EventDateTime
+            date={event.startsAt}
+            eventTimezone={event.timezone}
+            prefix={event.endsAt ? "Início" : undefined}
+          />
         </p>
       )}
-      {config.showDate && endLabel && (
+      {config.showDate && event.endsAt && (
         <p className="flex items-center gap-2">
           <CalendarDays className="size-4 shrink-0 text-ink-muted" />
-          Término: {endLabel}
+          <EventDateTime date={event.endsAt} eventTimezone={event.timezone} prefix="Término" />
         </p>
+      )}
+      {config.showDate && event.startsAt && (
+        <TimezoneDisclaimer eventTimezone={event.timezone} reference={event.startsAt} />
       )}
       {event.venueName && (
         <p className="flex items-center gap-2">
@@ -75,7 +80,7 @@ export function HeroBlock({ event, config }: { event: PublicEventView; config: H
           <img src={logoUrl ?? undefined} alt="" className="mb-3 h-12 w-auto object-contain" />
         )}
         <p className="mb-1 text-caption font-semibold uppercase tracking-widest text-brand">
-          Evento
+          {event.orgNiche === "VIAGENS" ? "Viagem" : "Evento"}
         </p>
         {config.showTitle && <h1 className="text-h1 leading-tight text-ink">{event.title}</h1>}
         {meta}

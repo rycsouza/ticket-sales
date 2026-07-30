@@ -62,6 +62,7 @@ function renderBlock(block: PageBlock, event: PublicEventView, mpPublicKey: stri
             eventTerms={event.eventTerms}
             cancellationPolicy={event.cancellationPolicy}
             mpPublicKey={mpPublicKey}
+            orgNiche={event.orgNiche}
           />
         </section>
       );

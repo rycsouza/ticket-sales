@@ -64,6 +64,13 @@ enum FeeMode {
   PRODUCER // deducted from the producer payout
 }
 
+// Business niche — the product adapts labels/utilities per niche (e.g. a
+// travel agency sells "viagens"/"vagas" instead of "eventos"/"ingressos").
+enum OrgNiche {
+  EVENTOS
+  VIAGENS
+}
+
 model Organization {
   id     String             @id @default(uuid(7))
   status OrganizationStatus @default(ACTIVE)
@@ -96,6 +103,13 @@ model Organization {
   // inherit these at creation (seed); each event may then be overridden.
   defaultPlatformFeeBps Int     @default(0)
   defaultFeeMode        FeeMode @default(PRODUCER)
+
+  // Default IANA timezone of the producer — new events inherit it at creation
+  // (Event.timezone stays the authoritative display zone per event).
+  timezone String @default("America/Sao_Paulo")
+
+  // Niche drives product vocabulary (panel + public sales page labels).
+  niche OrgNiche @default(EVENTOS)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

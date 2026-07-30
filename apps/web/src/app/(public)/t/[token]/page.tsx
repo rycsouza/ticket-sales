@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
 import { hashToken, NotFoundOrForbiddenError } from "@ingressos/core";
-import { formatEventDate } from "@/lib/public-views";
+import { EventDateTime, TimezoneDisclaimer } from "@/components/event-datetime";
 import { getTenantServicesByRef } from "@/lib/services";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { TicketQr } from "./ticket-qr";
@@ -38,7 +38,6 @@ export default async function TicketPage({ params }: { params: Promise<{ token: 
 
   const event = await services.publicEvents.findPublishedById(ticket.eventId);
   const status = STATUS_VIEW[ticket.status] ?? { label: ticket.status, tone: "neutral" as const };
-  const dateLabel = event ? formatEventDate(event.startsAt, event.timezone) : null;
 
   return (
     <main className="mx-auto flex min-h-svh max-w-lg flex-col items-center px-4 pb-16 pt-8">
@@ -46,11 +45,14 @@ export default async function TicketPage({ params }: { params: Promise<{ token: 
         <p className="text-caption font-semibold uppercase tracking-widest text-brand">Ingresso</p>
         {event && <h1 className="mt-1 text-h2 leading-tight text-ink">{event.title}</h1>}
         <div className="mt-2 space-y-1 text-body text-ink-soft">
-          {dateLabel && (
+          {event?.startsAt && (
             <p className="flex items-center justify-center gap-2">
               <CalendarDays className="size-4 text-ink-muted" />
-              {dateLabel}
+              <EventDateTime date={event.startsAt} eventTimezone={event.timezone} />
             </p>
+          )}
+          {event?.startsAt && (
+            <TimezoneDisclaimer eventTimezone={event.timezone} reference={event.startsAt} />
           )}
           {event?.venueName && (
             <p className="flex items-center justify-center gap-2">

@@ -35,7 +35,11 @@ export default async function PanelLayout({
 
   return (
     <PanelShell
-      org={{ slug: current.organization.slug, name: current.organization.name }}
+      org={{
+        slug: current.organization.slug,
+        name: current.organization.name,
+        niche: current.organization.niche,
+      }}
       multiOrg={orgs.length > 1}
       isPlatformAdmin={isPlatformAdmin}
       theme={theme}

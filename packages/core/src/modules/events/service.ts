@@ -38,13 +38,14 @@ export interface InventoryReader {
 }
 
 /**
- * Read-only view of the organization's platform-fee defaults. Implemented by
- * the identity module — events never touches the Organization table directly.
+ * Read-only view of the organization's event-creation defaults (platform fee
+ * + timezone). Implemented by the identity module — events never touches the
+ * Organization table directly.
  */
 export interface OrganizationFeeReader {
   getFeeDefaults(
     organizationId: string,
-  ): Promise<{ platformFeeBps: number; feeMode: FeeMode }>;
+  ): Promise<{ platformFeeBps: number; feeMode: FeeMode; timezone?: string | undefined }>;
 }
 
 export interface EventsServiceDeps {
@@ -77,10 +78,12 @@ export class EventsService {
 
     // DEC-003: the producer never sets the fee. New events INHERIT the org's
     // default (seeded server-side); a platform admin may override it later.
+    // The org's timezone is inherited the same way unless the input names one.
     const feeDefaults = await this.deps.organizations.getFeeDefaults(ctx.organizationId);
     const event = await this.deps.events.create({
       organizationId: ctx.organizationId,
       ...input,
+      timezone: input.timezone ?? feeDefaults.timezone ?? "America/Sao_Paulo",
       slug,
       platformFeeBps: feeDefaults.platformFeeBps,
       feeMode: feeDefaults.feeMode,

@@ -14,6 +14,25 @@ const invitableRoleSchema = z.enum(
   MEMBERSHIP_ROLES.filter((role) => role !== "OWNER") as [string, ...string[]],
 );
 
+/** IANA timezone — validated against the runtime's own zone database. */
+export const timezoneSchema = z
+  .string()
+  .trim()
+  .max(60)
+  .refine(
+    (tz) => {
+      try {
+        new Intl.DateTimeFormat("pt-BR", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "invalid IANA timezone" },
+  );
+
+export const orgNicheSchema = z.enum(["EVENTOS", "VIAGENS"]);
+
 export const createOrganizationSchema = z
   .object({
     name: nameSchema,
@@ -24,10 +43,25 @@ export const createOrganizationSchema = z
       .optional(),
     email: emailSchema.optional(),
     phone: z.string().trim().min(8).max(20).optional(),
+    timezone: timezoneSchema.optional(),
+    niche: orgNicheSchema.optional(),
   })
   .strict();
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
+
+/** Org-level settings the producer may change (OWNER/ADMIN). */
+export const updateOrganizationSettingsSchema = z
+  .object({
+    timezone: timezoneSchema.optional(),
+    niche: orgNicheSchema.optional(),
+  })
+  .strict()
+  .refine((data) => data.timezone !== undefined || data.niche !== undefined, {
+    message: "nothing to update",
+  });
+
+export type UpdateOrganizationSettingsInput = z.infer<typeof updateOrganizationSettingsSchema>;
 
 export const inviteUserSchema = z
   .object({

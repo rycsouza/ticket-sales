@@ -25,6 +25,7 @@ import type {
   MembershipRole,
   MembershipStatus,
   OrganizationRecord,
+  OrgNiche,
   UserRecord,
 } from "../modules/identity/types";
 import type { SessionRecord, SessionRepository } from "../modules/auth/repository";
@@ -317,6 +318,8 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
+      timezone?: string | undefined;
+      niche?: OrgNiche | undefined;
     },
     ownerUserId: string,
   ): Promise<OrganizationRecord> {
@@ -330,6 +333,8 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
       phone: data.phone ?? null,
       defaultPlatformFeeBps: 0,
       defaultFeeMode: "PRODUCER",
+      timezone: data.timezone ?? "America/Sao_Paulo",
+      niche: data.niche ?? "EVENTOS",
     };
     this.organizations.push(org);
     await this.memberships.create({
@@ -370,6 +375,17 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
     if (!org) throw new Error("org not found");
     org.defaultPlatformFeeBps = data.defaultPlatformFeeBps;
     org.defaultFeeMode = data.defaultFeeMode;
+    return org;
+  }
+
+  async updateSettings(
+    organizationId: string,
+    data: { timezone?: string | undefined; niche?: OrgNiche | undefined },
+  ): Promise<OrganizationRecord> {
+    const org = this.organizations.find((o) => o.id === organizationId);
+    if (!org) throw new Error("org not found");
+    if (data.timezone !== undefined) org.timezone = data.timezone;
+    if (data.niche !== undefined) org.niche = data.niche;
     return org;
   }
 }

@@ -488,13 +488,15 @@ function buildServices(tenantPrisma: PrismaClient) {
         sumBatchCommitted: (orgId, eventId) => batches.sumCommittedByEvent(orgId, eventId),
         countBatches: (orgId, eventId) => batches.countByEvent(orgId, eventId),
       },
-      // DEC-003: new events inherit the org's default platform fee.
+      // DEC-003: new events inherit the org's default platform fee. The org's
+      // timezone is inherited the same way (events created in the org's zone).
       organizations: {
         getFeeDefaults: async (orgId) => {
           const org = await organizations.findById(orgId);
           return {
             platformFeeBps: org?.defaultPlatformFeeBps ?? 0,
             feeMode: org?.defaultFeeMode ?? "PRODUCER",
+            ...(org?.timezone ? { timezone: org.timezone } : {}),
           };
         },
       },

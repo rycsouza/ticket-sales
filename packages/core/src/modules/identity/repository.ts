@@ -7,6 +7,7 @@ import type {
   MembershipRole,
   MembershipStatus,
   OrganizationRecord,
+  OrgNiche,
   UserRecord,
 } from "./types";
 
@@ -23,6 +24,8 @@ export interface OrganizationRepository {
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
+      timezone?: string | undefined;
+      niche?: OrgNiche | undefined;
     },
     ownerUserId: string,
   ): Promise<OrganizationRecord>;
@@ -42,6 +45,11 @@ export interface OrganizationRepository {
   updateFeeDefaults(
     organizationId: string,
     data: { defaultPlatformFeeBps: number; defaultFeeMode: "BUYER" | "PRODUCER" },
+  ): Promise<OrganizationRecord>;
+  /** Org-level settings the producer may change (timezone/niche). */
+  updateSettings(
+    organizationId: string,
+    data: { timezone?: string | undefined; niche?: OrgNiche | undefined },
   ): Promise<OrganizationRecord>;
 }
 
@@ -131,6 +139,8 @@ const organizationSelect = {
   phone: true,
   defaultPlatformFeeBps: true,
   defaultFeeMode: true,
+  timezone: true,
+  niche: true,
 } as const;
 
 const userSelect = {
@@ -151,6 +161,8 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
     data: {
       name: string;
       slug: string;
+      timezone?: string | undefined;
+      niche?: OrgNiche | undefined;
       document?: string | undefined;
       email?: string | undefined;
       phone?: string | undefined;
@@ -165,6 +177,8 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
           document: data.document ?? null,
           email: data.email ?? null,
           phone: data.phone ?? null,
+          ...(data.timezone ? { timezone: data.timezone } : {}),
+          ...(data.niche ? { niche: data.niche } : {}),
         },
         select: organizationSelect,
       });
@@ -218,12 +232,28 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       select: organizationSelect,
     });
   }
+
+  async updateSettings(
+    organizationId: string,
+    data: { timezone?: string | undefined; niche?: OrgNiche | undefined },
+  ): Promise<OrganizationRecord> {
+    return this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
+        ...(data.niche !== undefined ? { niche: data.niche } : {}),
+      },
+      select: organizationSelect,
+    });
+  }
 }
 
 /** FR-ORG-009 — public identity of the producer, shown on the sales page. */
 export interface PublicOrganizationIdentity {
   publicName: string | null;
   logoUrl: string | null;
+  /** Niche adapts public vocabulary (e.g. "ingressos" → "vagas"). */
+  niche: OrgNiche;
 }
 
 /**
@@ -237,7 +267,7 @@ export class PrismaPublicOrganizationReader {
   async findIdentityById(organizationId: string): Promise<PublicOrganizationIdentity | null> {
     return this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { publicName: true, logoUrl: true },
+      select: { publicName: true, logoUrl: true, niche: true },
     });
   }
 }

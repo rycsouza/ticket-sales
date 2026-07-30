@@ -39,7 +39,14 @@ export function dashboardCtx(organizationId: string, userId: string): RequestCon
 export async function resolveOrg(
   orgParam: string,
   userId: string,
-): Promise<{ id: string; slug: string; name: string; role: string }> {
+): Promise<{
+  id: string;
+  slug: string;
+  name: string;
+  role: string;
+  timezone: string;
+  niche: "EVENTOS" | "VIAGENS";
+}> {
   const orgs = await getPlatformServices().identity.listMyOrganizations(userId);
   const match = orgs.find(
     (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
@@ -50,5 +57,7 @@ export async function resolveOrg(
     slug: match.organization.slug,
     name: match.organization.name,
     role: match.role,
+    timezone: match.organization.timezone,
+    niche: match.organization.niche,
   };
 }

@@ -32,7 +32,13 @@ export interface OrganizationRecord {
   // New events inherit these at creation; each event may be overridden.
   defaultPlatformFeeBps: number;
   defaultFeeMode: "BUYER" | "PRODUCER";
+  /** Default IANA timezone — new events inherit it at creation. */
+  timezone: string;
+  /** Business niche — drives product vocabulary (labels per niche). */
+  niche: OrgNiche;
 }
+
+export type OrgNiche = "EVENTOS" | "VIAGENS";
 
 export interface MembershipRecord {
   id: string;

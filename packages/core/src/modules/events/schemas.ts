@@ -35,7 +35,8 @@ export const createEventSchema = z
     slug: slugSchema,
     description: z.string().trim().max(5000).optional(),
     ...addressFields,
-    timezone: z.string().trim().max(60).default("America/Sao_Paulo"),
+    // No default here: absent means "inherit the org's timezone" (service).
+    timezone: z.string().trim().max(60).optional(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
     capacityTotal: z.number().int().positive().max(1_000_000).optional(),

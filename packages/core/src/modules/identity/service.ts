@@ -14,7 +14,12 @@ import type {
   OrganizationRepository,
   UserRepository,
 } from "./repository";
-import type { AcceptInviteInput, CreateOrganizationInput, InviteUserInput } from "./schemas";
+import type {
+  AcceptInviteInput,
+  CreateOrganizationInput,
+  InviteUserInput,
+  UpdateOrganizationSettingsInput,
+} from "./schemas";
 import { MEMBER_MANAGER_ROLES, type MembershipRecord, type MembershipRole } from "./types";
 
 const INVITE_TTL_DAYS = 7;
@@ -223,6 +228,27 @@ export class IdentityService {
    */
   async getOrganizationBySlug(slug: string) {
     return this.deps.organizations.findBySlug(slug);
+  }
+
+  /** Org-level settings (timezone/niche) — OWNER/ADMIN only, audited. */
+  async updateOrganizationSettings(ctx: RequestContext, input: UpdateOrganizationSettingsInput) {
+    await this.requireMemberManager(ctx);
+    const current = await this.deps.organizations.findById(ctx.organizationId);
+    if (!current) throw new NotFoundOrForbiddenError();
+    // Snapshot primitives BEFORE the update — repos may return live references.
+    const before = { timezone: current.timezone, niche: current.niche };
+    const org = await this.deps.organizations.updateSettings(ctx.organizationId, input);
+    await this.deps.audit.append({
+      organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
+      action: "organization.settings_updated",
+      resourceType: "organization",
+      resourceId: ctx.organizationId,
+      before,
+      after: { timezone: org.timezone, niche: org.niche },
+      correlationId: ctx.correlationId,
+    });
+    return org;
   }
 
   // ---------------------------------------------------------------------------

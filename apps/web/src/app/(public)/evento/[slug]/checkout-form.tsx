@@ -14,6 +14,7 @@ import {
   titleCaseName,
 } from "@/lib/format";
 import { getStoredPhone, setStoredPhone } from "@/lib/prefs";
+import { orgVocab } from "@/lib/org-vocab";
 import type { PublicBatchView, PublicOfferView } from "@/lib/public-views";
 import {
   OrderPayment,
@@ -40,6 +41,8 @@ interface Props {
   cancellationPolicy: string | null;
   /** Public key for the card Brick (Pagamento step). Absent → Pix only. */
   mpPublicKey: string | null;
+  /** Org niche — adapts vocabulary ("Ingressos" → "Vagas"). */
+  orgNiche?: "EVENTOS" | "VIAGENS";
 }
 
 interface Utm {
@@ -62,7 +65,7 @@ type Lookup =
 
 const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
-const STEP_LABELS = ["Ingressos", "Seus dados", "Revisão", "Pagamento"];
+const stepLabels = (ticketsLabel: string) => [ticketsLabel, "Seus dados", "Revisão", "Pagamento"];
 // Friendly, reassuring messages shown while the order + payment are prepared.
 const PREP_MESSAGES = [
   "Reservando seus ingressos…",
@@ -82,7 +85,9 @@ export function CheckoutForm({
   eventTerms,
   cancellationPolicy,
   mpPublicKey,
+  orgNiche = "EVENTOS",
 }: Props) {
+  const vocab = orgVocab(orgNiche);
   const router = useRouter();
   // Set once the order is created — drives the in-flow Pagamento step (4).
   const [access, setAccess] = useState<OrderAccess | null>(null);
@@ -463,13 +468,13 @@ export function CheckoutForm({
 
   return (
     <section className="space-y-4">
-      <StepIndicator current={step} />
+      <StepIndicator current={step} labels={stepLabels(vocab.Tickets)} />
 
       {/* Step 1 — Ingressos */}
       {step === 1 && (
         <>
           <div className={sectionClass}>
-            <h2 className={sectionTitle}>Ingressos</h2>
+            <h2 className={sectionTitle}>{vocab.Tickets}</h2>
             <ul className="divide-y divide-line">
               {batches.map((batch) => {
                 const quantity = quantities[batch.id] ?? 0;
@@ -881,7 +886,7 @@ export function CheckoutForm({
           show
           totalCents={subtotalCents}
           totalLabel="Subtotal"
-          note={totalQuantity === 0 ? "Selecione seus ingressos" : undefined}
+          note={totalQuantity === 0 ? vocab.selectTickets : undefined}
           primaryLabel="Continuar"
           onPrimary={goToData}
           disabled={totalQuantity === 0}
@@ -963,14 +968,14 @@ function OfferCard({
 }
 
 /** Stepper de círculos numerados (Ingressos → Dados → Revisão → Pagamento). */
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, labels }: { current: number; labels: string[] }) {
   return (
-    <ol className="flex items-start" aria-label={`Passo ${current} de ${STEP_LABELS.length}`}>
-      {STEP_LABELS.map((label, i) => {
+    <ol className="flex items-start" aria-label={`Passo ${current} de ${labels.length}`}>
+      {labels.map((label, i) => {
         const n = i + 1;
         const done = n < current;
         const active = n === current;
-        const last = i === STEP_LABELS.length - 1;
+        const last = i === labels.length - 1;
         return (
           <li
             key={label}

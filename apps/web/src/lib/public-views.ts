@@ -68,6 +68,8 @@ export interface PublicEventView {
   offers: PublicOfferView[];
   /** Whether any coupon currently applies — gates the checkout coupon field. */
   couponsAvailable: boolean;
+  /** Org niche — adapts public vocabulary ("ingressos" → "vagas"). */
+  orgNiche: "EVENTOS" | "VIAGENS";
   page: PublicEventPageView;
   organizer: PublicOrganizerView | null;
 }
@@ -177,6 +179,7 @@ export async function buildPublicEventView(
       isTicket: offer.isTicket,
     })),
     couponsAvailable,
+    orgNiche: organizerIdentity?.niche ?? "EVENTOS",
     // Blocos re-validados por Zod na leitura (JSON corrompido → defaults);
     // eventos sem personalização renderizam a página padrão de sempre.
     page: {

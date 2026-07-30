@@ -21,8 +21,13 @@ function setup() {
   const events = new InMemoryEventRepository();
   const sectors = new InMemorySectorRepository();
   const batches = new InMemorySalesBatchRepository();
-  // Org fee defaults new events inherit (DEC-003). Mutable so tests can vary it.
-  const orgFee = { platformFeeBps: 0, feeMode: "PRODUCER" as "BUYER" | "PRODUCER" };
+  // Org defaults new events inherit (fee: DEC-003; timezone: org setting).
+  // Mutable so tests can vary them.
+  const orgFee = {
+    platformFeeBps: 0,
+    feeMode: "PRODUCER" as "BUYER" | "PRODUCER",
+    timezone: undefined as string | undefined,
+  };
   const organizations = { getFeeDefaults: async () => orgFee };
   const service = new EventsService({
     events,
@@ -100,6 +105,28 @@ describe("createEvent", () => {
     const event = await env.service.createEvent(ctx(), baseEvent);
     expect(event.platformFeeBps).toBe(750);
     expect(event.feeMode).toBe("BUYER");
+  });
+
+  it("inherits the org timezone when the input omits one", async () => {
+    const env = setup();
+    await withManager(env);
+    env.orgFee.timezone = "America/Campo_Grande";
+
+    const inherited = await env.service.createEvent(ctx(), {
+      title: "Excursão",
+      slug: "excursao",
+    });
+    expect(inherited.timezone).toBe("America/Campo_Grande");
+
+    // Explicit input still wins; without any org default, falls back to SP.
+    const explicit = await env.service.createEvent(ctx(), baseEvent);
+    expect(explicit.timezone).toBe("America/Sao_Paulo");
+    env.orgFee.timezone = undefined;
+    const fallback = await env.service.createEvent(ctx(), {
+      title: "Sem fuso",
+      slug: "sem-fuso",
+    });
+    expect(fallback.timezone).toBe("America/Sao_Paulo");
   });
 });
 
