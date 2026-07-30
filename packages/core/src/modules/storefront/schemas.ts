@@ -12,6 +12,10 @@ const assetUrlSchema = z
     message: "URL de imagem inválida",
   });
 
+/** Tipos de imagem da vitrine — limites de tamanho por tipo no serviço. */
+export const storefrontImageKindSchema = z.enum(["hero", "logo"]);
+export type StorefrontImageKind = z.infer<typeof storefrontImageKindSchema>;
+
 /** Ícones permitidos nos blocos de confiança (mapeados para Lucide na borda). */
 export const trustIconSchema = z.enum([
   "shield",

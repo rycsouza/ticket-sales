@@ -211,26 +211,24 @@ export function StorefrontEditor({
               rows={2}
             />
           </Field>
-          <Field
-            label="Imagem de fundo (URL)"
-            htmlFor="sf-hero"
-            hint="Use uma imagem já enviada nas páginas dos seus eventos (URL res.cloudinary.com)."
-          >
-            <Input
-              id="sf-hero"
-              value={form.heroImageUrl}
-              onChange={(e) => set("heroImageUrl", e.target.value)}
-              placeholder="https://res.cloudinary.com/…"
-            />
-          </Field>
-          <Field label="Logo (URL)" htmlFor="sf-logo" hint="Também precisa ser res.cloudinary.com.">
-            <Input
-              id="sf-logo"
-              value={form.logoUrl}
-              onChange={(e) => set("logoUrl", e.target.value)}
-              placeholder="https://res.cloudinary.com/…"
-            />
-          </Field>
+          <StorefrontImageUploader
+            label="Imagem de fundo da capa"
+            hint="JPEG, PNG ou WebP até 5 MB — foto de destino/evento em alta resolução."
+            kind="hero"
+            orgId={orgId}
+            url={form.heroImageUrl || null}
+            onChange={(url) => set("heroImageUrl", url ?? "")}
+            previewClass="h-32 w-full rounded-lg object-cover"
+          />
+          <StorefrontImageUploader
+            label="Logo"
+            hint="JPEG, PNG ou WebP até 1 MB — fundo transparente fica melhor."
+            kind="logo"
+            orgId={orgId}
+            url={form.logoUrl || null}
+            onChange={(url) => set("logoUrl", url ?? "")}
+            previewClass="size-20 rounded-lg object-contain p-1"
+          />
         </CardBody>
       </Card>
 
@@ -379,5 +377,83 @@ export function StorefrontEditor({
         Salvar página
       </Button>
     </form>
+  );
+}
+
+/** Upload org-scoped da vitrine — mesmo padrão do editor de página de evento. */
+function StorefrontImageUploader({
+  label,
+  hint,
+  kind,
+  orgId,
+  url,
+  onChange,
+  previewClass,
+}: {
+  label: string;
+  hint?: string;
+  kind: "hero" | "logo";
+  orgId: string;
+  url: string | null;
+  onChange: (url: string | null) => void;
+  previewClass: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setError(null);
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("kind", kind);
+      form.append("file", file);
+      const res = await fetch(`/api/orgs/${orgId}/landing-page/images`, {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error ?? "Falha no envio da imagem.");
+        return;
+      }
+      onChange(data.url);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-small font-medium text-ink-soft">{label}</p>
+      {hint && <p className="mb-1.5 text-caption text-ink-muted">{hint}</p>}
+      {!hint && <div className="mb-1.5" />}
+      {url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className={`mb-2 border border-line bg-subtle ${previewClass}`} />
+      )}
+      <div className="flex items-center gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-small font-medium text-ink-soft transition-colors hover:bg-hover">
+          {busy ? "Enviando…" : url ? "Trocar imagem" : "Enviar imagem"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void upload(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {url && (
+          <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+            Remover
+          </Button>
+        )}
+      </div>
+      {error && <p className="mt-1 text-small text-danger">{error}</p>}
+    </div>
   );
 }

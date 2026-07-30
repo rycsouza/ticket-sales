@@ -225,6 +225,7 @@ function buildPlatformServices() {
     pages: new PrismaOrgLandingPageRepository(prisma),
     memberships,
     audit,
+    images: buildPublicImageStorage(env),
   });
 
   return {

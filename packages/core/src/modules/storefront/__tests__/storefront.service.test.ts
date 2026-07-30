@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RequestContext } from "../../../shared/context";
-import { NotFoundOrForbiddenError } from "../../../shared/errors";
+import { NotFoundOrForbiddenError, ValidationFailedError } from "../../../shared/errors";
+import type { UploadPublicImageInput } from "../../../ports/image-storage";
 import { InMemoryAuditRepository, InMemoryMembershipRepository } from "../../../testing/fakes";
 import type { OrgNiche } from "../../identity/types";
 import type {
@@ -91,8 +92,15 @@ function setup() {
   const memberships = new InMemoryMembershipRepository();
   const audit = new InMemoryAuditRepository();
   const pages = new InMemoryOrgLandingPageRepository([ORG_A, ORG_B]);
-  const service = new StorefrontService({ pages, memberships, audit });
-  return { memberships, audit, pages, service };
+  const uploads: UploadPublicImageInput[] = [];
+  const images = {
+    upload: async (input: UploadPublicImageInput) => {
+      uploads.push(input);
+      return { url: `https://res.cloudinary.com/test/${input.folder}/img.webp` };
+    },
+  };
+  const service = new StorefrontService({ pages, memberships, audit, images });
+  return { memberships, audit, pages, uploads, service };
 }
 
 function ctx(organizationId: string, userId: string, role = "OWNER"): RequestContext {
@@ -131,6 +139,52 @@ describe("StorefrontService.update", () => {
       env.service.update(ctx(ORG_A.id, "uB"), { enabled: true }),
     ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
     expect(env.pages.pages.has(ORG_A.id)).toBe(false);
+  });
+});
+
+describe("StorefrontService.uploadImage", () => {
+  const bytes = new Uint8Array([1, 2, 3]);
+
+  it("uploads to the org-derived folder (never from client input) and audits", async () => {
+    const env = setup();
+    await env.memberships.create({ organizationId: ORG_A.id, userId: "u1", role: "OWNER" });
+
+    const { url } = await env.service.uploadImage(ctx(ORG_A.id, "u1"), "logo", bytes, "image/webp");
+
+    expect(url).toContain("res.cloudinary.com");
+    expect(env.uploads[0]?.folder).toBe(`orgs/${ORG_A.id}/storefront`);
+    expect(env.audit.byAction("storefront.image_uploaded")).toHaveLength(1);
+  });
+
+  it("blocks non-managers and cross-org callers", async () => {
+    const env = setup();
+    await env.memberships.create({ organizationId: ORG_A.id, userId: "u2", role: "SUPPORT" });
+    await env.memberships.create({ organizationId: ORG_B.id, userId: "uB", role: "OWNER" });
+
+    await expect(
+      env.service.uploadImage(ctx(ORG_A.id, "u2", "SUPPORT"), "logo", bytes, "image/webp"),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+    await expect(
+      env.service.uploadImage(ctx(ORG_A.id, "uB"), "logo", bytes, "image/webp"),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+    expect(env.uploads).toHaveLength(0);
+  });
+
+  it("rejects unsupported content types, empty files and oversize payloads", async () => {
+    const env = setup();
+    await env.memberships.create({ organizationId: ORG_A.id, userId: "u1", role: "OWNER" });
+    const c = ctx(ORG_A.id, "u1");
+
+    await expect(
+      env.service.uploadImage(c, "logo", bytes, "image/svg+xml"),
+    ).rejects.toBeInstanceOf(ValidationFailedError);
+    await expect(
+      env.service.uploadImage(c, "logo", new Uint8Array(0), "image/webp"),
+    ).rejects.toBeInstanceOf(ValidationFailedError);
+    await expect(
+      env.service.uploadImage(c, "logo", new Uint8Array(1024 * 1024 + 1), "image/webp"),
+    ).rejects.toBeInstanceOf(ValidationFailedError);
+    expect(env.uploads).toHaveLength(0);
   });
 });
 

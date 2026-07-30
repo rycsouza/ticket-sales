@@ -1,8 +1,10 @@
 export {
   parseStoredTrustItems,
+  storefrontImageKindSchema,
   trustIconSchema,
   trustItemSchema,
   updateOrgLandingPageSchema,
+  type StorefrontImageKind,
   type TrustItem,
   type UpdateOrgLandingPageInput,
 } from "./schemas";
