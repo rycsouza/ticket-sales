@@ -196,6 +196,8 @@ com `--commit`, nunca ecoam segredo:
 |---|---|
 | `encrypt-db-url.mts` | Cifra uma URL avulsa com a chave da plataforma. |
 | `register-tenant.mts` | Upsert de um tenant: cifra a URL e grava em `Tenant`. Idempotente por `id`. |
+| `provision-tenant.mts` | Provisiona tenant novo: `--neon-project` (padrão homolog/prod) cria projeto Neon dedicado via API, migra e registra. |
+| `move-tenant-to-neon-project.mts` | Move tenant existente para projeto Neon dedicado: cria/reusa projeto, migra, copia dados (ISO-UTC), valida contagens e só então corta a URL. Banco antigo preservado. |
 
 **Provisionar uma produtora nova (MT-4):**
 
@@ -222,7 +224,8 @@ Cada estágio é deployável. Progresso nas tasks MT-1..MT-5.
 | **MT-3 Roteamento** | `PublicRef` + reserva de ref **antes** da escrita no tenant; webhook/rotas públicas/staff resolvendo pela plataforma (`getTenantServices`); Redis + backfill. | ✅ |
 | **MT-4 Operação** | `provision-tenant.mts` (URL pronta / database dev / projeto Neon via API); `migrate-tenants.mts` (fan-out com dedupe por banco); jobs (sweep/retention) e sitemap por tenant. | ✅ |
 | **MT-5 Corte** | Orgs de dev re-provisionadas em bancos dedicados (dados copiados+validados por `copy-tenant-data.mts`); `getServices()` legado REMOVIDO — não existe banco default no runtime (fail-closed pleno). | ✅ |
-| *(futuro)* | Domínio próprio por produtora: tabela `tenant_domains` + resolução por host no middleware — o desenho do Sport55 encaixa aqui sem mudança de modelo. Em produção, trocar `--create-database` por `--neon-project` (1 projeto Neon por tenant). | — |
+| **MT-6 Projeto por tenant** | Paridade homolog↔prod: todos os tenants movidos para **projetos Neon dedicados** (`move-tenant-to-neon-project.mts`, requer `NEON_API_KEY`); provisionamento padrão passa a ser `--neon-project`. | ✅ |
+| *(futuro)* | Domínio próprio por produtora: tabela `tenant_domains` + resolução por host no middleware — o desenho do Sport55 encaixa aqui sem mudança de modelo. Papel `app_runtime` least-privilege por projeto. | — |
 
 **Consistência sem transação cross-DB** (regra dos estágios 3+): a ref
 pública é **reservada na plataforma antes** de gravar no tenant; falha no
