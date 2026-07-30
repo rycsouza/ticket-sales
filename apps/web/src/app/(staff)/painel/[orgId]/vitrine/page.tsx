@@ -36,6 +36,7 @@ export default async function StorefrontPage({
             page
               ? {
                   enabled: page.enabled,
+                  brandColor: page.brandColor ?? "",
                   tagline: page.tagline ?? "",
                   headline: page.headline ?? "",
                   headlineHighlight: page.headlineHighlight ?? "",

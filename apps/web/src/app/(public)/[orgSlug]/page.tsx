@@ -14,7 +14,9 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { TrustItem } from "@ingressos/core";
+import { storefrontAccentTokens } from "@/lib/brand-theme";
 import { getPlatformServices } from "@/lib/services";
 import { getPublicEventViewsByOrganization, type PublicEventView } from "@/lib/public-views";
 import { orgVocab } from "@/lib/org-vocab";
@@ -156,7 +158,7 @@ function renderHeadline(headline: string, highlight: string | null) {
   return (
     <>
       {headline.slice(0, index)}
-      <span className="italic text-amber-400">{headline.slice(index, index + highlight.length)}</span>
+      <span className="italic text-[var(--sf-accent-text)]">{headline.slice(index, index + highlight.length)}</span>
       {headline.slice(index + highlight.length)}
     </>
   );
@@ -209,13 +211,19 @@ export default async function OrgStorefrontPage({
   const brandName = storefront.publicName ?? storefront.orgName;
   const whatsappHref = page.whatsapp ? `https://wa.me/${page.whatsapp}` : null;
   const cards = await loadCards(storefront.organizationId, isTravel);
+  // Cor da org → tokens --sf-* (fallback âmbar); cascateiam pra grade client.
+  const accentStyle = storefrontAccentTokens(page.brandColor) as CSSProperties;
 
   return (
-    <div data-theme="dark" className={`${display.variable} min-h-svh bg-page text-ink`}>
+    <div
+      data-theme="dark"
+      style={accentStyle}
+      className={`${display.variable} min-h-svh bg-page text-ink`}
+    >
       {/* Barra fina fixa — só marca + CTA, a apresentação fica pro hero */}
       <div className="sticky top-0 z-40 border-b border-line/60 bg-page/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <span className="text-small font-bold uppercase tracking-[0.2em] text-amber-400">
+          <span className="text-small font-bold uppercase tracking-[0.2em] text-[var(--sf-accent-text)]">
             {brandName}
           </span>
           {whatsappHref && (
@@ -223,7 +231,7 @@ export default async function OrgStorefrontPage({
               href={whatsappHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3.5 py-1.5 text-small font-semibold text-black transition-colors hover:bg-amber-400"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--sf-accent)] px-3.5 py-1.5 text-small font-semibold text-[var(--sf-accent-fg)] transition-colors hover:bg-[var(--sf-accent-hover)]"
             >
               <MessageCircle className="size-3.5" /> WhatsApp
             </a>
@@ -250,7 +258,7 @@ export default async function OrgStorefrontPage({
             />
           )}
           {page.tagline && (
-            <p className="mt-6 text-caption font-semibold uppercase tracking-[0.2em] text-amber-400">
+            <p className="mt-6 text-caption font-semibold uppercase tracking-[0.2em] text-[var(--sf-accent-text)]">
               {page.tagline}
             </p>
           )}
@@ -267,7 +275,7 @@ export default async function OrgStorefrontPage({
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#viagens"
-              className="rounded-full bg-amber-500 px-6 py-3 text-small font-semibold text-black transition-colors hover:bg-amber-400"
+              className="rounded-full bg-[var(--sf-accent)] px-6 py-3 text-small font-semibold text-[var(--sf-accent-fg)] transition-colors hover:bg-[var(--sf-accent-hover)]"
             >
               {vocab.upcomingCta}
             </a>
@@ -296,7 +304,7 @@ export default async function OrgStorefrontPage({
                   key={item.title}
                   className="flex flex-col items-center gap-2 rounded-2xl border border-line bg-surface p-6 text-center"
                 >
-                  <Icon className="size-6 text-amber-500" />
+                  <Icon className="size-6 text-[var(--sf-accent)]" />
                   <h2 className={`${display.className} text-h3 font-semibold text-ink`}>
                     {item.title}
                   </h2>
@@ -337,7 +345,7 @@ export default async function OrgStorefrontPage({
               href={whatsappHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-2.5 font-semibold text-black transition-colors hover:bg-amber-400"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 py-2.5 font-semibold text-[var(--sf-accent-fg)] transition-colors hover:bg-[var(--sf-accent-hover)]"
             >
               <MessageCircle className="size-4" /> {formatPhoneBR(page.whatsapp)}
             </a>
@@ -347,7 +355,7 @@ export default async function OrgStorefrontPage({
               href={`https://instagram.com/${page.instagram}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 px-5 py-2.5 font-medium text-amber-400 transition-colors hover:bg-amber-500/10"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--sf-accent-border)] px-5 py-2.5 font-medium text-[var(--sf-accent-text)] transition-colors hover:bg-[var(--sf-accent-soft)]"
             >
               <AtSign className="size-4" /> {page.instagram}
             </a>

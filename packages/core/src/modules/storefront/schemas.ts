@@ -12,6 +12,14 @@ const assetUrlSchema = z
     message: "URL de imagem inválida",
   });
 
+// Cor de marca: #rrggbb estrito, normalizada p/ minúsculas (mesma regra da
+// página de evento — duplicada de propósito p/ manter os módulos desacoplados).
+const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "cor deve estar no formato #rrggbb")
+  .transform((value) => value.toLowerCase());
+
 /** Tipos de imagem da vitrine — limites de tamanho por tipo no serviço. */
 export const storefrontImageKindSchema = z.enum(["hero", "logo"]);
 export type StorefrontImageKind = z.infer<typeof storefrontImageKindSchema>;
@@ -46,6 +54,7 @@ export type TrustItem = z.infer<typeof trustItemSchema>;
 export const updateOrgLandingPageSchema = z
   .object({
     enabled: z.boolean().optional(),
+    brandColor: hexColorSchema.nullable().optional(),
     tagline: z.string().trim().max(80).nullable().optional(),
     headline: z.string().trim().max(120).nullable().optional(),
     headlineHighlight: z.string().trim().max(40).nullable().optional(),

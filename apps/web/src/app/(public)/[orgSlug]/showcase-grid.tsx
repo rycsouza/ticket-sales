@@ -33,7 +33,7 @@ function ShowcaseCard({ item, ctaLabel }: { item: ShowcaseCardData; ctaLabel: st
   return (
     <Link
       href={`/evento/${item.slug}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-amber-500/50"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-[var(--sf-accent-border)]"
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-page">
         {item.image && (
@@ -49,7 +49,7 @@ function ShowcaseCard({ item, ctaLabel }: { item: ShowcaseCardData; ctaLabel: st
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
         {item.kind && (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-black/50 px-2.5 py-1 text-caption font-semibold uppercase tracking-wide text-amber-300 backdrop-blur-sm">
+          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-black/50 px-2.5 py-1 text-caption font-semibold uppercase tracking-wide text-[var(--sf-accent-text)] backdrop-blur-sm">
             {item.kind}
           </span>
         )}
@@ -78,7 +78,7 @@ function ShowcaseCard({ item, ctaLabel }: { item: ShowcaseCardData; ctaLabel: st
         ) : item.fromPriceLabel ? (
           <p className="text-body text-ink-soft">
             A partir de{" "}
-            <span className="text-h4 font-bold text-amber-400">{item.fromPriceLabel}</span>
+            <span className="text-h4 font-bold text-[var(--sf-accent-text)]">{item.fromPriceLabel}</span>
           </p>
         ) : (
           <span />
@@ -86,7 +86,7 @@ function ShowcaseCard({ item, ctaLabel }: { item: ShowcaseCardData; ctaLabel: st
         <span
           className={cn(
             "inline-flex items-center gap-1.5 text-small font-semibold transition-transform group-hover:translate-x-0.5",
-            item.soldOut ? "text-ink-muted" : "text-amber-400",
+            item.soldOut ? "text-ink-muted" : "text-[var(--sf-accent-text)]",
           )}
         >
           {item.soldOut ? "Ver detalhes" : ctaLabel} <ArrowRight className="size-4" />
@@ -125,7 +125,7 @@ export function ShowcaseGrid({
               className={cn(
                 "rounded-full border px-4 py-1.5 text-small font-medium transition-colors",
                 filter === f
-                  ? "border-amber-500 bg-amber-500/10 text-amber-300"
+                  ? "border-[var(--sf-accent)] bg-[var(--sf-accent-soft)] text-[var(--sf-accent-text)]"
                   : "border-line text-ink-muted hover:border-line-strong hover:text-ink-soft",
               )}
             >

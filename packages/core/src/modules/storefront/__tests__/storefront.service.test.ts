@@ -38,6 +38,7 @@ class InMemoryOrgLandingPageRepository implements OrgLandingPageRepository {
       ({
         organizationId,
         enabled: false,
+        brandColor: null,
         tagline: null,
         headline: null,
         headlineHighlight: null,
@@ -223,6 +224,10 @@ describe("updateOrgLandingPageSchema", () => {
       updateOrgLandingPageSchema.safeParse({ organizationId: "outra-org" }).success,
     ).toBe(false);
     expect(updateOrgLandingPageSchema.safeParse({ whatsapp: "abc" }).success).toBe(false);
+    expect(updateOrgLandingPageSchema.safeParse({ brandColor: "red" }).success).toBe(false);
+    expect(updateOrgLandingPageSchema.safeParse({ brandColor: "#1E3A8A" }).data?.brandColor).toBe(
+      "#1e3a8a",
+    );
     expect(
       updateOrgLandingPageSchema.safeParse({
         heroImageUrl: "https://res.cloudinary.com/x/image/upload/a.webp",

@@ -6,6 +6,7 @@ import type { OrgNiche } from "../identity/types";
 export interface OrgLandingPageRecord {
   organizationId: string;
   enabled: boolean;
+  brandColor: string | null;
   tagline: string | null;
   headline: string | null;
   headlineHighlight: string | null;
@@ -50,6 +51,7 @@ export interface OrgLandingPageRepository {
 const pageSelect = {
   organizationId: true,
   enabled: true,
+  brandColor: true,
   tagline: true,
   headline: true,
   headlineHighlight: true,

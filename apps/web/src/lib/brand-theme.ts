@@ -68,6 +68,40 @@ export type BrandTokens = Partial<
   >
 >;
 
+/** Âmbar padrão da vitrine (amber-500) — usado quando a org não tem cor. */
+const STOREFRONT_DEFAULT_ACCENT = "#f59e0b";
+
+export type StorefrontAccentTokens = Record<
+  | "--sf-accent"
+  | "--sf-accent-hover"
+  | "--sf-accent-fg"
+  | "--sf-accent-text"
+  | "--sf-accent-border"
+  | "--sf-accent-soft",
+  string
+>;
+
+/**
+ * Tokens de destaque da VITRINE da produtora (fundo escuro): a cor base vira
+ * botão/badge; `text` é clareada para legibilidade sobre o dark; border/soft
+ * são translúcidos. Entrada inválida/ausente cai no âmbar padrão — valor ruim
+ * no banco jamais injeta CSS.
+ */
+export function storefrontAccentTokens(hex: string | null | undefined): StorefrontAccentTokens {
+  const base = hexToRgb(hex && HEX_RE.test(hex) ? hex : STOREFRONT_DEFAULT_ACCENT);
+  const fg = contrastRatio(base, WHITE) >= contrastRatio(base, INK) ? "#ffffff" : "#111827";
+  const rgba = (c: Rgb, a: number) =>
+    `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${a})`;
+  return {
+    "--sf-accent": rgbToHex(base),
+    "--sf-accent-hover": rgbToHex(mix(base, WHITE, 0.12)),
+    "--sf-accent-fg": fg,
+    "--sf-accent-text": rgbToHex(mix(base, WHITE, 0.3)),
+    "--sf-accent-border": rgba(base, 0.45),
+    "--sf-accent-soft": rgba(base, 0.12),
+  };
+}
+
 /**
  * Overrides de tema para a cor do produtor. Entrada inválida devolve `{}` —
  * um valor ruim no banco jamais injeta CSS na página pública.

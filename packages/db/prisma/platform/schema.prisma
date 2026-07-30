@@ -129,6 +129,10 @@ model OrgLandingPage {
   // Página só é servida quando habilitada; caso contrário /<slug> → 404.
   enabled Boolean @default(false)
 
+  // Identidade visual: 1 hex (#rrggbb) → tokens de destaque derivados na
+  // borda (contraste WCAG). Ausente = âmbar padrão da vitrine.
+  brandColor String?
+
   // Hero
   tagline           String? // ex.: "Saindo de Três Lagoas/MS"
   headline          String? // ex.: "Sua próxima viagem começa aqui"

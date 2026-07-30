@@ -20,6 +20,7 @@ const ICON_OPTIONS: { value: TrustItem["icon"]; label: string }[] = [
 
 type FormState = {
   enabled: boolean;
+  brandColor: string;
   tagline: string;
   headline: string;
   headlineHighlight: string;
@@ -36,6 +37,7 @@ type FormState = {
 
 const EMPTY: FormState = {
   enabled: false,
+  brandColor: "",
   tagline: "",
   headline: "",
   headlineHighlight: "",
@@ -91,6 +93,7 @@ export function StorefrontEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled: form.enabled,
+          brandColor: text(form.brandColor),
           tagline: text(form.tagline),
           headline: text(form.headline),
           headlineHighlight: text(form.headlineHighlight),
@@ -164,6 +167,32 @@ export function StorefrontEditor({
       <Card>
         <CardBody className="space-y-4">
           <p className="text-small font-semibold uppercase tracking-wide text-ink-muted">Capa</p>
+          <Field
+            label="Cor da marca"
+            htmlFor="sf-brand-color"
+            hint="Destaques, botões e badges da vitrine usam esta cor. Vazio = dourado padrão."
+          >
+            <div className="flex items-center gap-3">
+              <input
+                id="sf-brand-color"
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(form.brandColor) ? form.brandColor : "#f59e0b"}
+                onChange={(e) => set("brandColor", e.target.value)}
+                className="h-10 w-14 cursor-pointer rounded-lg border border-line-strong bg-surface p-1"
+              />
+              <Input
+                value={form.brandColor}
+                onChange={(e) => set("brandColor", e.target.value)}
+                placeholder="#f59e0b"
+                className="max-w-32"
+              />
+              {form.brandColor && (
+                <Button variant="ghost" size="sm" onClick={() => set("brandColor", "")}>
+                  Usar padrão
+                </Button>
+              )}
+            </div>
+          </Field>
           <Field
             label="Chamada pequena"
             htmlFor="sf-tagline"
