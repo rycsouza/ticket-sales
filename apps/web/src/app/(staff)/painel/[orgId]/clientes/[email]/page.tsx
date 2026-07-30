@@ -132,7 +132,36 @@ export default async function BuyerDetailPage({
             <p className="text-small text-ink-muted">Nenhum pedido encontrado para este cliente.</p>
           </CardBody>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile: cada pedido vira um card tocável (sem scroll horizontal) */}
+            <ul className="divide-y divide-line md:hidden">
+              {orders.map((o) => {
+                const s = statusMeta(ORDER_STATUS, o.status);
+                return (
+                  <li key={o.id}>
+                    <Link
+                      href={`/painel/${orgSlug}/pedidos/${o.id}`}
+                      className="block px-4 py-3.5 transition-colors hover:bg-hover"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-small font-medium text-brand">{o.code}</span>
+                        <Badge tone={s.tone}>{s.label}</Badge>
+                      </div>
+                      <p className="mt-1 truncate text-body text-ink">
+                        {eventTitle.get(o.eventId) ?? "—"}
+                      </p>
+                      <div className="mt-0.5 flex items-center justify-between gap-2 text-small text-ink-muted">
+                        <span title={fmtDateTime(o.createdAt)}>{fmtDate(o.createdAt)}</span>
+                        <span className="tabular-nums font-medium text-ink">{fmtBRL(o.totalCents)}</span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: tabela original */}
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[40rem] text-body">
               <thead>
                 <tr className="border-b border-line text-left text-small text-ink-muted">
@@ -168,7 +197,8 @@ export default async function BuyerDetailPage({
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </Card>
 

@@ -117,18 +117,20 @@ export default async function EventInventory({
                       return (
                         <li
                           key={b.id}
-                          className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
                         >
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-medium text-ink">{b.name}</span>
                               <Badge tone={bs.tone}>{bs.label}</Badge>
                             </div>
+                            {/* Segmentos independentes: em 320px quebram um a um, sem linha órfã */}
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-small text-ink-muted">
                               <span className="tabular-nums text-ink-soft">{fmtBRL(b.priceCents)}</span>
                               <span className="tabular-nums">
-                                {b.quantitySold}/{b.quantityTotal} vendidos · {remaining} restantes
+                                {b.quantitySold}/{b.quantityTotal} vendidos
                               </span>
+                              <span className="tabular-nums">{remaining} restantes</span>
                               {b.maxPerOrder != null && <span>Limite {b.maxPerOrder}/pedido</span>}
                             </div>
                             {(b.salesStartAt || b.salesEndAt) && (

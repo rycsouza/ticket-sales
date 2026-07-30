@@ -254,6 +254,15 @@ export class PrismaPublicEventReader {
     });
   }
 
+  /** Upcoming published events for an org's public listing pages (e.g. a bespoke LP). */
+  async listPublishedByOrganization(organizationId: string): Promise<EventRecord[]> {
+    return this.prisma.event.findMany({
+      where: { organizationId, status: "PUBLISHED" },
+      select: eventSelect,
+      orderBy: { startsAt: "asc" },
+    });
+  }
+
   /** Public slugs for the sitemap — only PUBLISHED events have a live page. */
   async listPublished(limit = 5000): Promise<{ slug: string; updatedAt: Date }[]> {
     return this.prisma.event.findMany({

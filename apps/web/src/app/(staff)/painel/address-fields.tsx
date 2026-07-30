@@ -43,8 +43,9 @@ export function AddressFields({
         />
       </Field>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Field label="Cidade (opcional)" htmlFor="addr-city" className="col-span-2">
+      {/* 320px: cidade e UF espremidas em 3 colunas fixas → UF vira coluna estreita fixa */}
+      <div className="grid grid-cols-[1fr_5rem] gap-3 sm:grid-cols-3">
+        <Field label="Cidade (opcional)" htmlFor="addr-city" className="sm:col-span-2">
           <Input
             id="addr-city"
             value={value.city}

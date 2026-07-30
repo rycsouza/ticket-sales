@@ -42,6 +42,7 @@ export interface PublicOfferView {
 
 export interface PublicEventView {
   id: string;
+  slug: string;
   title: string;
   description: string | null;
   venueName: string | null;
@@ -97,6 +98,17 @@ export async function getPublicEventViewBySlug(slug: string): Promise<PublicEven
   return event ? buildPublicEventView(event, services) : null;
 }
 
+/** All published events for an org's public listing pages (e.g. a bespoke LP), ordered by date. */
+export async function getPublicEventViewsByOrganization(
+  organizationId: string,
+): Promise<PublicEventView[]> {
+  // Multi-tenant: a org é conhecida — resolve o banco DELA e lista lá
+  // (docs/MULTITENANT.md §3). Org sem tenant provisionado → NotFoundOrForbidden.
+  const services = await getTenantServices(organizationId);
+  const events = await services.publicEvents.listPublishedByOrganization(organizationId);
+  return Promise.all(events.map((event) => buildPublicEventView(event, services)));
+}
+
 export async function buildPublicEventView(
   event: EventRecord,
   tenantServices?: Awaited<ReturnType<typeof getTenantServices>>,
@@ -134,6 +146,7 @@ export async function buildPublicEventView(
 
   return {
     id: event.id,
+    slug: event.slug,
     title: event.title,
     description: event.description,
     venueName: event.venueName,

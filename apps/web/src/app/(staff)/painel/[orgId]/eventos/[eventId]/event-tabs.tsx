@@ -19,10 +19,12 @@ export function EventTabs({ base }: { base: string }) {
     { href: `${base}/pagina`, label: "Página do evento" },
   ];
 
+  // Mask com fade à direita sinaliza que há mais abas fora da tela (affordance
+  // de scroll no mobile); removida no desktop, onde todas as abas cabem.
   return (
     <nav
       aria-label="Seções do evento"
-      className="-mx-4 mb-6 overflow-x-auto border-b border-line px-4 lg:mx-0 lg:px-0"
+      className="-mx-4 mb-6 overflow-x-auto border-b border-line px-4 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] lg:mx-0 lg:px-0 lg:[mask-image:none]"
     >
       <ul className="flex min-w-max gap-1">
         {tabs.map((tab) => {

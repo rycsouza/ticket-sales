@@ -20,8 +20,10 @@ const VARIANTS: Record<ButtonVariant, string> = {
   link: "text-brand underline-offset-4 hover:underline p-0 h-auto",
 };
 
+// Mobile-first: `sm` sobe para 40px em telas de toque (<640px) e volta a 32px
+// no desktop — área de toque confortável sem mudar a densidade desktop.
 const SIZES: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-small gap-1.5",
+  sm: "h-10 sm:h-8 px-3 text-small gap-1.5",
   md: "h-10 px-4 text-body gap-2",
   lg: "h-12 px-5 text-body gap-2",
 };

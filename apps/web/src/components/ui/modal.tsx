@@ -42,7 +42,7 @@ export function Modal({
         style={{ background: "var(--overlay)" }}
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[90svh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-2xl bg-surface p-5 shadow-lg sm:rounded-2xl">
+      <div className="relative z-10 flex max-h-[90svh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-2xl bg-surface p-4 shadow-lg sm:rounded-2xl sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-h3 text-ink">{title}</h2>
@@ -52,7 +52,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="-mr-1 -mt-1 rounded-lg p-1 text-ink-muted transition-colors hover:bg-hover"
+            className="-mr-2 -mt-2 rounded-lg p-2.5 text-ink-muted transition-colors hover:bg-hover sm:-mr-1 sm:-mt-1 sm:p-1"
           >
             <X className="size-5" />
           </button>
