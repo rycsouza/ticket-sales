@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg, orgVocabForParam } from "@/lib/dashboard";
 import { toBatchResponse, toEventResponse } from "@/lib/serializers";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { orgVocab } from "@/lib/org-vocab";
 import { NewEventForm } from "./event-forms";
 import { EventsList, type EventListItem } from "./events-list";
 
-export const metadata: Metadata = { title: "Eventos — Ingressos" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string }>;
+}): Promise<Metadata> {
+  const { orgId: orgParam } = await params;
+  const vocab = await orgVocabForParam(orgParam);
+  return { title: `${vocab.Events} — Ingressos` };
+}
 
 export default async function OrgEvents({
   params,

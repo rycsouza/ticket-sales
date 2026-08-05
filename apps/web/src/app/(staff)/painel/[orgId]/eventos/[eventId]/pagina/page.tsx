@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTenantServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg, orgVocabForParam } from "@/lib/dashboard";
 import { orgVocab, panelEventsBase } from "@/lib/org-vocab";
 import { toEventPageResponse, toEventResponse } from "@/lib/serializers";
 import { PageEditor } from "./page-editor";
 
-export const metadata: Metadata = { title: "Página do evento — Ingressos" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string; eventId: string }>;
+}): Promise<Metadata> {
+  const { orgId: orgParam } = await params;
+  const vocab = await orgVocabForParam(orgParam);
+  return { title: `Página ${vocab.ofEvent} — Ingressos` };
+}
 
 export default async function EventPageCustomizer({
   params,

@@ -3,8 +3,24 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { RequestContext } from "@ingressos/core";
+import { orgVocab, type OrgVocab } from "./org-vocab";
 import { getPlatformServices } from "./services";
 import { SESSION_COOKIE } from "./session";
+
+/**
+ * Vocabulário do nicho para generateMetadata (título da aba do navegador):
+ * lookup leve por slug/id, SEM checagem de sessão — o título resultante é
+ * genérico ("Viagens — Ingressos") e não expõe dado da org. Falha → default.
+ */
+export async function orgVocabForParam(orgParam: string): Promise<OrgVocab> {
+  try {
+    const orgs = getPlatformServices().organizations;
+    const org = (await orgs.findBySlug(orgParam)) ?? (await orgs.findById(orgParam));
+    return orgVocab(org?.niche ?? "EVENTOS");
+  } catch {
+    return orgVocab("EVENTOS");
+  }
+}
 
 /**
  * Server-side session guard for dashboard RSC pages. Reads the httpOnly session

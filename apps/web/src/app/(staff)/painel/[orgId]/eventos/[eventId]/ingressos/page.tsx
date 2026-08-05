@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Info, Lock, LockOpen, Ticket } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
-import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { dashboardCtx, requireDashboardUser, resolveOrg, orgVocabForParam } from "@/lib/dashboard";
 import { flex, orgVocab } from "@/lib/org-vocab";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
@@ -15,7 +15,15 @@ import {
   NewTicketTypeForm,
 } from "../inventory-forms";
 
-export const metadata: Metadata = { title: "Ingressos e lotes — Ingressos" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string; eventId: string }>;
+}): Promise<Metadata> {
+  const { orgId: orgParam } = await params;
+  const vocab = await orgVocabForParam(orgParam);
+  return { title: `${vocab.ticketsAndBatches} — Ingressos` };
+}
 
 export default async function EventInventory({
   params,

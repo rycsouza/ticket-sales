@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { dashboardCtx, orgVocabForParam, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { getTenantServices } from "@/lib/services";
 import { buildPublicEventView } from "@/lib/public-views";
 import { PreviewClient } from "./preview-client";
 
-export const metadata: Metadata = {
-  title: "Prévia do evento — Ingressos",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string; eventId: string }>;
+}): Promise<Metadata> {
+  const { orgId: orgParam } = await params;
+  const vocab = await orgVocabForParam(orgParam);
+  return {
+    title: `Prévia ${vocab.ofEvent} — Ingressos`,
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * Staff-only preview of the public sales page — works even for DRAFT events, so

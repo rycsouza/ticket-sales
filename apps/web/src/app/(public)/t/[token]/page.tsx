@@ -3,11 +3,28 @@ import { CalendarDays, MapPin } from "lucide-react";
 import { hashToken, NotFoundOrForbiddenError } from "@ingressos/core";
 import { EventDateTime, TimezoneDisclaimer } from "@/components/event-datetime";
 import { orgVocab, type OrgVocab } from "@/lib/org-vocab";
-import { getTenantServicesByRef } from "@/lib/services";
+import { getPlatformServices, getTenantServicesByRef, resolveOrgByRef } from "@/lib/services";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { TicketQr } from "./ticket-qr";
 
-export const metadata = { title: "Seu ingresso — Ingressos", robots: { index: false, follow: false } };
+/** Título da aba no vocabulário do nicho da org dona (falha → default). */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  let vocab = orgVocab("EVENTOS");
+  try {
+    const organizationId = await resolveOrgByRef("TICKET_TOKEN", hashToken(token));
+    if (organizationId) {
+      const org = await getPlatformServices().organizations.findById(organizationId);
+      vocab = orgVocab(org?.niche ?? "EVENTOS");
+    }
+  } catch {
+    /* mantém o default */
+  }
+  return {
+    title: `${vocab.ticketGender === "f" ? "Sua" : "Seu"} ${vocab.ticket} — Ingressos`,
+    robots: { index: false, follow: false },
+  };
+}
 
 const statusView = (
   v: OrgVocab,
