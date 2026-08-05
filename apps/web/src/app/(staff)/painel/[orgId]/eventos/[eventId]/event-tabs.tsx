@@ -16,7 +16,6 @@ export function EventTabs({ base, vocab }: { base: string; vocab: OrgVocab }) {
     { href: base, label: "Visão geral", exact: true },
     // Sub-rota exibida com o vocabulário do nicho ("vagas" reescreve no middleware).
     { href: `${base}/${vocab.tickets}`, label: vocab.ticketsAndBatches },
-    { href: `${base}/promoters`, label: "Promotores e cupons" },
     { href: `${base}/financeiro`, label: "Financeiro" },
     { href: `${base}/pagina`, label: `Página ${vocab.ofEvent}` },
   ];

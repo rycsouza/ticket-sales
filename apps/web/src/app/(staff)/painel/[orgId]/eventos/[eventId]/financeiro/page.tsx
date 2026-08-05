@@ -127,42 +127,8 @@ export default async function FinancePage({
           </CardBody>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Comissões dos promotores"
-            description={`Saldo devido a cada promotor ${vocab.inThisEvent}. O pagamento é registrado na aba Afiliados.`}
-            action={
-              <Link
-                href={`/painel/${orgSlug}/afiliados?evento=${eventId}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                Pagar em Afiliados
-              </Link>
-            }
-          />
-          {payables.length === 0 ? (
-            <EmptyState
-              title="Nenhuma comissão em aberto"
-              description="Comissões acumulam automaticamente conforme vendas atribuídas a promotores são pagas."
-            />
-          ) : (
-            <ul className="divide-y divide-line">
-              {payables.map((p) => (
-                <li
-                  key={p.promoterId}
-                  className="flex items-center justify-between gap-3 px-5 py-3"
-                >
-                  <span className="min-w-0">
-                    <span className="block font-medium text-ink">{promoterName(p.promoterId)}</span>
-                    <span className="text-small text-ink-muted">
-                      {fmtBRL(p.owedCents)} a pagar
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        {/* Comissões dos promotores: seção OCULTA junto com Afiliados/Promoters
+            (navegação enxuta) — dados e serviços preservados. */}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { RequestContext } from "../../shared/context";
 import { NotFoundOrForbiddenError } from "../../shared/errors";
+import { startOfDayInTimeZone } from "../../shared/timezone";
 import type { ClockPort } from "../../ports/clock";
 import type { AuditReadRecord, AuditReader, AuditRepository } from "../audit/repository";
 import { requireActiveRole, type MembershipLookup } from "../identity/authorization";
@@ -8,12 +9,27 @@ import type { PaymentRecord } from "../payments/types";
 import type { TicketRecord } from "../tickets/types";
 import type { OrderNoteRepository } from "./repository";
 import type { AddOrderNoteInput, SearchOrdersInput } from "./schemas";
-import { SUPPORT_NOTE_ROLES, SUPPORT_TIMELINE_ROLES, type OrderNoteRecord } from "./types";
+import {
+  DASHBOARD_REVENUE_ROLES,
+  DASHBOARD_ROLES,
+  SUPPORT_NOTE_ROLES,
+  SUPPORT_TIMELINE_ROLES,
+  type OrderNoteRecord,
+} from "./types";
 
 /** Narrow readers — support never writes another module's tables. */
 export interface SupportOrderReader {
   findByIdScoped(organizationId: string, orderId: string): Promise<OrderRecord | null>;
   searchOrders(organizationId: string, filters: OrderSearchFilters): Promise<OrderSearchRow[]>;
+  getDashboardStats(
+    organizationId: string,
+    params: { since: Date; now: Date },
+  ): Promise<{
+    revenueTodayCents: number;
+    ordersTodayCount: number;
+    paidTotalCount: number;
+    awaitingCount: number;
+  }>;
 }
 export interface SupportPaymentReader {
   listByOrder(organizationId: string, orderId: string): Promise<PaymentRecord[]>;
@@ -83,6 +99,31 @@ export class SupportService {
       eventId: input.eventId,
       limit: input.limit,
     });
+  }
+
+  /**
+   * Org-home dashboard (panel landing): today's revenue/new orders in the
+   * ORG's timezone + lifetime paid/awaiting counters. Revenue is financial
+   * data — masked (null) for roles outside DASHBOARD_REVENUE_ROLES.
+   */
+  async getOrgDashboard(
+    ctx: RequestContext,
+    params: { timezone: string },
+  ): Promise<{
+    revenueTodayCents: number | null;
+    ordersTodayCount: number;
+    paidTotalCount: number;
+    awaitingCount: number;
+  }> {
+    const membership = await requireActiveRole(this.deps.memberships, ctx, DASHBOARD_ROLES);
+    const now = this.deps.clock.now();
+    const since = startOfDayInTimeZone(now, params.timezone);
+    const stats = await this.deps.orders.getDashboardStats(ctx.organizationId, { since, now });
+    const canSeeRevenue = DASHBOARD_REVENUE_ROLES.includes(membership.role);
+    return {
+      ...stats,
+      revenueTodayCents: canSeeRevenue ? stats.revenueTodayCents : null,
+    };
   }
 
   /** FR-ADM-009 — add an internal note (invisible to the buyer). */

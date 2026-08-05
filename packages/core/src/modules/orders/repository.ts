@@ -47,6 +47,20 @@ export interface OrderRepository {
    * `limit`; most recent first. Free-text matches code/e-mail/name/document.
    */
   searchOrders(organizationId: string, filters: OrderSearchFilters): Promise<OrderSearchRow[]>;
+  /**
+   * Panel dashboard aggregates (org-scoped): today's revenue/new orders plus
+   * lifetime paid/awaiting counters. `since` = start of "today" in the ORG's
+   * timezone (resolved by the caller); `now` bounds awaiting to non-expired.
+   */
+  getDashboardStats(
+    organizationId: string,
+    params: { since: Date; now: Date },
+  ): Promise<{
+    revenueTodayCents: number;
+    ordersTodayCount: number;
+    paidTotalCount: number;
+    awaitingCount: number;
+  }>;
   listItems(organizationId: string, orderId: string): Promise<OrderItemRecord[]>;
   /**
    * CRM aggregate (EP-08): paid orders grouped by buyer e-mail, optionally
@@ -225,6 +239,39 @@ export class PrismaOrderRepository implements OrderRepository {
       take: filters.limit,
     });
     return rows;
+  }
+
+  async getDashboardStats(organizationId: string, params: { since: Date; now: Date }) {
+    const PAID_STATUSES = ["PAID", "PARTIALLY_REFUNDED"] as const;
+    const [revenue, ordersToday, paidTotal, awaiting] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: {
+          organizationId,
+          status: { in: [...PAID_STATUSES] },
+          paidAt: { gte: params.since },
+        },
+        _sum: { totalCents: true },
+      }),
+      this.prisma.order.count({
+        where: { organizationId, createdAt: { gte: params.since } },
+      }),
+      this.prisma.order.count({
+        where: { organizationId, status: { in: [...PAID_STATUSES] } },
+      }),
+      this.prisma.order.count({
+        where: {
+          organizationId,
+          status: "AWAITING_PAYMENT",
+          OR: [{ expiresAt: null }, { expiresAt: { gt: params.now } }],
+        },
+      }),
+    ]);
+    return {
+      revenueTodayCents: revenue._sum.totalCents ?? 0,
+      ordersTodayCount: ordersToday,
+      paidTotalCount: paidTotal,
+      awaitingCount: awaiting,
+    };
   }
 
   async listItems(organizationId: string, orderId: string) {

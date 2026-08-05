@@ -124,4 +124,13 @@ export class StorefrontService {
   async listEnabled(): Promise<{ orgSlug: string; updatedAt: Date }[]> {
     return this.deps.pages.listEnabled();
   }
+
+  /**
+   * Cor de marca da org para o TEMA DO PAINEL (e outras superfícies). Leitura
+   * sem auth de propósito: a cor já é pública na vitrine; nada além dela sai.
+   */
+  async getPublicBrandColor(organizationId: string): Promise<string | null> {
+    const page = await this.deps.pages.findByOrganizationId(organizationId);
+    return page?.brandColor ?? null;
+  }
 }

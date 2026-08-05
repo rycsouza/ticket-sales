@@ -236,13 +236,6 @@ export default async function EventOverview({
               <Plus className="size-4" />
               Criar lote
             </Link>
-            <Link
-              href={`${base}/promoters`}
-              className={buttonVariants({ variant: "outline", size: "md", className: "w-full justify-start" })}
-            >
-              <Tag className="size-4" />
-              Criar cupom
-            </Link>
             {finance && (
               <a
                 href={`/api/orgs/${orgId}/events/${eventId}/finance/export`}

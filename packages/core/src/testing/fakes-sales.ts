@@ -230,6 +230,23 @@ export class InMemoryOrderRepository implements OrderRepository {
     return this.orders.find((o) => o.code === code) ?? null;
   }
 
+  async getDashboardStats(organizationId: string, params: { since: Date; now: Date }) {
+    const orgOrders = this.orders.filter((o) => o.organizationId === organizationId);
+    const paid = orgOrders.filter((o) => o.status === "PAID" || o.status === "PARTIALLY_REFUNDED");
+    return {
+      revenueTodayCents: paid
+        .filter((o) => o.paidAt && o.paidAt >= params.since)
+        .reduce((sum, o) => sum + o.totalCents, 0),
+      // OrderRecord não expõe createdAt — no fake, todo pedido conta como de hoje.
+      ordersTodayCount: orgOrders.length,
+      paidTotalCount: paid.length,
+      awaitingCount: orgOrders.filter(
+        (o) =>
+          o.status === "AWAITING_PAYMENT" && (!o.expiresAt || o.expiresAt > params.now),
+      ).length,
+    };
+  }
+
   async searchOrders(
     organizationId: string,
     filters: OrderSearchFilters,

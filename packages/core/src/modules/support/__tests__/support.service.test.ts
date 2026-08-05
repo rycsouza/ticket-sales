@@ -162,6 +162,33 @@ describe("getOrderTimeline (FR-ADM-002)", () => {
   });
 });
 
+describe("getOrgDashboard", () => {
+  it("returns counters; revenue only for finance-capable roles", async () => {
+    const s = await setup();
+    // SUPPORT vê contadores mas NÃO a receita (mascarada como null).
+    const asSupport = await s.support.getOrgDashboard(s.supportCtx, {
+      timezone: "America/Sao_Paulo",
+    });
+    expect(asSupport.paidTotalCount).toBe(1);
+    expect(asSupport.revenueTodayCents).toBeNull();
+
+    await s.memberships.create({ organizationId: "org_sup", userId: "u_admin", role: "ADMIN" });
+    const asAdmin = await s.support.getOrgDashboard(
+      { organizationId: "org_sup", userId: "u_admin", role: "member", correlationId: "c" },
+      { timezone: "America/Sao_Paulo" },
+    );
+    expect(asAdmin.revenueTodayCents).toBeGreaterThan(0);
+    expect(asAdmin.awaitingCount).toBe(0);
+  });
+
+  it("blocks roles outside the dashboard allowlist (PROMOTER)", async () => {
+    const s = await setup();
+    await expect(
+      s.support.getOrgDashboard(s.promoterCtx, { timezone: "America/Sao_Paulo" }),
+    ).rejects.toBeInstanceOf(NotFoundOrForbiddenError);
+  });
+});
+
 describe("searchOrders (FR-ADM-001)", () => {
   it("finds an order by code, e-mail, name — bounded and role-gated", async () => {
     const s = await setup();

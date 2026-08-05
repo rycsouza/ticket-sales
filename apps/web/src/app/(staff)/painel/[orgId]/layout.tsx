@@ -31,7 +31,13 @@ export default async function PanelLayout({
   if (!current) redirect("/painel");
 
   const isPlatformAdmin = await currentUserIsPlatformAdmin();
-  const theme = (await cookies()).get("panel_theme")?.value === "dark" ? "dark" : "light";
+  // Default do painel é DARK; o cookie só força light quando o usuário trocou.
+  const theme = (await cookies()).get("panel_theme")?.value === "light" ? "light" : "dark";
+  // Cor de marca do tenant (config da vitrine, gerida pelo admin) tinge o
+  // painel inteiro; ausente → tokens padrão do tema.
+  const brandColor = await getPlatformServices()
+    .storefront.getPublicBrandColor(current.organization.id)
+    .catch(() => null);
 
   return (
     <PanelShell
@@ -43,6 +49,7 @@ export default async function PanelLayout({
       multiOrg={orgs.length > 1}
       isPlatformAdmin={isPlatformAdmin}
       theme={theme}
+      brandColor={brandColor}
     >
       {children}
     </PanelShell>

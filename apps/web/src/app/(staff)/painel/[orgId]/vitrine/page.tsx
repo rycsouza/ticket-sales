@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { getPlatformServices } from "@/lib/services";
 import { parseStoredTrustItems } from "@ingressos/core";
 import { PageHeader } from "@/components/ui";
@@ -13,6 +14,8 @@ export default async function StorefrontPage({
   params: Promise<{ orgId: string }>;
 }) {
   const { orgId: orgParam } = await params;
+  // Superfície de ADMIN DA PLATAFORMA (allowlist) — usuário comum vê 404.
+  await requirePlatformAdmin();
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
   const ctx = dashboardCtx(org.id, userId);

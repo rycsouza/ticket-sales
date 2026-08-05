@@ -6,10 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
   BarChart3,
+  LayoutDashboard,
   Users,
-  Megaphone,
   Receipt,
-  Sparkles,
   ScanLine,
   Settings,
   ShieldCheck,
@@ -21,7 +20,9 @@ import {
   Search,
   Globe,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
+import { brandTokens } from "@/lib/brand-theme";
 import { orgVocab, type OrgVocab } from "@/lib/org-vocab";
 import type { OrgNiche } from "@ingressos/core";
 import { ThemeToggle, type PanelTheme } from "./theme-toggle";
@@ -39,14 +40,28 @@ interface NavItem {
 
 function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
   const base = `/painel/${orgId}`;
+  // Navegação enxuta: Afiliados/Promoters e Ofertas estão OCULTOS por decisão
+  // de produto (código e APIs preservados — reativar = re-adicionar aqui).
   return [
     {
       href: base,
-      label: vocab.Events,
-      icon: CalendarDays,
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      match: (p) => p === base,
+    },
+    {
       // Ambos os segmentos: o filesystem é /eventos, mas orgs de VIAGENS
       // navegam por /viagens (rewrite no middleware).
-      match: (p) => p === base || p.startsWith(`${base}/eventos`) || p.startsWith(`${base}/viagens`),
+      href: `${base}/${vocab.eventsSegment}`,
+      label: vocab.Events,
+      icon: CalendarDays,
+      match: (p) => p.startsWith(`${base}/eventos`) || p.startsWith(`${base}/viagens`),
+    },
+    {
+      href: `${base}/pedidos`,
+      label: "Pedidos",
+      icon: Receipt,
+      match: (p) => p.startsWith(`${base}/pedidos`),
     },
     {
       href: `${base}/relatorio`,
@@ -59,24 +74,6 @@ function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
       label: "Clientes",
       icon: Users,
       match: (p) => p.startsWith(`${base}/clientes`),
-    },
-    {
-      href: `${base}/afiliados`,
-      label: "Afiliados",
-      icon: Megaphone,
-      match: (p) => p.startsWith(`${base}/afiliados`),
-    },
-    {
-      href: `${base}/ofertas`,
-      label: "Ofertas",
-      icon: Sparkles,
-      match: (p) => p.startsWith(`${base}/ofertas`),
-    },
-    {
-      href: `${base}/pedidos`,
-      label: "Pedidos",
-      icon: Receipt,
-      match: (p) => p.startsWith(`${base}/pedidos`),
     },
   ];
 }
@@ -92,17 +89,27 @@ export function PanelShell({
   org,
   multiOrg,
   isPlatformAdmin = false,
-  theme = "light",
+  theme = "dark",
+  brandColor = null,
   children,
 }: {
   org: NavOrg;
   multiOrg: boolean;
   isPlatformAdmin?: boolean;
   theme?: PanelTheme;
+  /** Cor de marca do tenant — tinge os tokens --color-brand* do painel. */
+  brandColor?: string | null;
   children: ReactNode;
 }) {
+  // Inválida/ausente → {} (tokens padrão do tema; nunca injeta CSS ruim).
+  const brandStyle = brandTokens(brandColor) as CSSProperties;
   return (
-    <div id="panel-shell" data-theme={theme} className="min-h-svh bg-page text-ink">
+    <div
+      id="panel-shell"
+      data-theme={theme}
+      style={brandStyle}
+      className="min-h-svh bg-page text-ink"
+    >
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
         <SidebarContent
@@ -274,26 +281,30 @@ function MobileBottomNav({
                   {vocab.checkinArea}
                 </Link>
               </li>
-              <li>
-                <Link
-                  href={`/painel/${org.slug}/configuracoes`}
-                  onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                >
-                  <Settings className="size-5 shrink-0" strokeWidth={1.75} />
-                  Configurações
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href={`/painel/${org.slug}/vitrine`}
-                  onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                >
-                  <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-                  Minha página
-                </Link>
-              </li>
+              {isPlatformAdmin && (
+                <li>
+                  <Link
+                    href={`/painel/${org.slug}/configuracoes`}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                  >
+                    <Settings className="size-5 shrink-0" strokeWidth={1.75} />
+                    Configurações
+                  </Link>
+                </li>
+              )}
+              {isPlatformAdmin && (
+                <li>
+                  <Link
+                    href={`/painel/${org.slug}/vitrine`}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                  >
+                    <Globe className="size-5 shrink-0" strokeWidth={1.75} />
+                    Minha página
+                  </Link>
+                </li>
+              )}
               {isPlatformAdmin && (
                 <li>
                   <Link
@@ -452,20 +463,24 @@ function SidebarContent({
           <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
           {vocab.checkinArea}
         </Link>
-        <Link
-          href={`/painel/${org.slug}/configuracoes`}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-        >
-          <Settings className="size-5 shrink-0" strokeWidth={1.75} />
-          Configurações
-        </Link>
-        <Link
-          href={`/painel/${org.slug}/vitrine`}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-        >
-          <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-          Minha página
-        </Link>
+        {isPlatformAdmin && (
+          <Link
+            href={`/painel/${org.slug}/configuracoes`}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
+          >
+            <Settings className="size-5 shrink-0" strokeWidth={1.75} />
+            Configurações
+          </Link>
+        )}
+        {isPlatformAdmin && (
+          <Link
+            href={`/painel/${org.slug}/vitrine`}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
+          >
+            <Globe className="size-5 shrink-0" strokeWidth={1.75} />
+            Minha página
+          </Link>
+        )}
         {isPlatformAdmin && (
           <Link
             href="/plataforma"
