@@ -1,7 +1,7 @@
 import "server-only";
 
 import { defaultPageBlocks, parseStoredBlocks, type EventRecord, type PageBlock } from "@ingressos/core";
-import { getTenantServices, resolveOrgByRef } from "./services";
+import { getPlatformServices, getTenantServices, resolveOrgByRef } from "./services";
 
 export interface PublicBatchView {
   id: string;
@@ -117,7 +117,7 @@ export async function buildPublicEventView(
 ): Promise<PublicEventView> {
   const services = tenantServices ?? (await getTenantServices(event.organizationId));
   const now = new Date();
-  const [batches, ticketTypes, pageRow, organizerIdentity, offers, couponsAvailable] =
+  const [batches, ticketTypes, pageRow, organizerIdentity, offers, couponsAvailable, orgBranding] =
     await Promise.all([
       services.batchesRepo.listByEvent(event.organizationId, event.id),
       services.ticketTypesRepo.listByEvent(event.organizationId, event.id),
@@ -125,6 +125,11 @@ export async function buildPublicEventView(
       services.publicOrganizations.findIdentityById(event.organizationId),
       services.offers.listForCheckout(event.organizationId, event.id).catch(() => []),
       services.promoters.eventHasCoupons(event.organizationId, event.id).catch(() => false),
+      // Marca da ORG (vitrine, plano de controle) — fallback de identidade da
+      // página do evento; falha nunca derruba a página pública.
+      getPlatformServices()
+        .storefront.getPublicBranding(event.organizationId)
+        .catch(() => ({ brandColor: null, logoUrl: null })),
     ]);
   const typeNames = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
@@ -182,11 +187,13 @@ export async function buildPublicEventView(
     orgNiche: organizerIdentity?.niche ?? "EVENTOS",
     // Blocos re-validados por Zod na leitura (JSON corrompido → defaults);
     // eventos sem personalização renderizam a página padrão de sempre.
+    // Identidade visual sem configuração no EVENTO herda a da ORG (vitrine):
+    // cor da marca, logo — e o favicon default é o próprio logo da org.
     page: {
-      brandColor: pageRow?.brandColor ?? null,
-      logoUrl: pageRow?.logoUrl ?? null,
+      brandColor: pageRow?.brandColor ?? orgBranding.brandColor,
+      logoUrl: pageRow?.logoUrl ?? orgBranding.logoUrl,
       bannerUrl: pageRow?.bannerUrl ?? null,
-      faviconUrl: pageRow?.faviconUrl ?? null,
+      faviconUrl: pageRow?.faviconUrl ?? orgBranding.logoUrl,
       backgroundUrl: pageRow?.backgroundUrl ?? null,
       theme: pageRow?.theme === "dark" ? "dark" : "light",
       blocks: pageRow ? parseStoredBlocks(pageRow.blocks) : defaultPageBlocks(),
