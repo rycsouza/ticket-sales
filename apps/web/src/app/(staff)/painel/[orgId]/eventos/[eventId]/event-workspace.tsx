@@ -11,25 +11,32 @@ import {
 } from "lucide-react";
 import { Button, Menu, MenuItem, MenuLabel } from "@/components/ui";
 import { EVENT_STATUS, statusMeta } from "@/lib/status";
+import { flex, type OrgVocab } from "@/lib/org-vocab";
 import { apiSend, ConfirmDialog } from "../../../ui";
 
 type EventStatus = string;
 
 /** Friendly pt-BR for the (English) publish-readiness domain error. */
-const PUBLISH_FIELD_LABELS: Record<string, string> = {
-  startsAt: "data de início",
-  venueName: "local",
-  city: "cidade",
-  "at least one sales batch": "ao menos um lote de ingresso",
-};
-function translatePublishError(message: string): string {
+function publishFieldLabels(vocab: OrgVocab): Record<string, string> {
+  return {
+    startsAt: "data de início",
+    venueName: vocab.venue.toLowerCase(),
+    city: "cidade",
+    "at least one sales batch": `ao menos um lote de ${vocab.ticket}`,
+  };
+}
+function translatePublishError(message: string, vocab: OrgVocab): string {
   const match = /not ready to publish: missing (.+)$/i.exec(message);
   if (!match) return message;
+  const labels = publishFieldLabels(vocab);
   const fields = match[1]!
     .split(",")
-    .map((f) => PUBLISH_FIELD_LABELS[f.trim()] ?? f.trim());
+    .map((f) => labels[f.trim()] ?? f.trim());
   return `Ainda falta preencher para publicar: ${fields.join(", ")}.`;
 }
+
+/** "a viagem" → "A viagem" (início de frase). */
+const cap = (phrase: string) => phrase.charAt(0).toUpperCase() + phrase.slice(1);
 
 interface ActionDef {
   action: string;
@@ -42,14 +49,14 @@ interface ActionDef {
 }
 
 /** Sales transitions offered for the current state (mirrors PRD §11.1). */
-function salesActions(status: EventStatus): ActionDef[] {
+function salesActions(status: EventStatus, v: OrgVocab): ActionDef[] {
   switch (status) {
     case "PUBLISHED":
-      return [PAUSE, CLOSE];
+      return [PAUSE, close(v)];
     case "SALES_PAUSED":
-      return [RESUME, CLOSE];
+      return [RESUME, close(v)];
     case "SALES_CLOSED":
-      return [COMPLETE];
+      return [complete(v)];
     case "POSTPONED":
       return [RESUME];
     default:
@@ -58,14 +65,14 @@ function salesActions(status: EventStatus): ActionDef[] {
 }
 
 /** Lower-frequency lifecycle actions. */
-function lifecycleActions(status: EventStatus): ActionDef[] {
+function lifecycleActions(status: EventStatus, v: OrgVocab): ActionDef[] {
   if (status === "CANCELLED" || status === "ARCHIVED") return [];
-  if (status === "COMPLETED") return [ARCHIVE];
+  if (status === "COMPLETED") return [archive(v)];
   const list: ActionDef[] = [];
   if (status === "PUBLISHED" || status === "SALES_PAUSED" || status === "SALES_CLOSED") {
-    list.push(POSTPONE);
+    list.push(postpone(v));
   }
-  list.push(CANCEL);
+  list.push(cancel(v));
   return list;
 }
 
@@ -86,68 +93,68 @@ const RESUME: ActionDef = {
   confirmLabel: "Retomar vendas",
   tone: "primary",
 };
-const CLOSE: ActionDef = {
+const close = (v: OrgVocab): ActionDef => ({
   action: "close_sales",
   label: "Encerrar vendas",
   title: "Encerrar vendas?",
-  description:
-    "As vendas serão encerradas e não poderão ser reabertas por aqui. Ingressos já vendidos continuam válidos.",
+  description: `As vendas serão encerradas e não poderão ser reabertas por aqui. ${v.Tickets} já ${flex("vendidos", v.ticketGender)} continuam ${flex("válidos", v.ticketGender)}.`,
   confirmLabel: "Encerrar vendas",
   tone: "danger",
-};
-const COMPLETE: ActionDef = {
+});
+const complete = (v: OrgVocab): ActionDef => ({
   action: "complete",
-  label: "Concluir evento",
-  title: "Concluir evento?",
-  description: "Use após a realização do evento. Depois de concluído, você poderá arquivá-lo.",
-  confirmLabel: "Concluir evento",
+  label: `Concluir ${v.event}`,
+  title: `Concluir ${v.event}?`,
+  description: `Use após a realização ${v.ofEvent}. Depois de ${flex("concluído", v.gender)}, você poderá arquivá-l${v.gender === "f" ? "a" : "o"}.`,
+  confirmLabel: `Concluir ${v.event}`,
   tone: "primary",
-};
-const POSTPONE: ActionDef = {
+});
+const postpone = (v: OrgVocab): ActionDef => ({
   action: "postpone",
-  label: "Adiar evento",
-  title: "Adiar evento",
-  description: "O evento fica marcado como adiado. Explique o motivo para o registro de auditoria.",
-  confirmLabel: "Adiar evento",
+  label: `Adiar ${v.event}`,
+  title: `Adiar ${v.event}`,
+  description: `${cap(v.theEvent)} fica ${flex("marcado", v.gender)} como ${flex("adiado", v.gender)}. Explique o motivo para o registro de auditoria.`,
+  confirmLabel: `Adiar ${v.event}`,
   tone: "primary",
   justification: { label: "Motivo do adiamento", required: true, placeholder: "Ex.: nova data em negociação" },
-};
-const CANCEL: ActionDef = {
+});
+const cancel = (v: OrgVocab): ActionDef => ({
   action: "cancel",
-  label: "Cancelar evento",
-  title: "Cancelar evento",
-  description:
-    "Cancelar interrompe as vendas definitivamente. Ingressos já vendidos podem exigir reembolso. Esta ação não pode ser desfeita.",
-  confirmLabel: "Cancelar evento",
+  label: `Cancelar ${v.event}`,
+  title: `Cancelar ${v.event}`,
+  description: `Cancelar interrompe as vendas definitivamente. ${v.Tickets} já ${flex("vendidos", v.ticketGender)} podem exigir reembolso. Esta ação não pode ser desfeita.`,
+  confirmLabel: `Cancelar ${v.event}`,
   tone: "danger",
   justification: { label: "Motivo do cancelamento", required: true, placeholder: "Ex.: problema no local" },
-};
-const ARCHIVE: ActionDef = {
+});
+const archive = (v: OrgVocab): ActionDef => ({
   action: "archive",
-  label: "Arquivar evento",
-  title: "Arquivar evento?",
-  description: "O evento sai das listas ativas. Os dados históricos são preservados.",
+  label: `Arquivar ${v.event}`,
+  title: `Arquivar ${v.event}?`,
+  description: `${cap(v.theEvent)} sai das listas ativas. Os dados históricos são preservados.`,
   confirmLabel: "Arquivar",
   tone: "primary",
-};
+});
 
 export function EventStatusControl({
   orgId,
   eventId,
   status,
   pageHref,
+  vocab,
 }: {
   orgId: string;
   eventId: string;
   status: EventStatus;
   pageHref: string;
+  vocab: OrgVocab;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<ActionDef | null>(null);
   const statusUrl = `/api/orgs/${orgId}/events/${eventId}/status`;
 
-  const sales = salesActions(status);
-  const lifecycle = lifecycleActions(status);
+  const sales = salesActions(status, vocab);
+  const lifecycle = lifecycleActions(status, vocab);
   const isDraft = status === "DRAFT";
 
   async function runConfirmed(justification?: string) {
@@ -156,7 +163,7 @@ export function EventStatusControl({
     if (justification) body.justification = justification;
     const { ok, data } = await apiSend(statusUrl, "POST", body);
     if (ok) router.refresh();
-    const error = typeof data.error === "string" ? translatePublishError(data.error) : undefined;
+    const error = typeof data.error === "string" ? translatePublishError(data.error, vocab) : undefined;
     return error ? { ok, error } : { ok };
   }
 
@@ -165,9 +172,9 @@ export function EventStatusControl({
       {isDraft && (
         <Button
           leftIcon={<Rocket className="size-4" />}
-          onClick={() => setPending(PUBLISH)}
+          onClick={() => setPending(publish(vocab))}
         >
-          Publicar evento
+          Publicar {vocab.event}
         </Button>
       )}
 
@@ -180,7 +187,7 @@ export function EventStatusControl({
               <ChevronDown className="size-4" />
             </>
           }
-          triggerAriaLabel="Gerenciar evento"
+          triggerAriaLabel={`Gerenciar ${vocab.event}`}
           triggerVariant={isDraft ? "outline" : "secondary"}
         >
           {sales.length > 0 && <MenuLabel>Vendas</MenuLabel>}
@@ -193,7 +200,7 @@ export function EventStatusControl({
               {a.label}
             </MenuItem>
           ))}
-          <MenuLabel>Evento</MenuLabel>
+          <MenuLabel>{vocab.Event}</MenuLabel>
           <MenuItem icon={<Settings2 className="size-4" />} href={pageHref}>
             Personalizar página
           </MenuItem>
@@ -224,15 +231,14 @@ export function EventStatusControl({
   );
 }
 
-const PUBLISH: ActionDef = {
+const publish = (v: OrgVocab): ActionDef => ({
   action: "publish",
-  label: "Publicar evento",
-  title: "Publicar evento?",
-  description:
-    "A página do evento ficará visível publicamente e as vendas poderão começar. Confira ingressos, lotes e a página antes de publicar.",
+  label: `Publicar ${v.event}`,
+  title: `Publicar ${v.event}?`,
+  description: `A página ${v.ofEvent} ficará visível publicamente e as vendas poderão começar. Confira ${v.tickets}, lotes e a página antes de publicar.`,
   confirmLabel: "Publicar",
   tone: "primary",
-};
+});
 
 /** Small status pill with a leading dot — status is conveyed by text, not color alone. */
 export function EventStatusBadge({ status }: { status: EventStatus }) {

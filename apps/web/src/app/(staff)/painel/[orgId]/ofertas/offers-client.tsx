@@ -15,6 +15,7 @@ import {
   MoneyInput,
   Select,
 } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 import { fmtBRL } from "@/lib/status";
 
 type Product = {
@@ -51,11 +52,13 @@ const KIND_LABEL: Record<Offer["kind"], string> = {
 
 export function OffersManager({
   orgId,
+  vocab,
   products,
   offers,
   events,
 }: {
   orgId: string;
+  vocab: OrgVocab;
   products: Product[];
   offers: Offer[];
   events: EventWithBatches[];
@@ -108,7 +111,7 @@ export function OffersManager({
       <Card>
         <CardHeader
           title="Produtos"
-          description="Itens avulsos pagos (sem ingresso/QR) que podem virar ofertas."
+          description={`Itens avulsos pagos (sem ${vocab.ticket}/QR) que podem virar ofertas.`}
         />
         <CardBody className="space-y-4">
           {products.length === 0 ? (
@@ -145,21 +148,21 @@ export function OffersManager({
               ))}
             </ul>
           )}
-          <NewProductForm orgId={orgId} busy={busy} onSubmit={call} />
+          <NewProductForm orgId={orgId} vocab={vocab} busy={busy} onSubmit={call} />
         </CardBody>
       </Card>
 
       <Card>
         <CardHeader
           title="Ofertas"
-          description="Upsell (após escolher ingressos) e order bump (no resumo). Vincule a um evento ou deixe para todos."
+          description={`Upsell (após escolher ${vocab.tickets}) e order bump (no resumo). Vincule a ${vocab.oneEvent} ou deixe para tod${vocab.gender === "f" ? "as" : "os"}.`}
         />
         <CardBody className="space-y-4">
           {offers.length === 0 ? (
             <EmptyState
               icon={<Sparkles className="size-5" />}
               title="Nenhuma oferta ainda"
-              description="Crie uma oferta apontando para um produto ou um lote de ingresso."
+              description={`Crie uma oferta apontando para um produto ou um lote de ${vocab.ticket}.`}
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -167,7 +170,7 @@ export function OffersManager({
                 <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-ink">
-                      {o.title ?? (o.productId ? productName(o.productId) : "Ingresso adicional")}
+                      {o.title ?? (o.productId ? productName(o.productId) : `${vocab.Ticket} adicional`)}
                     </span>
                     <span className="block truncate text-small text-ink-muted">
                       {o.productId ? productName(o.productId) : batchLabel(o.batchId)} ·{" "}
@@ -195,7 +198,7 @@ export function OffersManager({
               ))}
             </ul>
           )}
-          <NewOfferForm orgId={orgId} busy={busy} products={products} events={events} onSubmit={call} />
+          <NewOfferForm orgId={orgId} vocab={vocab} busy={busy} products={products} events={events} onSubmit={call} />
         </CardBody>
       </Card>
     </div>
@@ -204,10 +207,12 @@ export function OffersManager({
 
 function NewProductForm({
   orgId,
+  vocab,
   busy,
   onSubmit,
 }: {
   orgId: string;
+  vocab: OrgVocab;
   busy: boolean;
   onSubmit: (url: string, method: string, body: unknown) => Promise<boolean>;
 }) {
@@ -236,7 +241,7 @@ function NewProductForm({
         <Input id="np-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Copo oficial" />
       </Field>
       <Field label="Descrição (opcional)" htmlFor="np-desc">
-        <Input id="np-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Copo colecionável do evento" />
+        <Input id="np-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={`Copo colecionável ${vocab.ofEvent}`} />
       </Field>
       <Field label="Preço" htmlFor="np-price">
         <MoneyInput id="np-price" valueCents={priceCents} onChangeCents={setPriceCents} />
@@ -250,12 +255,14 @@ function NewProductForm({
 
 function NewOfferForm({
   orgId,
+  vocab,
   busy,
   products,
   events,
   onSubmit,
 }: {
   orgId: string;
+  vocab: OrgVocab;
   busy: boolean;
   products: Product[];
   events: EventWithBatches[];
@@ -304,7 +311,7 @@ function NewOfferForm({
         <Field label="Tipo" htmlFor="no-kind">
           <Select id="no-kind" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="ORDER_BUMP">Order bump (no resumo)</option>
-            <option value="UPSELL">Upsell (após escolher ingressos)</option>
+            <option value="UPSELL">Upsell (após escolher {vocab.tickets})</option>
           </Select>
         </Field>
         <Field label="O que oferecer" htmlFor="no-target">
@@ -314,7 +321,7 @@ function NewOfferForm({
             onChange={(e) => setTargetType(e.target.value as "product" | "batch")}
           >
             <option value="product">Produto avulso</option>
-            <option value="batch">Ingresso (lote existente)</option>
+            <option value="batch">{vocab.Ticket} (lote existente)</option>
           </Select>
         </Field>
       </div>
@@ -344,7 +351,7 @@ function NewOfferForm({
                 }
               }}
             >
-              <option value="all">Todos os eventos</option>
+              <option value="all">{vocab.allEvents}</option>
               {events.map((ev) => (
                 <option key={ev.id} value={ev.id}>
                   {ev.title}
@@ -355,7 +362,7 @@ function NewOfferForm({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Evento" htmlFor="no-event">
+          <Field label={vocab.Event} htmlFor="no-event">
             <Select
               id="no-event"
               value={eventId}

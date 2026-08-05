@@ -7,6 +7,7 @@ import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
 import { toEventResponse } from "@/lib/serializers";
 import { fmtDateTime } from "@/lib/status";
+import { orgVocab, panelEventsBase, publicEventPath } from "@/lib/org-vocab";
 import { CopyButton } from "../../../ui";
 import { EventStatusBadge, EventStatusControl } from "./event-workspace";
 import { EventTabs } from "./event-tabs";
@@ -28,6 +29,7 @@ export default async function EventLayout({
   const org = await resolveOrg(orgParam, userId);
   const orgId = org.id;
   const orgSlug = org.slug;
+  const vocab = orgVocab(org.niche);
   const ctx = dashboardCtx(orgId, userId);
 
   let event;
@@ -38,13 +40,13 @@ export default async function EventLayout({
   }
 
   const eventId = event.id;
-  const base = `/painel/${orgSlug}/eventos/${event.slug}`;
+  const base = `${panelEventsBase(orgSlug, vocab)}/${event.slug}`;
   const hasPublicPage = ["PUBLISHED", "SALES_PAUSED", "SALES_CLOSED"].includes(event.status);
 
   const requestHeaders = await headers();
   const host = requestHeaders.get("host") ?? "";
   const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
-  const publicUrl = `${proto}://${host}/evento/${event.slug}`;
+  const publicUrl = `${proto}://${host}${publicEventPath(event.slug, vocab)}`;
 
   const location = [event.venueName, event.city, event.state].filter(Boolean).join(" · ");
 
@@ -55,7 +57,7 @@ export default async function EventLayout({
         className="mb-3 inline-flex items-center gap-1.5 text-small font-medium text-ink-muted transition-colors hover:text-ink"
       >
         <ArrowLeft className="size-4" />
-        Voltar para eventos
+        Voltar para {vocab.events}
       </Link>
 
       <header className="mb-6">
@@ -79,7 +81,7 @@ export default async function EventLayout({
             </div>
             {hasPublicPage && (
               <Link
-                href={`/evento/${event.slug}`}
+                href={publicEventPath(event.slug, vocab)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 inline-flex items-center gap-1 text-small font-medium text-brand hover:underline"
@@ -97,12 +99,13 @@ export default async function EventLayout({
               eventId={eventId}
               status={event.status}
               pageHref={`${base}/pagina`}
+              vocab={vocab}
             />
           </div>
         </div>
       </header>
 
-      <EventTabs base={base} />
+      <EventTabs base={base} vocab={vocab} />
 
       {children}
     </>

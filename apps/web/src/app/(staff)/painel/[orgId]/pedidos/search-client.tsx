@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Input, Select, Spinner } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 import { ORDER_STATUS, fmtBRL, statusMeta } from "@/lib/status";
 
 type Row = {
@@ -23,10 +24,12 @@ const PAGE_SIZE = 20;
 export function OrdersSearch({
   orgId,
   orgSlug,
+  vocab,
   events,
 }: {
   orgId: string;
   orgSlug: string;
+  vocab: OrgVocab;
   events: EventOption[];
 }) {
   const [q, setQ] = useState("");
@@ -83,10 +86,10 @@ export function OrdersSearch({
           <Select
             value={eventId}
             onChange={(e) => setEventId(e.target.value)}
-            aria-label="Filtrar por evento"
+            aria-label={vocab.filterByEvent}
             className="w-full sm:w-56"
           >
-            <option value="">Todos os eventos</option>
+            <option value="">{vocab.allEvents}</option>
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>
                 {ev.title}
@@ -124,7 +127,7 @@ export function OrdersSearch({
             <EmptyState
               icon={<Search className="size-5" />}
               title="Nenhum pedido encontrado"
-              description="Ajuste os termos da busca ou os filtros de evento e status."
+              description={`Ajuste os termos da busca ou os filtros de ${vocab.event} e status.`}
             />
           ) : (
             <ul className="divide-y divide-line">

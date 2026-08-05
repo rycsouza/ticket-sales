@@ -32,6 +32,7 @@ import {
   Select,
   Textarea,
 } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 import { ConfirmDialog } from "../../../../ui";
 
 interface EditorPage {
@@ -64,27 +65,27 @@ function heroCover0(blocks: PageBlock[]): string | null {
   return hero && hero.config.images.length > 0 ? hero.config.images[0]! : null;
 }
 
-const BLOCK_LABEL: Record<PageBlockType, string> = {
+const blockLabel = (v: OrgVocab): Record<PageBlockType, string> => ({
   hero: "Capa",
   description: "Descrição",
-  location: "Local",
-  tickets: "Ingressos (checkout)",
+  location: v.venue,
+  tickets: `${v.Tickets} (checkout)`,
   organizer: "Realização",
   faq: "Perguntas frequentes",
   lineup: "Atrações",
   gallery: "Galeria de fotos",
   video: "Vídeo (YouTube)",
   countdown: "Contagem regressiva",
-};
+});
 
 /** Blocos opcionais agrupados para o menu "Adicionar seção" (tickets é fixo). */
-const ADD_GROUPS: { label: string; types: PageBlockType[] }[] = [
+const addGroups = (v: OrgVocab): { label: string; types: PageBlockType[] }[] => [
   { label: "Destaque", types: ["hero", "countdown"] },
   { label: "Conteúdo", types: ["description", "lineup", "faq"] },
   // Galeria de fotos foi descontinuada — a capa em carrossel cobre esse caso.
   // (Blocos de galeria já salvos seguem editáveis/removíveis pela lista.)
   { label: "Mídia", types: ["video"] },
-  { label: "Informações do evento", types: ["location", "organizer"] },
+  { label: `Informações ${v.ofEvent}`, types: ["location", "organizer"] },
 ];
 
 const DEFAULT_BRAND = "#2563eb";
@@ -143,13 +144,17 @@ export function PageEditor({
   orgId,
   eventId,
   previewHref,
+  vocab,
   initial,
 }: {
   orgId: string;
   eventId: string;
   previewHref: string;
+  vocab: OrgVocab;
   initial: EditorPage;
 }) {
+  const BLOCK_LABEL = blockLabel(vocab);
+  const ADD_GROUPS = addGroups(vocab);
   const router = useRouter();
   const [brandColor, setBrandColor] = useState(initial.brandColor ?? "");
   const [theme, setTheme] = useState<"light" | "dark">(initial.theme);
@@ -517,6 +522,7 @@ export function PageEditor({
                 {isExpanded && (
                   <div className="mt-3 space-y-3 border-l-2 border-line pl-4">
                     <BlockConfigForm
+                      vocab={vocab}
                       block={block}
                       patchBlock={patchBlock}
                       orgId={orgId}
@@ -647,11 +653,13 @@ function BlockConfigForm({
   patchBlock,
   orgId,
   eventId,
+  vocab,
 }: {
   block: PageBlock;
   patchBlock: (id: string, patch: (block: PageBlock) => PageBlock) => void;
   orgId: string;
   eventId: string;
+  vocab: OrgVocab;
 }) {
   function setConfig(patch: Record<string, unknown>) {
     patchBlock(block.id, (b) => ({ ...b, config: { ...b.config, ...patch } }) as PageBlock);
@@ -759,10 +767,10 @@ function BlockConfigForm({
               value={block.config.heading ?? ""}
               maxLength={80}
               onChange={(e) => setConfig({ heading: e.target.value || undefined })}
-              placeholder="Ex.: Sobre o evento"
+              placeholder={`Ex.: Sobre ${vocab.theEvent}`}
             />
           </Field>
-          <Field label="Texto (vazio = descrição do evento)" htmlFor={`${block.id}-text`}>
+          <Field label={`Texto (vazio = descrição ${vocab.ofEvent})`} htmlFor={`${block.id}-text`}>
             <Textarea
               id={`${block.id}-text`}
               rows={4}
@@ -778,7 +786,7 @@ function BlockConfigForm({
       return (
         <>
           <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-small text-ink-muted">
-            O local é puxado dos <strong className="text-ink-soft">detalhes do evento</strong>. Aqui
+            O {vocab.venue.toLowerCase()} é puxado dos <strong className="text-ink-soft">detalhes {vocab.ofEvent}</strong>. Aqui
             você só decide se ele aparece (e onde) no checkout.
           </p>
           <Toggle

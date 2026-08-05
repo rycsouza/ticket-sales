@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { HandCoins, Ticket, Users } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab } from "@/lib/org-vocab";
 import {
   toCommissionRuleResponse,
   toCouponResponse,
@@ -28,6 +29,7 @@ export default async function AfiliadosPage({
   const { evento: selectedEventId } = await searchParams;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const s = (await getTenantServices(org.id));
@@ -78,7 +80,7 @@ export default async function AfiliadosPage({
     <>
       <PageHeader
         title="Afiliados"
-        description="Cadastre promoters da organização, gere o link do relatório e defina cupons e comissões padrão — depois vincule aos eventos."
+        description={`Cadastre promoters da organização, gere o link do relatório e defina cupons e comissões padrão — depois vincule às vendas de cada ${vocab.event}.`}
       />
 
       <div className="mb-6">
@@ -92,7 +94,7 @@ export default async function AfiliadosPage({
             <EmptyState
               icon={<Users className="size-5" />}
               title="Nenhum afiliado cadastrado"
-              description="Cadastre o primeiro afiliado acima. Ele recebe um link de relatório próprio e pode ser vinculado a qualquer evento."
+              description={`Cadastre o primeiro afiliado acima. Ele recebe um link de relatório próprio e pode ser vinculado a qualquer ${vocab.event}.`}
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -122,18 +124,18 @@ export default async function AfiliadosPage({
         <Card className="lg:col-span-2">
           <CardHeader
             title="Comissões a pagar"
-            description="Escolha o evento para ver o saldo devido a cada afiliado. Registrar o pagamento marca a comissão como paga (não movimenta dinheiro)."
+            description={`Escolha ${vocab.theEvent} para ver o saldo devido a cada afiliado. Registrar o pagamento marca a comissão como paga (não movimenta dinheiro).`}
           />
           <CardBody className="border-b border-line">
             <div className="max-w-sm">
-              <EventPayoutSelect events={eventOptions} selectedId={validEventId} />
+              <EventPayoutSelect vocab={vocab} events={eventOptions} selectedId={validEventId} />
             </div>
           </CardBody>
           {!validEventId ? (
             <EmptyState
               icon={<HandCoins className="size-5" />}
-              title="Selecione um evento"
-              description="As comissões são apuradas por evento. Escolha um evento acima para ver o que está em aberto."
+              title={`Selecione ${vocab.oneEvent}`}
+              description={`As comissões são apuradas ${vocab.perEvent}. Escolha ${vocab.oneEvent} acima para ver o que está em aberto.`}
             />
           ) : payables.length === 0 ? (
             <EmptyState
@@ -168,7 +170,7 @@ export default async function AfiliadosPage({
         <Card>
           <CardHeader
             title="Cupons da organização"
-            description="Valem em todos os eventos, salvo cupom específico do evento com o mesmo código."
+            description={`Valem em ${vocab.allEvents.toLowerCase()}, salvo cupom específico ${vocab.ofEvent} com o mesmo código.`}
           />
           {orgCoupons.length === 0 ? (
             <EmptyState
@@ -205,7 +207,7 @@ export default async function AfiliadosPage({
         <Card>
           <CardHeader
             title="Comissão padrão"
-            description="Regra aplicada a todos os eventos, salvo regra específica do evento."
+            description={`Regra aplicada a ${vocab.allEvents.toLowerCase()}, salvo regra específica ${vocab.ofEvent}.`}
           />
           {orgRules.length === 0 ? (
             <EmptyState
@@ -224,7 +226,7 @@ export default async function AfiliadosPage({
                   </div>
                   <p className="mt-1 text-small text-ink-muted">
                     {discountValueLabel(r.type, r.value)}{" "}
-                    {r.type === "PERCENT" ? commissionBaseLabel(r.base) : "por ingresso vendido"}
+                    {r.type === "PERCENT" ? commissionBaseLabel(r.base) : vocab.perTicketSold}
                   </p>
                 </li>
               ))}

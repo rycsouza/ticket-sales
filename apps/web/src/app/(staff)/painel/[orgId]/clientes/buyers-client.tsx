@@ -278,7 +278,7 @@ export function BuyersClient({
       <div className="flex items-center justify-between gap-3">
         <p className="text-small text-ink-muted" role="status" aria-live="polite">
           {pluralize(filtered.length, "cliente encontrado", "clientes encontrados")}
-          {eventScoped ? " neste evento" : ""}
+          {eventScoped ? " no filtro atual" : ""}
         </p>
         {activeFilters > 0 && (
           <Button variant="ghost" size="sm" onClick={resetFilters}>

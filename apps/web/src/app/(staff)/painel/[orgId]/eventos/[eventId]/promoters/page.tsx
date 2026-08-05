@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Link2, Ticket, UserPlus, Users } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab } from "@/lib/org-vocab";
 import {
   toCommissionRuleResponse,
   toCouponResponse,
@@ -26,6 +27,7 @@ export default async function PromotersPage({
   const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
@@ -72,7 +74,7 @@ export default async function PromotersPage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Promoters + links */}
         <Card>
-          <CardHeader title="Promotores do evento" />
+          <CardHeader title={`Promotores ${vocab.ofEvent}`} />
           {assignments.length === 0 ? (
             <EmptyState
               icon={<UserPlus className="size-5" />}
@@ -80,7 +82,7 @@ export default async function PromotersPage({
               description={
                 orgPromoters.length === 0
                   ? "Cadastre afiliados na seção Afiliados da organização e vincule-os aqui."
-                  : "Vincule afiliados da organização a este evento usando os botões abaixo."
+                  : `Vincule afiliados da organização a ${vocab.thisEvent} usando os botões abaixo.`
               }
             />
           ) : (
@@ -118,7 +120,7 @@ export default async function PromotersPage({
           <CardBody className="border-t border-line">
             {orgPromoters.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-small text-ink-muted">Vincular afiliado ao evento:</p>
+                <p className="text-small text-ink-muted">Vincular afiliado {vocab.gender === "f" ? "à" : "ao"} {vocab.event}:</p>
                 {unassigned.length === 0 ? (
                   <p className="text-small text-ink-faint">Todos os afiliados já foram vinculados.</p>
                 ) : (
@@ -151,12 +153,12 @@ export default async function PromotersPage({
 
         {/* Coupons */}
         <Card>
-          <CardHeader title="Cupons do evento" />
+          <CardHeader title={`Cupons ${vocab.ofEvent}`} />
           {coupons.length === 0 ? (
             <EmptyState
               icon={<Ticket className="size-5" />}
               title="Nenhum cupom criado"
-              description="Crie descontos específicos deste evento. Cupons da organização inteira ficam na seção Afiliados."
+              description={`Crie descontos específicos ${vocab.ofEvent}. Cupons da organização inteira ficam na seção Afiliados.`}
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -185,7 +187,7 @@ export default async function PromotersPage({
 
         {/* Commission rules + ranking */}
         <Card className="lg:col-span-2">
-          <CardHeader title="Comissão" description="Como a comissão dos promotores é calculada neste evento." />
+          <CardHeader title="Comissão" description={`Como a comissão dos promotores é calculada ${vocab.inThisEvent}.`} />
           {activeRules.length === 0 ? (
             <EmptyState
               title="Nenhuma regra de comissão"
@@ -203,7 +205,7 @@ export default async function PromotersPage({
                   </div>
                   <p className="mt-1 text-small text-ink-muted">
                     {discountValueLabel(r.type, r.value)}{" "}
-                    {r.type === "PERCENT" ? commissionBaseLabel(r.base) : "por ingresso vendido"} ·{" "}
+                    {r.type === "PERCENT" ? commissionBaseLabel(r.base) : vocab.perTicketSold} ·{" "}
                     {r.promoterId
                       ? `aplicada a ${nameOf(r.promoterId)}`
                       : "aplicada a todos os promotores"}

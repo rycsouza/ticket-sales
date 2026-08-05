@@ -10,6 +10,8 @@ export type ShowcaseKind = "Bate e volta" | "Pernoite";
 export type ShowcaseCardData = {
   id: string;
   slug: string;
+  /** URL pública já no vocabulário do nicho (/evento/x ou /viagem/x). */
+  href: string;
   /** Só faz sentido no nicho VIAGENS (bate e volta × pernoite). */
   kind: ShowcaseKind | null;
   dateLabel: string;
@@ -32,7 +34,7 @@ function ShowcaseCard({ item, ctaLabel }: { item: ShowcaseCardData; ctaLabel: st
 
   return (
     <Link
-      href={`/evento/${item.slug}`}
+      href={item.href}
       className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-[var(--sf-accent-border)]"
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-page">

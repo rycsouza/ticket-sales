@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, PartyPopper } from "lucide-react";
 import { Badge, Button, buttonVariants } from "@/components/ui";
+import { orgVocab } from "@/lib/org-vocab";
 import { ORDER_STATUS, statusMeta } from "@/lib/status";
 import { CardBrick } from "@/components/card-brick";
 
@@ -15,6 +16,8 @@ export interface OrderView {
   status: string;
   totalCents: number;
   expiresAt: string | null;
+  /** Nicho da org dona (vem do lookup) — adapta o vocabulário. */
+  orgNiche?: "EVENTOS" | "VIAGENS";
 }
 
 export interface PixView {
@@ -59,6 +62,8 @@ export function OrderPayment({
   showTicketsLink?: boolean;
 }) {
   const [order, setOrder] = useState<OrderView | null>(initialOrder);
+  // Vocabulário do nicho da org dona (default EVENTOS até o lookup responder).
+  const vocab = orgVocab(order?.orgNiche ?? "EVENTOS");
   const [pix, setPix] = useState<PixView | null>(initialPix);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
@@ -252,7 +257,7 @@ export function OrderPayment({
             </div>
           ) : cardProcessing ? (
             <p className="py-6 text-center text-body text-ink-soft">
-              Pagamento em análise. Assim que for aprovado, seus ingressos são enviados e esta tela
+              Pagamento em análise. Assim que for aprovado, {vocab.ticketGender === "f" ? "suas" : "seus"} {vocab.tickets} são {vocab.ticketGender === "f" ? "enviadas" : "enviados"} e esta tela
               atualiza sozinha.
             </p>
           ) : (
@@ -286,8 +291,8 @@ export function OrderPayment({
           <PartyPopper className="mx-auto size-8 text-success" />
           <h2 className="mt-2 text-h3 text-success-text">Pagamento confirmado!</h2>
           <p className="mt-1 text-body text-success-text">
-            Seus ingressos foram enviados{" "}
-            {email ? <strong>para {email}</strong> : "para o seu e-mail"}. Cada ingresso tem um link
+            {vocab.ticketGender === "f" ? "Suas" : "Seus"} {vocab.tickets} foram {vocab.ticketGender === "f" ? "enviadas" : "enviados"}{" "}
+            {email ? <strong>para {email}</strong> : "para o seu e-mail"}. Cada {vocab.ticket} tem um link
             próprio com QR Code.
           </p>
           {showTicketsLink && (
@@ -301,7 +306,7 @@ export function OrderPayment({
             leftIcon={resent ? <Check className="size-4 text-success" /> : undefined}
             onClick={resendTickets}
           >
-            {resent ? "Reenviado — confira sua caixa de entrada" : "Reenviar ingressos por e-mail"}
+            {resent ? "Reenviado — confira sua caixa de entrada" : `Reenviar ${vocab.tickets} por e-mail`}
           </Button>
           <p className="mt-2 text-small text-success-text/80">
             O reenvio gera novos links e invalida os anteriores.
@@ -313,8 +318,8 @@ export function OrderPayment({
         <div className="rounded-xl border border-warning-border bg-warning-bg p-5 text-center text-warning-text">
           <h2 className="text-h3">Reserva expirada</h2>
           <p className="mt-1 text-body">
-            O prazo de pagamento terminou e os ingressos voltaram para venda. Você pode fazer um novo
-            pedido na página do evento.
+            O prazo de pagamento terminou e {vocab.ticketGender === "f" ? "as" : "os"} {vocab.tickets} voltaram para venda. Você pode
+            fazer um novo pedido na página {vocab.ofEvent}.
           </p>
         </div>
       )}

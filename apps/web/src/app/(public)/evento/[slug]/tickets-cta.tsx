@@ -12,9 +12,11 @@ import { Ticket } from "lucide-react";
 export function TicketsCta({
   anchorId,
   fromPriceCents,
+  buyLabel = "Comprar ingressos",
 }: {
   anchorId: string;
   fromPriceCents: number;
+  buyLabel?: string;
 }) {
   const [show, setShow] = useState(false);
 
@@ -55,7 +57,7 @@ export function TicketsCta({
           className="flex shrink-0 items-center gap-2 rounded-xl bg-brand px-5 py-3 text-body font-semibold text-brand-fg transition-colors hover:bg-brand-hover active:bg-brand-active"
         >
           <Ticket className="size-5" />
-          Comprar ingressos
+          {buyLabel}
         </button>
       </div>
     </div>

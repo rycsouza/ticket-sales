@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -14,9 +15,11 @@ function toLocalInput(iso: string | null): string {
 /** Inline editor for the event's core details (everything from creation except
  * location, which has its own card, and the platform fee, which is admin-only). */
 export function EventDetailsForm({
+  vocab,
   apiBase,
   initial,
 }: {
+  vocab: OrgVocab;
   apiBase: string;
   initial: {
     title: string;
@@ -132,7 +135,7 @@ export function EventDetailsForm({
             placeholder="Sem limite fixo"
           />
         </Field>
-        <Field label="Máx. de ingressos por pedido" htmlFor="ed-max" hint="Opcional.">
+        <Field label={`Máx. de ${vocab.tickets} por pedido`} htmlFor="ed-max" hint="Opcional.">
           <Input
             id="ed-max"
             type="number"

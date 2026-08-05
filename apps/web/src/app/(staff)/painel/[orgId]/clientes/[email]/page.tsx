@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink, MessageCircle } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab } from "@/lib/org-vocab";
 import { toEventResponse, toOrderSearchRowResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { ORDER_STATUS, fmtBRL, fmtDate, fmtDateTime, statusMeta } from "@/lib/status";
@@ -21,6 +22,7 @@ export default async function BuyerDetailPage({
   const email = decodeURIComponent(emailParam).toLowerCase();
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
@@ -166,7 +168,7 @@ export default async function BuyerDetailPage({
               <thead>
                 <tr className="border-b border-line text-left text-small text-ink-muted">
                   <th scope="col" className="px-5 py-2.5 font-medium">Pedido</th>
-                  <th scope="col" className="px-5 py-2.5 font-medium">Evento</th>
+                  <th scope="col" className="px-5 py-2.5 font-medium">{vocab.Event}</th>
                   <th scope="col" className="px-5 py-2.5 font-medium">Data</th>
                   <th scope="col" className="px-5 py-2.5 font-medium">Situação</th>
                   <th scope="col" className="px-5 py-2.5 text-right font-medium">Valor</th>

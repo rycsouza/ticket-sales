@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab, panelEventsBase } from "@/lib/org-vocab";
 import { toEventPageResponse, toEventResponse } from "@/lib/serializers";
 import { PageEditor } from "./page-editor";
 
@@ -15,6 +16,7 @@ export default async function EventPageCustomizer({
   const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = await getTenantServices(org.id);
@@ -34,18 +36,19 @@ export default async function EventPageCustomizer({
   return (
     <div>
       <div className="mb-5">
-        <h2 className="text-h2 text-ink">Página do evento</h2>
+        <h2 className="text-h2 text-ink">Página {vocab.ofEvent}</h2>
         <p className="mt-0.5 text-small text-ink-muted">
           {isPublished
             ? "As alterações vão ao ar assim que você salvar."
-            : "A página fica visível ao público após publicar o evento."}
+            : `A página fica visível ao público após publicar ${vocab.theEvent}.`}
         </p>
       </div>
 
       <PageEditor
+        vocab={vocab}
         orgId={orgId}
         eventId={eventId}
-        previewHref={`/painel/${org.slug}/eventos/${event.slug}/preview`}
+        previewHref={`${panelEventsBase(org.slug, vocab)}/${event.slug}/preview`}
         initial={page}
       />
     </div>

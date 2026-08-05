@@ -61,21 +61,21 @@ export default async function OrgEvents({
     <>
       <PageHeader
         title={vocab.Events}
-        description={`Crie e gerencie ${vocab.events === "eventos" ? "os" : "as"} ${vocab.events} da sua produtora.`}
-        actions={<NewEventForm orgId={orgId} orgSlug={orgSlug} label={vocab.newEvent} />}
+        description={`Crie e gerencie ${vocab.gender === "f" ? "as" : "os"} ${vocab.events} da sua produtora.`}
+        actions={<NewEventForm orgId={orgId} orgSlug={orgSlug} vocab={vocab} />}
       />
 
       {items.length === 0 ? (
         <Card>
           <EmptyState
             icon={<CalendarDays className="size-5" />}
-            title={`Nenhum${vocab.event === "evento" ? "" : "a"} ${vocab.event} ainda`}
-            description={`Crie ${vocab.event === "evento" ? "o primeiro" : "a primeira"} ${vocab.event} para começar a montar lotes e vender ${vocab.tickets}.`}
-            action={<NewEventForm orgId={orgId} orgSlug={orgSlug} label={vocab.newEvent} />}
+            title={`${vocab.gender === "f" ? "Nenhuma" : "Nenhum"} ${vocab.event} ainda`}
+            description={`Crie ${vocab.gender === "f" ? "a primeira" : "o primeiro"} ${vocab.event} para começar a montar lotes e vender ${vocab.tickets}.`}
+            action={<NewEventForm orgId={orgId} orgSlug={orgSlug} vocab={vocab} />}
           />
         </Card>
       ) : (
-        <EventsList key={q ?? ""} orgSlug={orgSlug} events={items} initialQuery={q ?? ""} />
+        <EventsList key={q ?? ""} orgSlug={orgSlug} vocab={vocab} events={items} initialQuery={q ?? ""} />
       )}
     </>
   );

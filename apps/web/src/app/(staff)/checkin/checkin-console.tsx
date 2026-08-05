@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Download, ScanLine, Wifi, WifiOff, XCircle } from "lucide-react";
 import { Button, Card, CardBody, Input } from "@/components/ui";
+import { orgVocab } from "@/lib/org-vocab";
 import { QrScanner } from "./qr-scanner";
 import {
   getDeviceId,
@@ -17,6 +18,7 @@ import {
 interface Org {
   id: string;
   name: string;
+  niche?: "EVENTOS" | "VIAGENS";
   role: string;
 }
 interface EventItem {
@@ -37,23 +39,29 @@ interface ValidationResult {
   offline?: boolean;
 }
 
-const REASON_LABEL: Record<string, string> = {
-  not_found: "Ingresso não encontrado",
-  not_found_offline: "Não está na lista offline — reconecte para confirmar",
-  wrong_event: "Ingresso de outro evento",
-  not_issued: "Ingresso não emitido",
-  blocked: "Ingresso bloqueado",
-  cancelled: "Ingresso cancelado",
-  refunded: "Ingresso reembolsado",
-  already_checked_in: "Já utilizado",
+const reasonLabels = (v: ReturnType<typeof orgVocab>): Record<string, string> => {
+  const f = v.ticketGender === "f";
+  const T = v.Ticket;
+  return {
+    not_found: `${T} não ${f ? "encontrada" : "encontrado"}`,
+    not_found_offline: "Não está na lista offline — reconecte para confirmar",
+    wrong_event: `${T} de ${f ? "outra" : "outro"} ${v.event}`,
+    not_issued: `${T} não ${f ? "emitida" : "emitido"}`,
+    blocked: `${T} ${f ? "bloqueada" : "bloqueado"}`,
+    cancelled: `${T} ${f ? "cancelada" : "cancelado"}`,
+    refunded: `${T} ${f ? "reembolsada" : "reembolsado"}`,
+    already_checked_in: f ? "Já utilizada" : "Já utilizado",
+  };
 };
 
 export function CheckinConsole() {
   const [orgs, setOrgs] = useState<Org[] | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  // Vocabulário segue a org selecionada (Portaria×Embarque, ingresso×vaga).
   const [events, setEvents] = useState<EventItem[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
+  const vocab = orgVocab(orgs?.find((o) => o.id === orgId)?.niche ?? "EVENTOS");
 
   const [token, setToken] = useState("");
   const [result, setResult] = useState<ValidationResult | null>(null);
@@ -275,7 +283,7 @@ export function CheckinConsole() {
 
   if (!eventId) {
     return (
-      <Picker title="Evento" empty="Nenhum evento.">
+      <Picker title={vocab.Event} empty={`${vocab.gender === "f" ? "Nenhuma" : "Nenhum"} ${vocab.event}.`}>
         {events.map((e) => (
           <PickerButton key={e.id} onClick={() => setEventId(e.id)}>
             {e.title}
@@ -290,7 +298,7 @@ export function CheckinConsole() {
       <header className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-h2 text-ink">
           <ScanLine className="size-5 text-brand" />
-          Portaria
+          {vocab.checkinArea}
         </h1>
         <div className="flex items-center gap-3">
           <span
@@ -363,7 +371,7 @@ export function CheckinConsole() {
           )}
           {!result.accepted && (
             <p className="mt-1 text-body text-danger-text">
-              {REASON_LABEL[result.reason ?? ""] ?? "Ingresso inválido"}
+              {reasonLabels(vocab)[result.reason ?? ""] ?? `${vocab.Ticket} ${vocab.ticketGender === "f" ? "inválida" : "inválido"}`}
             </p>
           )}
           {result.offline && (
@@ -399,7 +407,7 @@ export function CheckinConsole() {
               type="text"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Cole o código do ingresso"
+              placeholder={`Cole o código ${vocab.ofTicket}`}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void admit(token);
               }}

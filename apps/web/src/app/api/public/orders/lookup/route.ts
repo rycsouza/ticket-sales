@@ -41,11 +41,17 @@ export const POST = route(async (request, { correlationId }) => {
     }
   }
 
+  // Nicho da org dona — o cliente adapta o vocabulário ("ingressos"→"vagas").
+  const identity = await services.publicOrganizations
+    .findIdentityById(order.organizationId)
+    .catch(() => null);
+
   return NextResponse.json({
     code: order.code,
     status: order.status,
     totalCents: order.totalCents,
     expiresAt: order.expiresAt,
+    orgNiche: identity?.niche ?? "EVENTOS",
     // Ticket links are delivered by e-mail or regenerated via resend —
     // never listed here (the lookup credential is weaker than the token).
   });

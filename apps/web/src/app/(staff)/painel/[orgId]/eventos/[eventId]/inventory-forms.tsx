@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
 import { Button, Field, Input, MoneyInput, Modal, Select } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 
 function useSubmit(onOk: () => void) {
   const [busy, setBusy] = useState(false);
@@ -31,7 +32,7 @@ function useSubmit(onOk: () => void) {
   return { busy, error, send, setError };
 }
 
-export function NewTicketTypeForm({ orgId, eventId }: { orgId: string; eventId: string }) {
+export function NewTicketTypeForm({ orgId, eventId, vocab }: { orgId: string; eventId: string; vocab: OrgVocab }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -57,20 +58,20 @@ export function NewTicketTypeForm({ orgId, eventId }: { orgId: string; eventId: 
         leftIcon={<Plus className="size-4" />}
         onClick={() => setOpen(true)}
       >
-        Criar ingresso
+        Criar {vocab.ticket}
       </Button>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Novo tipo de ingresso"
-        description="O tipo define o produto vendido (ex.: Pista, Camarote). O preço e a quantidade ficam nos lotes."
+        title={vocab.newTicketType}
+        description={`O tipo define o produto vendido (ex.: ${vocab.ticket === "vaga" ? "Leito, Semi-leito" : "Pista, Camarote"}). O preço e a quantidade ficam nos lotes.`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
             <Button loading={busy} disabled={nameTooShort} onClick={submit}>
-              Criar ingresso
+              Criar {vocab.ticket}
             </Button>
           </>
         }
@@ -82,7 +83,7 @@ export function NewTicketTypeForm({ orgId, eventId }: { orgId: string; eventId: 
             submit();
           }}
         >
-          <Field label="Nome" htmlFor="tt-name" hint="Como aparece no checkout. Ex.: Pista, Camarote, Mesa VIP.">
+          <Field label="Nome" htmlFor="tt-name" hint={`Como aparece no checkout. Ex.: ${vocab.ticket === "vaga" ? "Leito, Semi-leito, Poltrona" : "Pista, Camarote, Mesa VIP"}.`}>
             <Input
               id="tt-name"
               value={name}
@@ -110,6 +111,7 @@ const emptyBatch = {
 export function NewBatchForm({
   orgId,
   eventId,
+  vocab,
   ticketTypes,
   lockedTicketTypeId,
   triggerLabel = "Criar lote",
@@ -118,6 +120,7 @@ export function NewBatchForm({
 }: {
   orgId: string;
   eventId: string;
+  vocab: OrgVocab;
   ticketTypes: { id: string; name: string }[];
   lockedTicketTypeId?: string;
   triggerLabel?: string;
@@ -193,7 +196,7 @@ export function NewBatchForm({
         open={open}
         onClose={() => setOpen(false)}
         title="Novo lote"
-        description="Um lote define preço, quantidade e período de venda de um tipo de ingresso."
+        description={`Um lote define preço, quantidade e período de venda de um tipo de ${vocab.ticket}.`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -213,14 +216,14 @@ export function NewBatchForm({
           }}
         >
           {lockedTicketTypeId ? (
-            <Field label="Tipo de ingresso" hint="Selecionado pelo ingresso escolhido.">
+            <Field label={vocab.ticketType} hint={`Selecionado pel${vocab.ticketGender === "f" ? "a" : "o"} ${vocab.ticket} escolhid${vocab.ticketGender === "f" ? "a" : "o"}.`}>
               <Input
                 readOnly
-                value={ticketTypes.find((t) => t.id === lockedTicketTypeId)?.name ?? "Ingresso"}
+                value={ticketTypes.find((t) => t.id === lockedTicketTypeId)?.name ?? vocab.Ticket}
               />
             </Field>
           ) : (
-            <Field label="Tipo de ingresso" htmlFor="b-type">
+            <Field label={vocab.ticketType} htmlFor="b-type">
               <Select id="b-type" value={ticketTypeId} onChange={(e) => setTicketTypeId(e.target.value)}>
                 {ticketTypes.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -324,10 +327,12 @@ function toLocalInput(iso: string | null | undefined): string {
 export function EditTicketTypeButton({
   orgId,
   eventId,
+  vocab,
   ticketType,
 }: {
   orgId: string;
   eventId: string;
+  vocab: OrgVocab;
   ticketType: { id: string; name: string; active: boolean };
 }) {
   const router = useRouter();
@@ -364,7 +369,7 @@ export function EditTicketTypeButton({
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Editar ingresso"
+        title={vocab.editTicket}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>

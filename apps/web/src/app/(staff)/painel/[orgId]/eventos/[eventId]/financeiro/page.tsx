@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab } from "@/lib/org-vocab";
 import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL } from "@/lib/status";
 import { toPromoterResponse } from "@/lib/serializers";
@@ -17,6 +18,7 @@ export default async function FinancePage({
   const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
@@ -30,7 +32,7 @@ export default async function FinancePage({
       <Card>
         <CardBody>
           <Alert tone="neutral">
-            Você não tem permissão para ver o financeiro deste evento.
+            Você não tem permissão para ver o financeiro {vocab.ofEvent}.
           </Alert>
         </CardBody>
       </Card>
@@ -64,7 +66,7 @@ export default async function FinancePage({
         <div>
           <h2 className="text-h2 text-ink">Financeiro</h2>
           <p className="mt-0.5 text-small text-ink-muted">
-            Acompanhe vendas, taxas, comissões, reembolsos e valores a receber deste evento.
+            Acompanhe vendas, taxas, comissões, reembolsos e valores a receber {vocab.ofEvent}.
           </p>
         </div>
         <a
@@ -80,7 +82,7 @@ export default async function FinancePage({
         <Stat
           label="Saldo a receber"
           value={fmtBRL(summary.producerPayableCents)}
-          hint="Valor do evento ainda a repassar à produtora"
+          hint={`Valor ${vocab.ofEvent} ainda a repassar à produtora`}
           tone={summary.producerPayableCents > 0 ? "success" : "neutral"}
         />
         <Stat
@@ -128,7 +130,7 @@ export default async function FinancePage({
         <Card className="lg:col-span-2">
           <CardHeader
             title="Comissões dos promotores"
-            description="Saldo devido a cada promotor neste evento. O pagamento é registrado na aba Afiliados."
+            description={`Saldo devido a cada promotor ${vocab.inThisEvent}. O pagamento é registrado na aba Afiliados.`}
             action={
               <Link
                 href={`/painel/${orgSlug}/afiliados?evento=${eventId}`}

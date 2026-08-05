@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { formatEventDate, getPublicEventViewBySlug, type PublicEventView } from "@/lib/public-views";
+import { orgVocab, publicEventPath } from "@/lib/org-vocab";
 import { EventPageView } from "./event-page-view";
 
 // Public event slug: lowercase letters, digits and hyphens.
@@ -31,7 +32,8 @@ function buildDescription(event: PublicEventView): string {
   }
   const date = event.startsAt ? formatEventDate(event.startsAt, event.timezone) : null;
   const place = [event.venueName, event.city].filter(Boolean).join(" · ");
-  return ["Garanta seu ingresso.", date, place].filter(Boolean).join(" · ");
+  const vocab = orgVocab(event.orgNiche);
+  return [`Garanta ${vocab.ticketGender === "f" ? "sua" : "seu"} ${vocab.ticket}.`, date, place].filter(Boolean).join(" · ");
 }
 
 export async function generateMetadata({
@@ -44,7 +46,8 @@ export async function generateMetadata({
   if (!event) return {};
 
   const description = buildDescription(event);
-  const canonical = `/evento/${slug}`;
+  // Canonical no vocabulário do nicho (/viagem/x é rewrite da mesma página).
+  const canonical = publicEventPath(slug, orgVocab(event.orgNiche));
   const banner = event.page.bannerUrl ?? event.page.logoUrl;
   const images = banner
     ? [{ url: socialImageUrl(banner), width: 1200, height: 630, alt: event.title }]

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BarChart3, MousePointerClick, Receipt, Wallet } from "lucide-react";
 import { hashToken } from "@ingressos/core";
 import { getTenantServicesByRef } from "@/lib/services";
+import { orgVocab } from "@/lib/org-vocab";
 
 // Tokenized private report — never indexed, always fresh (the token is the key).
 export const metadata: Metadata = { title: "Relatório do afiliado", robots: { index: false, follow: false } };
@@ -19,12 +20,21 @@ export default async function AffiliateReportPage({
   const { token } = await params;
   // Multi-tenant: o hash do token de relatório resolve a org dona
   // (docs/MULTITENANT.md §3); token desconhecido cai no mesmo estado vazio.
-  const report = await getTenantServicesByRef(
+  const resolved = await getTenantServicesByRef(
     "PROMOTER_REPORT",
     hashToken(decodeURIComponent(token)),
-  )
-    .then(({ services }) => services.promoters.getPromoterReportByToken(decodeURIComponent(token)))
-    .catch(() => null);
+  ).catch(() => null);
+  const report = resolved
+    ? await resolved.services.promoters
+        .getPromoterReportByToken(decodeURIComponent(token))
+        .catch(() => null)
+    : null;
+  const identity = resolved
+    ? await resolved.services.publicOrganizations
+        .findIdentityById(resolved.organizationId)
+        .catch(() => null)
+    : null;
+  const vocab = orgVocab(identity?.niche ?? "EVENTOS");
 
   if (!report) {
     return (
@@ -40,7 +50,7 @@ export default async function AffiliateReportPage({
   const stats = [
     { label: "Cliques no link", value: report.clicks.toLocaleString("pt-BR"), icon: MousePointerClick },
     { label: "Pedidos atribuídos", value: report.attributedOrders.toLocaleString("pt-BR"), icon: Receipt },
-    { label: "Ingressos com comissão", value: report.commissionQuantity.toLocaleString("pt-BR"), icon: BarChart3 },
+    { label: `${vocab.Tickets} com comissão`, value: report.commissionQuantity.toLocaleString("pt-BR"), icon: BarChart3 },
     { label: "Comissão acumulada", value: fmtBRL(report.commissionAmountCents), icon: Wallet },
   ];
 
@@ -65,7 +75,7 @@ export default async function AffiliateReportPage({
 
       {report.byEvent.length > 1 && (
         <div className="mt-6 rounded-xl border border-line bg-surface p-4">
-          <p className="mb-2 text-small font-semibold text-ink">Comissão por evento</p>
+          <p className="mb-2 text-small font-semibold text-ink">Comissão {vocab.perEvent}</p>
           <ul className="space-y-1">
             {report.byEvent.map((e, i) => (
               <li key={e.eventId} className="flex justify-between text-body">

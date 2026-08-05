@@ -15,6 +15,7 @@ export const GET = route(async (request) => {
     organizations: organizations.map(({ organization, role }) => ({
       id: organization.id,
       name: organization.name,
+      niche: organization.niche,
       role,
     })),
   });

@@ -44,7 +44,9 @@ function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
       href: base,
       label: vocab.Events,
       icon: CalendarDays,
-      match: (p) => p === base || p.startsWith(`${base}/eventos`),
+      // Ambos os segmentos: o filesystem é /eventos, mas orgs de VIAGENS
+      // navegam por /viagens (rewrite no middleware).
+      match: (p) => p === base || p.startsWith(`${base}/eventos`) || p.startsWith(`${base}/viagens`),
     },
     {
       href: `${base}/relatorio`,

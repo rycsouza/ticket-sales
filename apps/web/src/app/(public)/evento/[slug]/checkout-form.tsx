@@ -67,8 +67,8 @@ const sectionClass = "rounded-xl border border-line bg-surface p-4";
 const sectionTitle = "mb-3 text-small font-semibold uppercase tracking-wide text-ink-muted";
 const stepLabels = (ticketsLabel: string) => [ticketsLabel, "Seus dados", "Revisão", "Pagamento"];
 // Friendly, reassuring messages shown while the order + payment are prepared.
-const PREP_MESSAGES = [
-  "Reservando seus ingressos…",
+const prepMessages = (v: ReturnType<typeof orgVocab>) => [
+  `Reservando ${v.ticketGender === "f" ? "suas" : "seus"} ${v.tickets}…`,
   "Gerando seu pagamento…",
   "Preparando tudo pra você…",
   "Quase lá…",
@@ -166,7 +166,7 @@ export function CheckoutForm({
       setPrepMsg(0);
       return;
     }
-    const t = setInterval(() => setPrepMsg((i) => (i + 1) % PREP_MESSAGES.length), 1400);
+    const t = setInterval(() => setPrepMsg((i) => (i + 1) % prepMessages(vocab).length), 1400);
     return () => clearInterval(t);
   }, [submitting]);
 
@@ -314,7 +314,7 @@ export function CheckoutForm({
 
   function goToData() {
     if (totalQuantity === 0) {
-      setError("Selecione pelo menos um ingresso.");
+      setError(`Selecione pelo menos ${vocab.ticketGender === "f" ? "uma" : "um"} ${vocab.ticket}.`);
       return;
     }
     setError(null);
@@ -420,6 +420,7 @@ export function CheckoutForm({
           status: data.status ?? "AWAITING_PAYMENT",
           totalCents: data.totalCents ?? totalCents,
           expiresAt: data.expiresAt ?? null,
+          orgNiche,
         });
         if (payMethod === "pix") {
           try {
@@ -633,7 +634,7 @@ export function CheckoutForm({
                       autoComplete="email"
                       inputMode="email"
                       maxLength={254}
-                      placeholder="Seus ingressos chegam aqui"
+                      placeholder={`${vocab.ticketGender === "f" ? "Suas" : "Seus"} ${vocab.tickets} chegam aqui`}
                     />
                   </Field>
                 </>
@@ -802,7 +803,7 @@ export function CheckoutForm({
               </summary>
               <ul className="mt-2 space-y-1.5">
                 <li>
-                  <strong className="text-ink">Subtotal</strong> — soma dos ingressos escolhidos.
+                  <strong className="text-ink">Subtotal</strong> — soma {vocab.ticketGender === "f" ? "das" : "dos"} {vocab.tickets} {vocab.ticketGender === "f" ? "escolhidas" : "escolhidos"}.
                 </li>
                 {discountCents > 0 && (
                   <li>
@@ -812,7 +813,7 @@ export function CheckoutForm({
                 {feeCents > 0 && (
                   <li>
                     <strong className="text-ink">Taxa de serviço</strong> — taxa da plataforma pela
-                    emissão e pelo suporte dos seus ingressos.
+                    emissão e pelo suporte {vocab.ticketGender === "f" ? "das suas" : "dos seus"} {vocab.tickets}.
                   </li>
                 )}
                 <li>
@@ -875,7 +876,7 @@ export function CheckoutForm({
           aria-live="polite"
         >
           <Spinner className="size-8 text-brand" />
-          <p className="text-h3 font-semibold text-ink">{PREP_MESSAGES[prepMsg]}</p>
+          <p className="text-h3 font-semibold text-ink">{prepMessages(vocab)[prepMsg]}</p>
           <p className="text-body text-ink-muted">Não feche esta tela.</p>
         </div>
       )}

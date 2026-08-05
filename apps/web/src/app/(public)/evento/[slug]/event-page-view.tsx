@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { PageBlock } from "@ingressos/core";
 import { brandTokens } from "@/lib/brand-theme";
+import { orgVocab } from "@/lib/org-vocab";
 import type { PublicEventView } from "@/lib/public-views";
 import { CheckoutForm } from "./checkout-form";
 import { CheckoutFlowProvider, StepOneOnly } from "./checkout-flow";
@@ -128,7 +129,7 @@ export function EventPageView({
           })}
           {ticketsBlock && fromPriceCents !== null && (
             <StepOneOnly>
-              <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} />
+              <TicketsCta anchorId={ticketsBlock.id} fromPriceCents={fromPriceCents} buyLabel={`Comprar ${orgVocab(event.orgNiche).tickets}`} />
             </StepOneOnly>
           )}
         </main>

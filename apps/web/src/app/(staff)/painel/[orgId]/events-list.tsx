@@ -14,6 +14,7 @@ import {
   Select,
 } from "@/components/ui";
 import { EVENT_STATUS, fmtDateTime, statusMeta } from "@/lib/status";
+import { flex, publicEventPath, panelEventsBase, type OrgVocab } from "@/lib/org-vocab";
 import { cn } from "@/lib/cn";
 
 export interface EventListItem {
@@ -45,10 +46,12 @@ const PAGE_SIZE = 12;
 
 export function EventsList({
   orgSlug,
+  vocab,
   events,
   initialQuery = "",
 }: {
   orgSlug: string;
+  vocab: OrgVocab;
   events: EventListItem[];
   initialQuery?: string;
 }) {
@@ -86,7 +89,7 @@ export function EventsList({
                 setPage(0);
               }}
               placeholder="Buscar por nome"
-              aria-label="Buscar eventos por nome"
+              aria-label={`${vocab.searchEvents} por nome`}
               className="pl-9"
             />
           </div>
@@ -97,7 +100,7 @@ export function EventsList({
                 setSort(e.target.value as typeof sort);
                 setPage(0);
               }}
-              aria-label="Ordenar eventos"
+              aria-label={`Ordenar ${vocab.events}`}
             >
               <option value="date-desc">Data (mais recente)</option>
               <option value="date-asc">Data (mais antiga)</option>
@@ -140,8 +143,8 @@ export function EventsList({
         <Card>
           <EmptyState
             icon={<Search className="size-5" />}
-            title="Nenhum evento encontrado"
-            description="Ajuste a busca ou o filtro para ver outros eventos."
+            title={vocab.noEventFound}
+            description={`Ajuste a busca ou o filtro para ver ${vocab.gender === "f" ? "outras" : "outros"} ${vocab.events}.`}
           />
         </Card>
       ) : (
@@ -149,7 +152,7 @@ export function EventsList({
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {paged.map((e) => (
               <li key={e.id}>
-                <EventCard orgSlug={orgSlug} event={e} />
+                <EventCard orgSlug={orgSlug} vocab={vocab} event={e} />
               </li>
             ))}
           </ul>
@@ -179,9 +182,17 @@ export function EventsList({
   );
 }
 
-function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }) {
+function EventCard({
+  orgSlug,
+  vocab,
+  event,
+}: {
+  orgSlug: string;
+  vocab: OrgVocab;
+  event: EventListItem;
+}) {
   const meta = statusMeta(EVENT_STATUS, event.status);
-  const base = `/painel/${orgSlug}/eventos/${event.slug}`;
+  const base = `${panelEventsBase(orgSlug, vocab)}/${event.slug}`;
   const pct =
     event.capacity && event.capacity > 0
       ? Math.min(100, Math.round((event.soldQty / event.capacity) * 100))
@@ -225,7 +236,7 @@ function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }
           >
             <MenuItem href={base}>Gerenciar</MenuItem>
             {hasPublicPage && (
-              <MenuItem href={`/evento/${event.slug}`} external>
+              <MenuItem href={publicEventPath(event.slug, vocab)} external>
                 Visualizar página
               </MenuItem>
             )}
@@ -236,7 +247,9 @@ function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }
       {pct !== null ? (
         <div className="mt-auto">
           <div className="mb-1 flex items-center justify-between text-caption text-ink-muted">
-            <span>{event.soldQty.toLocaleString("pt-BR")} vendidos</span>
+            <span>
+              {event.soldQty.toLocaleString("pt-BR")} {flex("vendidos", vocab.ticketGender)}
+            </span>
             <span className="tabular-nums">{pct}%</span>
           </div>
           <div
@@ -252,7 +265,9 @@ function EventCard({ orgSlug, event }: { orgSlug: string; event: EventListItem }
         </div>
       ) : (
         <p className="mt-auto text-caption text-ink-faint">
-          {event.soldQty > 0 ? `${event.soldQty} vendidos` : "Sem vendas ainda"}
+          {event.soldQty > 0
+            ? `${event.soldQty} ${flex("vendidos", vocab.ticketGender)}`
+            : "Sem vendas ainda"}
         </p>
       )}
     </div>

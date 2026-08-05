@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field, Select } from "@/components/ui";
+import type { OrgVocab } from "@/lib/org-vocab";
 
 /**
  * Event picker for the org-level "commission payouts" card. Commissions are
@@ -10,9 +11,11 @@ import { Field, Select } from "@/components/ui";
  * server component reloads the payables read-only.
  */
 export function EventPayoutSelect({
+  vocab,
   events,
   selectedId,
 }: {
+  vocab: OrgVocab;
   events: { id: string; title: string }[];
   selectedId: string | null;
 }) {
@@ -27,13 +30,13 @@ export function EventPayoutSelect({
   }
 
   return (
-    <Field label="Evento" htmlFor="payout-event">
+    <Field label={vocab.Event} htmlFor="payout-event">
       <Select
         id="payout-event"
         value={selectedId ?? ""}
         onChange={(e) => pick(e.target.value)}
       >
-        <option value="">Selecione um evento…</option>
+        <option value="">Selecione {vocab.oneEvent}…</option>
         {events.map((ev) => (
           <option key={ev.id} value={ev.id}>
             {ev.title}

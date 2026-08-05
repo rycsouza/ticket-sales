@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarDays, ShieldCheck, Users } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab } from "@/lib/org-vocab";
 import { toEventResponse } from "@/lib/serializers";
 import { Alert, Card, CardBody, EmptyState, PageHeader, buttonVariants } from "@/components/ui";
 import { EventFilterSelect } from "../../ui";
@@ -22,6 +23,7 @@ export default async function CrmPage({
   const { evento, leads } = await searchParams;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
@@ -71,7 +73,7 @@ export default async function CrmPage({
     <>
       <PageHeader
         title="Clientes"
-        description="Compradores e leads capturados nos eventos da sua produtora."
+        description={`Compradores e leads capturados ${vocab.gender === "f" ? "nas" : "nos"} ${vocab.events} da sua produtora.`}
         actions={<ExportBuyersDialog orgId={orgId} eventId={eventId} estimated={segment.count} />}
       />
 
@@ -82,7 +84,8 @@ export default async function CrmPage({
               basePath={`/painel/${orgSlug}/clientes`}
               events={events.map((e) => ({ id: e.id, title: e.title }))}
               selected={eventId ?? ""}
-              ariaLabel="Filtrar clientes por evento"
+              allLabel={vocab.allEvents}
+              ariaLabel={`Filtrar clientes ${vocab.perEvent}`}
             />
           </div>
         ) : (
@@ -103,7 +106,7 @@ export default async function CrmPage({
           <EmptyState
             icon={<Users className="size-5" />}
             title="Nenhum cliente ainda"
-            description="Compradores e leads aparecerão aqui automaticamente conforme as pessoas avançam no checkout dos seus eventos."
+            description={`Compradores e leads aparecerão aqui automaticamente conforme as pessoas avançam no checkout ${vocab.ofEvents} da produtora.`}
             action={
               <Link href={`/painel/${orgSlug}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                 <CalendarDays className="size-4" />

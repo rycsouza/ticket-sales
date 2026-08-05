@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Info, Lock, LockOpen, Ticket } from "lucide-react";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { flex, orgVocab } from "@/lib/org-vocab";
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { BATCH_STATUS, fmtBRL, fmtDateTime, statusMeta } from "@/lib/status";
@@ -24,6 +25,7 @@ export default async function EventInventory({
   const { orgId: orgParam, eventId: eventParam } = await params;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const ctx = dashboardCtx(orgId, userId);
   const services = await getTenantServices(org.id);
@@ -48,17 +50,18 @@ export default async function EventInventory({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-h2 text-ink">Ingressos e lotes</h2>
+          <h2 className="text-h2 text-ink">{vocab.ticketsAndBatches}</h2>
           <p className="mt-0.5 text-small text-ink-muted">
             Organize os produtos vendidos e seus períodos de venda.
           </p>
         </div>
-        <NewTicketTypeForm orgId={orgId} eventId={eventId} />
+        <NewTicketTypeForm orgId={orgId} eventId={eventId} vocab={vocab} />
       </div>
 
       <Alert tone="neutral" icon={<Info className="size-5" />}>
-        <strong className="font-medium text-ink">Tipo de ingresso</strong> define o produto
-        (ex.: Pista, Camarote, Mesa). <strong className="font-medium text-ink">Lote</strong> define
+        <strong className="font-medium text-ink">{vocab.ticketType}</strong> define o produto
+        (ex.: {vocab.ticket === "vaga" ? "Leito, Semi-leito, Poltrona" : "Pista, Camarote, Mesa"}).{" "}
+        <strong className="font-medium text-ink">Lote</strong> define
         preço, quantidade e período de venda daquele tipo.
       </Alert>
 
@@ -66,9 +69,9 @@ export default async function EventInventory({
         <Card>
           <EmptyState
             icon={<Ticket className="size-5" />}
-            title="Nenhum tipo de ingresso"
-            description="Crie o primeiro tipo de ingresso para depois montar os lotes."
-            action={<NewTicketTypeForm orgId={orgId} eventId={eventId} />}
+            title={`Nenhum ${vocab.ticketType.toLowerCase()}`}
+            description={`Crie o primeiro tipo de ${vocab.ticket} para depois montar os lotes.`}
+            action={<NewTicketTypeForm orgId={orgId} eventId={eventId} vocab={vocab} />}
           />
         </Card>
       ) : (
@@ -85,15 +88,17 @@ export default async function EventInventory({
                       {!type.active && <Badge tone="neutral">Oculto</Badge>}
                     </span>
                   }
-                  description={`${typeBatches.length} lote(s) · ${sold} vendido(s)`}
+                  description={`${typeBatches.length} lote(s) · ${sold} ${flex("vendido", vocab.ticketGender)}(s)`}
                   action={
                     <span className="flex items-center gap-1">
                       <EditTicketTypeButton
+                        vocab={vocab}
                         orgId={orgId}
                         eventId={eventId}
                         ticketType={{ id: type.id, name: type.name, active: type.active }}
                       />
                       <NewBatchForm
+                        vocab={vocab}
                         orgId={orgId}
                         eventId={eventId}
                         ticketTypes={typeOptions}
@@ -128,7 +133,7 @@ export default async function EventInventory({
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-small text-ink-muted">
                               <span className="tabular-nums text-ink-soft">{fmtBRL(b.priceCents)}</span>
                               <span className="tabular-nums">
-                                {b.quantitySold}/{b.quantityTotal} vendidos
+                                {b.quantitySold}/{b.quantityTotal} {flex("vendidos", vocab.ticketGender)}
                               </span>
                               <span className="tabular-nums">{remaining} restantes</span>
                               {b.maxPerOrder != null && <span>Limite {b.maxPerOrder}/pedido</span>}
@@ -162,7 +167,7 @@ export default async function EventInventory({
                                 leftIcon={<Lock className="size-4" />}
                                 confirmTitle="Encerrar vendas do lote?"
                                 confirmLabel="Encerrar vendas"
-                                confirmText={`As vendas do lote "${b.name}" serão encerradas. Ingressos já vendidos continuam válidos e você pode reabrir depois.`}
+                                confirmText={`As vendas do lote "${b.name}" serão encerradas. ${vocab.Tickets} já ${flex("vendidos", vocab.ticketGender)} continuam ${flex("válidos", vocab.ticketGender)} e você pode reabrir depois.`}
                               >
                                 Encerrar vendas
                               </ActionButton>

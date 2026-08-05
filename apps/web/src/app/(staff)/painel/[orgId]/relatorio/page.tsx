@@ -4,6 +4,7 @@ import { CalendarDays, Download, Ticket, TrendingUp, Users, Wallet } from "lucid
 import type { EventFinancialSummary } from "@ingressos/core";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { orgVocab, panelEventsBase } from "@/lib/org-vocab";
 import { toBatchResponse, toEventResponse, toPromoterResponse } from "@/lib/serializers";
 import {
   Alert,
@@ -32,6 +33,7 @@ export default async function OrgReport({
   const { evento } = await searchParams;
   const { userId } = await requireDashboardUser();
   const org = await resolveOrg(orgParam, userId);
+  const vocab = orgVocab(org.niche);
   const orgId = org.id;
   const orgSlug = org.slug;
   const ctx = dashboardCtx(orgId, userId);
@@ -106,8 +108,8 @@ export default async function OrgReport({
         <Card>
           <EmptyState
             icon={<CalendarDays className="size-5" />}
-            title="Nenhum evento ainda"
-            description="Crie eventos e faça vendas para ver os números aqui."
+            title={`${vocab.gender === "f" ? "Nenhuma" : "Nenhum"} ${vocab.event} ainda`}
+            description={`Crie ${vocab.events} e faça vendas para ver os números aqui.`}
           />
         </Card>
       ) : (
@@ -117,18 +119,19 @@ export default async function OrgReport({
               basePath={`/painel/${orgSlug}/relatorio`}
               events={events.map((e) => ({ id: e.id, title: e.title }))}
               selected={eventId ?? ""}
-              ariaLabel="Filtrar relatório por evento"
+              allLabel={vocab.allEvents}
+              ariaLabel={`Filtrar relatório ${vocab.perEvent}`}
             />
           </div>
 
           <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat
-              label="Eventos"
+              label={vocab.Events}
               value={scoped.length.toLocaleString("pt-BR")}
               icon={<CalendarDays className="size-4" />}
             />
             <Stat
-              label="Ingressos vendidos"
+              label={vocab.soldTickets}
               value={totals.sold.toLocaleString("pt-BR")}
               icon={<Ticket className="size-4" />}
             />
@@ -158,7 +161,7 @@ export default async function OrgReport({
 
           <Card>
             <CardHeader
-              title="Desempenho por evento"
+              title={`Desempenho ${vocab.perEvent}`}
               description={financeAvailable ? undefined : "Receita visível apenas para perfis com acesso ao financeiro."}
             />
             {/* Mobile: linhas viram cards (sem scroll horizontal) */}
@@ -169,7 +172,7 @@ export default async function OrgReport({
                   <li key={event.id} className="px-4 py-3.5">
                     <div className="flex items-start justify-between gap-2">
                       <Link
-                        href={`/painel/${orgSlug}/eventos/${event.slug}`}
+                        href={`${panelEventsBase(orgSlug, vocab)}/${event.slug}`}
                         className="min-w-0 truncate font-medium text-ink hover:text-brand hover:underline"
                       >
                         {event.title}
@@ -206,7 +209,7 @@ export default async function OrgReport({
               <table className="w-full min-w-[36rem] text-body">
                 <thead>
                   <tr className="border-b border-line text-left text-small text-ink-muted">
-                    <th className="px-5 py-2.5 font-medium">Evento</th>
+                    <th className="px-5 py-2.5 font-medium">{vocab.Event}</th>
                     <th className="px-5 py-2.5 font-medium">Situação</th>
                     <th className="px-5 py-2.5 text-right font-medium">Vendidos</th>
                     <th className="px-5 py-2.5 text-right font-medium">Receita bruta</th>
@@ -220,7 +223,7 @@ export default async function OrgReport({
                       <tr key={event.id} className="hover:bg-hover">
                         <td className="px-5 py-3">
                           <Link
-                            href={`/painel/${orgSlug}/eventos/${event.slug}`}
+                            href={`${panelEventsBase(orgSlug, vocab)}/${event.slug}`}
                             className="font-medium text-ink hover:text-brand hover:underline"
                           >
                             {event.title}
@@ -249,7 +252,7 @@ export default async function OrgReport({
               <Card>
                 <CardHeader
                   title="Composição do resultado"
-                  description={`Detalhamento de ${selected?.event.title ?? "evento"} — do total vendido ao saldo a receber.`}
+                  description={`Detalhamento de ${selected?.event.title ?? vocab.event} — do total vendido ao saldo a receber.`}
                   action={
                     <a
                       href={`/api/orgs/${orgId}/events/${eventId}/finance/export`}
@@ -302,7 +305,7 @@ export default async function OrgReport({
               <Card>
                 <CardHeader
                   title="Comissões dos promotores"
-                  description="Saldo devido a cada promotor neste evento."
+                  description={`Saldo devido a cada promotor ${vocab.inThisEvent}.`}
                 />
                 {commissions.length === 0 ? (
                   <EmptyState
@@ -325,7 +328,7 @@ export default async function OrgReport({
                 <Alert tone="neutral" className="m-4 mt-0">
                   Para registrar um repasse ou marcar comissões como pagas, use{" "}
                   <Link
-                    href={`/painel/${orgSlug}/eventos/${scopedEventSlug}/financeiro`}
+                    href={`${panelEventsBase(orgSlug, vocab)}/${scopedEventSlug}/financeiro`}
                     className="font-medium text-brand hover:underline"
                   >
                     Financeiro do evento

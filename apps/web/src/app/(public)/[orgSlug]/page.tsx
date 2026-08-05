@@ -19,7 +19,7 @@ import type { TrustItem } from "@ingressos/core";
 import { storefrontAccentTokens } from "@/lib/brand-theme";
 import { getPlatformServices } from "@/lib/services";
 import { getPublicEventViewsByOrganization, type PublicEventView } from "@/lib/public-views";
-import { orgVocab } from "@/lib/org-vocab";
+import { orgVocab, publicEventPath, type OrgVocab } from "@/lib/org-vocab";
 import { ShowcaseGrid, type ShowcaseCardData, type ShowcaseKind } from "./showcase-grid";
 
 /**
@@ -167,6 +167,7 @@ function renderHeadline(headline: string, highlight: string | null) {
 async function loadCards(
   organizationId: string,
   withKinds: boolean,
+  vocab: OrgVocab,
 ): Promise<ShowcaseCardData[]> {
   const views = await getPublicEventViewsByOrganization(organizationId);
   const now = new Date();
@@ -184,6 +185,7 @@ async function loadCards(
       return {
         id: view.id,
         slug: view.slug,
+        href: publicEventPath(view.slug, vocab),
         kind: withKinds ? tripKindOf(view) : null,
         dateLabel: formatDateRange(view.startsAt, view.endsAt),
         venueName: view.venueName ?? view.city,
@@ -210,7 +212,7 @@ export default async function OrgStorefrontPage({
   const isTravel = storefront.niche === "VIAGENS";
   const brandName = storefront.publicName ?? storefront.orgName;
   const whatsappHref = page.whatsapp ? `https://wa.me/${page.whatsapp}` : null;
-  const cards = await loadCards(storefront.organizationId, isTravel);
+  const cards = await loadCards(storefront.organizationId, isTravel, vocab);
   // Cor da org → tokens --sf-* (fallback âmbar); cascateiam pra grade client.
   const accentStyle = storefrontAccentTokens(page.brandColor) as CSSProperties;
 

@@ -21,6 +21,7 @@ import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard"
 import { toBatchResponse, toEventResponse, toTicketTypeResponse } from "@/lib/serializers";
 import { Alert, Card, CardBody, CardHeader, Stat, buttonVariants } from "@/components/ui";
 import { fmtBRL, fmtDateTime } from "@/lib/status";
+import { flex, orgVocab, panelEventsBase } from "@/lib/org-vocab";
 import { EventLocationForm } from "./location-form";
 import { EventDetailsForm } from "./event-details-form";
 
@@ -59,7 +60,8 @@ export default async function EventOverview({
     finance = null;
   }
 
-  const base = `/painel/${org.slug}/eventos/${event.slug}`;
+  const vocab = orgVocab(org.niche);
+  const base = `${panelEventsBase(org.slug, vocab)}/${event.slug}`;
 
   const soldQty = batches.reduce((sum, b) => sum + b.quantitySold, 0);
   const reservedQty = batches.reduce((sum, b) => sum + b.quantityReserved, 0);
@@ -82,17 +84,17 @@ export default async function EventOverview({
     alerts.push({ key: "paused", tone: "warning", icon: <PauseCircle className="size-5" />, title: "Vendas pausadas", body: "Os compradores veem a página, mas não conseguem comprar. Retome pelo botão Gerenciar." });
   }
   if (ticketTypes.length === 0) {
-    alerts.push({ key: "no-types", tone: "warning", icon: <AlertTriangle className="size-5" />, title: "Nenhum tipo de ingresso", body: "Crie tipos de ingresso e lotes para poder vender.", href: `${base}/ingressos`, cta: "Configurar" });
+    alerts.push({ key: "no-types", tone: "warning", icon: <AlertTriangle className="size-5" />, title: `Nenhum ${vocab.ticketType.toLowerCase()}`, body: `Crie tipos de ${vocab.ticket} e lotes para poder vender.`, href: `${base}/${vocab.tickets}`, cta: "Configurar" });
   } else if (batches.length === 0) {
-    alerts.push({ key: "no-batches", tone: "warning", icon: <AlertTriangle className="size-5" />, title: "Nenhum lote criado", body: "Um lote define preço, quantidade e período de venda. Crie o primeiro para começar.", href: `${base}/ingressos`, cta: "Criar lote" });
+    alerts.push({ key: "no-batches", tone: "warning", icon: <AlertTriangle className="size-5" />, title: "Nenhum lote criado", body: "Um lote define preço, quantidade e período de venda. Crie o primeiro para começar.", href: `${base}/${vocab.tickets}`, cta: "Criar lote" });
   } else if (["PUBLISHED", "SALES_PAUSED"].includes(event.status) && availableOpen.length === 0) {
-    alerts.push({ key: "no-open", tone: "warning", icon: <CircleSlash className="size-5" />, title: "Nenhum lote disponível para venda", body: "O evento está no ar, mas não há lote aberto com ingressos. Abra um lote para vender.", href: `${base}/ingressos`, cta: "Gerenciar lotes" });
+    alerts.push({ key: "no-open", tone: "warning", icon: <CircleSlash className="size-5" />, title: "Nenhum lote disponível para venda", body: `${vocab.Event} está no ar, mas não há lote aberto com ${vocab.tickets}. Abra um lote para vender.`, href: `${base}/${vocab.tickets}`, cta: "Gerenciar lotes" });
   }
   if (endingSoon) {
-    alerts.push({ key: "ending", tone: "info", icon: <Clock className="size-5" />, title: "Lote perto de encerrar", body: `O lote "${endingSoon.name}" encerra em breve (${fmtDateTime(endingSoon.salesEndAt)}).`, href: `${base}/ingressos`, cta: "Ver lotes" });
+    alerts.push({ key: "ending", tone: "info", icon: <Clock className="size-5" />, title: "Lote perto de encerrar", body: `O lote "${endingSoon.name}" encerra em breve (${fmtDateTime(endingSoon.salesEndAt)}).`, href: `${base}/${vocab.tickets}`, cta: "Ver lotes" });
   }
   if (event.status === "DRAFT") {
-    alerts.push({ key: "draft", tone: "info", icon: <Info className="size-5" />, title: "Evento em rascunho", body: "A página ainda não está pública. Revise ingressos, lotes e a página e use “Publicar evento”." });
+    alerts.push({ key: "draft", tone: "info", icon: <Info className="size-5" />, title: `${vocab.Event} em rascunho`, body: `A página ainda não está pública. Revise ${vocab.tickets}, lotes e a página e use “Publicar ${vocab.event}”.` });
   }
 
   const hasPublicPage = ["PUBLISHED", "SALES_PAUSED", "SALES_CLOSED"].includes(event.status);
@@ -124,16 +126,16 @@ export default async function EventOverview({
       {/* KPIs — only metrics with a real source. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Ingressos vendidos"
+          label={vocab.soldTickets}
           value={soldQty.toLocaleString("pt-BR")}
           icon={<Ticket className="size-4" />}
-          hint={capacity ? `de ${capacity.toLocaleString("pt-BR")} de capacidade` : reservedQty > 0 ? `${reservedQty} reservados agora` : undefined}
+          hint={capacity ? `de ${capacity.toLocaleString("pt-BR")} de capacidade` : reservedQty > 0 ? `${reservedQty} ${flex("reservados", vocab.ticketGender)} agora` : undefined}
         />
         <Stat
           label="Capacidade utilizada"
           value={capacityPct !== null ? `${capacityPct}%` : "—"}
           icon={<Percent className="size-4" />}
-          hint={capacityPct === null ? "Defina a capacidade do evento" : `${soldQty}/${capacity}`}
+          hint={capacityPct === null ? `Defina a capacidade ${vocab.ofEvent}` : `${soldQty}/${capacity}`}
         />
         {finance ? (
           <>
@@ -147,7 +149,7 @@ export default async function EventOverview({
               label="A repassar"
               value={fmtBRL(finance.producerPayableCents)}
               icon={<Wallet className="size-4" />}
-              hint="Saldo do evento a receber"
+              hint={`Saldo ${vocab.ofEvent} a receber`}
             />
           </>
         ) : (
@@ -228,7 +230,7 @@ export default async function EventOverview({
           <CardHeader title="Ações rápidas" />
           <CardBody className="space-y-2">
             <Link
-              href={`${base}/ingressos`}
+              href={`${base}/${vocab.tickets}`}
               className={buttonVariants({ variant: "outline", size: "md", className: "w-full justify-start" })}
             >
               <Plus className="size-4" />
@@ -262,11 +264,12 @@ export default async function EventOverview({
       {/* Local e endereço — editável, com autofill por CEP. */}
       <Card>
         <CardHeader
-          title="Detalhes do evento"
+          title={`Detalhes ${vocab.ofEvent}`}
           description="Título, datas e capacidade. A descrição fica na aba Página."
         />
         <CardBody>
           <EventDetailsForm
+            vocab={vocab}
             apiBase={`/api/orgs/${orgId}/events/${eventId}`}
             initial={{
               title: event.title,
@@ -282,7 +285,7 @@ export default async function EventOverview({
       <Card>
         <CardHeader
           title="Local"
-          description="Onde o evento acontece. Aparece na página e vira o pino no mapa."
+          description={`Onde ${vocab.theEvent} acontece. Aparece na página e vira o pino no mapa.`}
         />
         <CardBody>
           <EventLocationForm

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button, Field, Input, Modal } from "@/components/ui";
+import { panelEventsBase, type OrgVocab } from "@/lib/org-vocab";
 import { AddressFields, addressToPayload, emptyAddress, type AddressValue } from "../address-fields";
 
 function slugify(value: string): string {
@@ -25,12 +26,13 @@ const EMPTY = {
 export function NewEventForm({
   orgId,
   orgSlug,
-  label = "Novo evento",
+  vocab,
 }: {
   orgId: string;
   orgSlug: string;
-  label?: string;
+  vocab: OrgVocab;
 }) {
+  const label = vocab.newEvent;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -61,10 +63,10 @@ export function NewEventForm({
       });
       const data = (await res.json()) as { id?: string; slug?: string; error?: string };
       if (!res.ok || !data.slug) {
-        setError(data.error ?? "Não foi possível criar o evento.");
+        setError(data.error ?? `Não foi possível criar ${vocab.theEvent}.`);
         return;
       }
-      router.push(`/painel/${orgSlug}/eventos/${data.slug}`);
+      router.push(`${panelEventsBase(orgSlug, vocab)}/${data.slug}`);
     } finally {
       setBusy(false);
     }
@@ -91,7 +93,7 @@ export function NewEventForm({
               loading={busy}
               disabled={form.title.trim().length < 3}
             >
-              Criar evento
+              Criar {vocab.event}
             </Button>
           </>
         }
@@ -112,7 +114,7 @@ export function NewEventForm({
               id="ev-title"
               value={form.title}
               onChange={(e) => set("title", e.target.value)}
-              placeholder="Festa de Verão"
+              placeholder={vocab.event === "viagem" ? "Bate e Volta em Ilhabela" : "Festa de Verão"}
             />
           </Field>
 

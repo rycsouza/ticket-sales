@@ -3,27 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
+import type { OrgVocab } from "@/lib/org-vocab";
 
 /**
  * Internal workspace navigation for a single event. Sections map only to routes
  * that exist today; the array is the single place to add more as the backend
  * grows (Pedidos, Divulgação, Configurações…).
  */
-export function EventTabs({ base }: { base: string }) {
+export function EventTabs({ base, vocab }: { base: string; vocab: OrgVocab }) {
   const pathname = usePathname();
   const tabs = [
     { href: base, label: "Visão geral", exact: true },
-    { href: `${base}/ingressos`, label: "Ingressos e lotes" },
+    // Sub-rota exibida com o vocabulário do nicho ("vagas" reescreve no middleware).
+    { href: `${base}/${vocab.tickets}`, label: vocab.ticketsAndBatches },
     { href: `${base}/promoters`, label: "Promotores e cupons" },
     { href: `${base}/financeiro`, label: "Financeiro" },
-    { href: `${base}/pagina`, label: "Página do evento" },
+    { href: `${base}/pagina`, label: `Página ${vocab.ofEvent}` },
   ];
 
   // Mask com fade à direita sinaliza que há mais abas fora da tela (affordance
   // de scroll no mobile); removida no desktop, onde todas as abas cabem.
   return (
     <nav
-      aria-label="Seções do evento"
+      aria-label={`Seções ${vocab.ofEvent}`}
       className="-mx-4 mb-6 overflow-x-auto border-b border-line px-4 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] lg:mx-0 lg:px-0 lg:[mask-image:none]"
     >
       <ul className="flex min-w-max gap-1">
