@@ -28,25 +28,32 @@ export default async function PanelLayout({
   const current = orgs.find(
     (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
   );
-  if (!current) redirect("/painel");
 
   const isPlatformAdmin = await currentUserIsPlatformAdmin();
+  // Admin da plataforma entra no painel de QUALQUER org, mesmo sem membership
+  // (a autorização dos serviços vem do OWNER sintético — lib/admin-membership).
+  let org = current?.organization ?? null;
+  if (!org && isPlatformAdmin) {
+    const repo = getPlatformServices().organizations;
+    org = (await repo.findBySlug(orgParam)) ?? (await repo.findById(orgParam));
+  }
+  if (!org) redirect("/painel");
   // Default do painel é DARK; o cookie só força light quando o usuário trocou.
   const theme = (await cookies()).get("panel_theme")?.value === "light" ? "light" : "dark";
   // Cor de marca do tenant (config da vitrine, gerida pelo admin) tinge o
   // painel inteiro; ausente → tokens padrão do tema.
   const brandColor = await getPlatformServices()
-    .storefront.getPublicBrandColor(current.organization.id)
+    .storefront.getPublicBrandColor(org.id)
     .catch(() => null);
 
   return (
     <PanelShell
       org={{
-        slug: current.organization.slug,
-        name: current.organization.name,
-        niche: current.organization.niche,
+        slug: org.slug,
+        name: org.name,
+        niche: org.niche,
       }}
-      multiOrg={orgs.length > 1}
+      multiOrg={orgs.length > 1 || !current}
       isPlatformAdmin={isPlatformAdmin}
       theme={theme}
       brandColor={brandColor}

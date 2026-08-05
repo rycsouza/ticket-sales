@@ -75,6 +75,8 @@ import {
   UpstashRedisCache,
 } from "@ingressos/adapters";
 import { getPlatformPrisma, TenantDbResolver, type PrismaClient } from "@ingressos/db";
+import { withPlatformAdminAccess } from "./admin-membership";
+import { isPlatformAdminEmail } from "./platform-admin-allowlist";
 
 /**
  * Composition root — the ONLY place where concrete adapters meet the domain.
@@ -158,7 +160,25 @@ function buildPlatformServices() {
 
   const audit = new PrismaPlatformAuditRepository(prisma);
   const users = new PrismaUserRepository(prisma);
-  const memberships = new PrismaMembershipRepository(prisma);
+
+  // Admin da plataforma "pode tudo, em qualquer org" (DEC-003): o repositório
+  // de memberships é decorado para que a primitiva de autorização enxergue um
+  // OWNER sintético quando o e-mail do usuário está na allowlist. O resultado
+  // do lookup userId→admin é cacheado por instância com TTL curto (1 hit de DB
+  // por usuário/minuto no pior caso; e-mail trocado destrona em ≤60s).
+  const adminUserCache = new Map<string, { value: boolean; expiresAt: number }>();
+  const isPlatformAdminUser = async (userId: string): Promise<boolean> => {
+    const hit = adminUserCache.get(userId);
+    if (hit && hit.expiresAt > Date.now()) return hit.value;
+    const user = await users.findById(userId).catch(() => null);
+    const value = isPlatformAdminEmail(user?.email);
+    adminUserCache.set(userId, { value, expiresAt: Date.now() + 60_000 });
+    return value;
+  };
+  const memberships = withPlatformAdminAccess(
+    new PrismaMembershipRepository(prisma),
+    isPlatformAdminUser,
+  );
   const organizations = new PrismaOrganizationRepository(prisma);
   const invites = new PrismaInviteRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);

@@ -2,29 +2,18 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { loadServerEnv } from "@ingressos/config";
 import { getPlatformServices } from "./services";
 import { SESSION_COOKIE } from "./session";
+import { isPlatformAdminEmail } from "./platform-admin-allowlist";
 
 /**
  * Platform-admin gate (DEC-003). There is no platform-admin ROLE — the only
  * gate is the PLATFORM_ADMIN_EMAILS env allowlist. Everything under /plataforma
  * and /api/admin MUST call requirePlatformAdmin() before doing anything.
+ * A allowlist em si vive em ./platform-admin-allowlist (compartilhada com o
+ * composition root sem ciclo de import).
  */
-function adminEmails(): Set<string> {
-  const raw = loadServerEnv().PLATFORM_ADMIN_EMAILS ?? "";
-  return new Set(
-    raw
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0),
-  );
-}
-
-export function isPlatformAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return adminEmails().has(email.trim().toLowerCase());
-}
+export { isPlatformAdminEmail } from "./platform-admin-allowlist";
 
 /** True when the current session belongs to a platform admin (nav gating). */
 export async function currentUserIsPlatformAdmin(): Promise<boolean> {

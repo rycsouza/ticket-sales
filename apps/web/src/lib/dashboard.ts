@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { RequestContext } from "@ingressos/core";
 import { orgVocab, type OrgVocab } from "./org-vocab";
+import { currentUserIsPlatformAdmin } from "./platform-admin";
 import { getPlatformServices } from "./services";
 import { SESSION_COOKIE } from "./session";
 
@@ -51,6 +52,10 @@ export function dashboardCtx(organizationId: string, userId: string): RequestCon
  * real organization the user belongs to. Legacy UUID links keep working (we
  * match by slug OR id). Redirects to the org resolver when the caller has no
  * membership (anti-enumeration; same as an unknown org).
+ *
+ * Admin da plataforma (allowlist PLATFORM_ADMIN_EMAILS) acessa QUALQUER org
+ * sem membership — os serviços por trás autorizam via o membership OWNER
+ * sintético do composition root (ver lib/admin-membership.ts).
  */
 export async function resolveOrg(
   orgParam: string,
@@ -67,7 +72,23 @@ export async function resolveOrg(
   const match = orgs.find(
     (o) => o.organization.slug === orgParam || o.organization.id === orgParam,
   );
-  if (!match) redirect("/painel");
+  if (!match) {
+    if (await currentUserIsPlatformAdmin()) {
+      const repo = getPlatformServices().organizations;
+      const org = (await repo.findBySlug(orgParam)) ?? (await repo.findById(orgParam));
+      if (org) {
+        return {
+          id: org.id,
+          slug: org.slug,
+          name: org.name,
+          role: "OWNER",
+          timezone: org.timezone,
+          niche: org.niche,
+        };
+      }
+    }
+    redirect("/painel");
+  }
   return {
     id: match.organization.id,
     slug: match.organization.slug,

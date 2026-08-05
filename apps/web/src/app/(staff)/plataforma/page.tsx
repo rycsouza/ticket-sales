@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronRight, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { getPlatformServices } from "@/lib/services";
 import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { Badge, Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
@@ -37,10 +37,10 @@ export default async function PlatformAdminPage() {
         ) : (
           <ul className="divide-y divide-line">
             {orgs.map((org) => (
-              <li key={org.id}>
+              <li key={org.id} className="flex items-center gap-2 px-5 py-3.5">
                 <Link
                   href={`/plataforma/${org.id}`}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-subtle"
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg transition-colors hover:bg-subtle"
                 >
                   <span className="min-w-0">
                     <span className="block font-medium text-ink">{org.name}</span>
@@ -49,6 +49,14 @@ export default async function PlatformAdminPage() {
                     </span>
                   </span>
                   <ChevronRight className="size-5 shrink-0 text-ink-muted" />
+                </Link>
+                <Link
+                  href={`/painel/${org.slug}`}
+                  title="Abrir painel da organização"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-small font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
+                >
+                  <LayoutDashboard className="size-4" />
+                  Painel
                 </Link>
               </li>
             ))}

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ChevronRight, Ticket } from "lucide-react";
 import { getPlatformServices } from "@/lib/services";
 import { requireDashboardUser } from "@/lib/dashboard";
+import { currentUserIsPlatformAdmin } from "@/lib/platform-admin";
 import { Badge } from "@/components/ui";
 import { NewOrgForm } from "./org-forms";
 
@@ -12,9 +13,23 @@ export const metadata: Metadata = { title: "Painel — Ingressos" };
 /** Organization resolver: single org → straight to its workspace. */
 export default async function PainelHome() {
   const { userId } = await requireDashboardUser();
-  const orgs = await getPlatformServices().identity.listMyOrganizations(userId);
+  const identity = getPlatformServices().identity;
+  const memberOrgs = await identity.listMyOrganizations(userId);
 
-  if (orgs.length === 1) redirect(`/painel/${orgs[0]!.organization.slug}`);
+  // Admin da plataforma vê TODAS as organizações (acesso full, DEC-003) — sem
+  // auto-redirect, para a lista completa ficar sempre à mão.
+  const isPlatformAdmin = await currentUserIsPlatformAdmin();
+  if (!isPlatformAdmin && memberOrgs.length === 1) {
+    redirect(`/painel/${memberOrgs[0]!.organization.slug}`);
+  }
+
+  const roleBySlug = new Map(memberOrgs.map((o) => [o.organization.slug, o.role]));
+  const orgs = isPlatformAdmin
+    ? (await identity.listAllOrganizationsAsPlatformAdmin()).map((organization) => ({
+        organization,
+        role: roleBySlug.get(organization.slug) ?? "Admin da plataforma",
+      }))
+    : memberOrgs;
 
   return (
     <div className="min-h-svh bg-page">
