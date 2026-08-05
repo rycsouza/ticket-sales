@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
-  BarChart3,
   LayoutDashboard,
   Users,
   Receipt,
@@ -40,8 +39,9 @@ interface NavItem {
 
 function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
   const base = `/painel/${orgId}`;
-  // Navegação enxuta: Afiliados/Promoters e Ofertas estão OCULTOS por decisão
-  // de produto (código e APIs preservados — reativar = re-adicionar aqui).
+  // Navegação enxuta: Afiliados/Promoters, Ofertas e Relatório estão OCULTOS
+  // por decisão de produto (código e APIs preservados — reativar = re-adicionar
+  // aqui; os KPIs do Relatório moraram no Dashboard).
   return [
     {
       href: base,
@@ -64,18 +64,55 @@ function navItems(orgId: string, vocab: OrgVocab): NavItem[] {
       match: (p) => p.startsWith(`${base}/pedidos`),
     },
     {
-      href: `${base}/relatorio`,
-      label: "Relatório",
-      icon: BarChart3,
-      match: (p) => p.startsWith(`${base}/relatorio`),
-    },
-    {
       href: `${base}/clientes`,
       label: "Clientes",
       icon: Users,
       match: (p) => p.startsWith(`${base}/clientes`),
     },
   ];
+}
+
+/** Itens da seção Operação — também alimentam a busca do menu. */
+function operationItems(org: NavOrg, vocab: OrgVocab, isPlatformAdmin: boolean): NavItem[] {
+  const items: NavItem[] = [
+    {
+      href: "/checkin",
+      label: vocab.checkinArea,
+      icon: ScanLine,
+      match: () => false,
+    },
+  ];
+  if (isPlatformAdmin) {
+    items.push(
+      {
+        href: `/painel/${org.slug}/configuracoes`,
+        label: "Configurações",
+        icon: Settings,
+        match: (p) => p.startsWith(`/painel/${org.slug}/configuracoes`),
+      },
+      {
+        href: `/painel/${org.slug}/vitrine`,
+        label: "Minha página",
+        icon: Globe,
+        match: (p) => p.startsWith(`/painel/${org.slug}/vitrine`),
+      },
+      {
+        href: "/plataforma",
+        label: "Plataforma",
+        icon: ShieldCheck,
+        match: () => false,
+      },
+    );
+  }
+  return items;
+}
+
+/** Busca do menu: casa rótulos sem caixa nem acentos ("configuracoes" acha "Configurações"). */
+function normalizeLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /** Primary tabs shown in the mobile bottom bar (the rest go under "Mais"). */
@@ -91,6 +128,7 @@ export function PanelShell({
   isPlatformAdmin = false,
   theme = "dark",
   brandColor = null,
+  logoUrl = null,
   children,
 }: {
   org: NavOrg;
@@ -99,10 +137,17 @@ export function PanelShell({
   theme?: PanelTheme;
   /** Cor de marca do tenant — tinge os tokens --color-brand* do painel. */
   brandColor?: string | null;
+  /** Logo da vitrine do tenant — assume o topo do painel (fallback: plataforma). */
+  logoUrl?: string | null;
   children: ReactNode;
 }) {
   // Inválida/ausente → {} (tokens padrão do tema; nunca injeta CSS ruim).
   const brandStyle = brandTokens(brandColor) as CSSProperties;
+  const vocab = orgVocab(org.niche);
+  const searchEntries = [
+    ...navItems(org.slug, vocab),
+    ...operationItems(org, vocab, isPlatformAdmin),
+  ];
   return (
     <div
       id="panel-shell"
@@ -117,16 +162,14 @@ export function PanelShell({
           multiOrg={multiOrg}
           isPlatformAdmin={isPlatformAdmin}
           theme={theme}
+          logoUrl={logoUrl}
         />
       </aside>
 
       {/* Mobile top bar (brand + org context + search) */}
       <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3">
-          <BrandMark />
-          <span className="ml-auto truncate text-small font-medium text-ink-muted">{org.name}</span>
-        </div>
-        <NavSearch orgId={org.slug} placeholder={`Buscar ${orgVocab(org.niche).events}`} />
+        <BrandMark name={org.name} logoUrl={logoUrl} />
+        <MenuSearch entries={searchEntries} />
       </header>
 
       {/* Content — extra bottom padding on mobile clears the bottom nav */}
@@ -145,13 +188,21 @@ export function PanelShell({
   );
 }
 
-function BrandMark() {
+/** Marca no topo: logo da vitrine da org (fallback: logomarca da plataforma) + nome da org. */
+function BrandMark({ name, logoUrl }: { name: string; logoUrl?: string | null | undefined }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-fg">
-        <Ticket className="size-5" strokeWidth={2} />
+    <span className="flex min-w-0 items-center gap-2">
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- logo do CDN (Cloudinary), tamanho fixo
+        <img src={logoUrl} alt="" className="size-8 shrink-0 rounded-lg object-contain" />
+      ) : (
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-fg">
+          <Ticket className="size-5" strokeWidth={2} />
+        </span>
+      )}
+      <span className="truncate text-h3 font-semibold text-ink" title={name}>
+        {name}
       </span>
-      <span className="text-h3 font-semibold text-ink">Ingressos</span>
     </span>
   );
 }
@@ -271,52 +322,21 @@ function MobileBottomNav({
                   </li>
                 );
               })}
-              <li>
-                <Link
-                  href="/checkin"
-                  onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                >
-                  <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
-                  {vocab.checkinArea}
-                </Link>
-              </li>
-              {isPlatformAdmin && (
-                <li>
-                  <Link
-                    href={`/painel/${org.slug}/configuracoes`}
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                  >
-                    <Settings className="size-5 shrink-0" strokeWidth={1.75} />
-                    Configurações
-                  </Link>
-                </li>
-              )}
-              {isPlatformAdmin && (
-                <li>
-                  <Link
-                    href={`/painel/${org.slug}/vitrine`}
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                  >
-                    <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-                    Minha página
-                  </Link>
-                </li>
-              )}
-              {isPlatformAdmin && (
-                <li>
-                  <Link
-                    href="/plataforma"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
-                  >
-                    <ShieldCheck className="size-5 shrink-0" strokeWidth={1.75} />
-                    Plataforma
-                  </Link>
-                </li>
-              )}
+              {operationItems(org, vocab, isPlatformAdmin).map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-3 text-body font-medium text-ink-soft transition-colors hover:bg-hover"
+                    >
+                      <Icon className="size-5 shrink-0" strokeWidth={1.75} />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
               {multiOrg && (
                 <li>
                   <Link
@@ -350,24 +370,36 @@ function MobileBottomNav({
   );
 }
 
-/** Quick search in the navbar — routes to the events list filtered by the term. */
-function NavSearch({
-  orgId,
-  placeholder = "Buscar eventos",
+/**
+ * Busca EXCLUSIVA da navbar: procura itens do MENU (não conteúdo). No desktop
+ * o pai também usa o termo para filtrar a lista visível; Enter navega para o
+ * primeiro item que casar.
+ */
+function MenuSearch({
+  entries,
+  value,
+  onChange,
   onNavigate,
 }: {
-  orgId: string;
-  placeholder?: string;
+  entries: { href: string; label: string }[];
+  value?: string;
+  onChange?: (value: string) => void;
   onNavigate?: () => void;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const [own, setOwn] = useState("");
+  const q = value ?? own;
+  const setQ = onChange ?? setOwn;
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        const term = q.trim();
-        router.push(term ? `/painel/${orgId}?q=${encodeURIComponent(term)}` : `/painel/${orgId}`);
+        const term = normalizeLabel(q.trim());
+        if (!term) return;
+        const hit = entries.find((i) => normalizeLabel(i.label).includes(term));
+        if (!hit) return;
+        setQ("");
+        router.push(hit.href);
         onNavigate?.();
       }}
       className="relative"
@@ -378,8 +410,8 @@ function NavSearch({
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
+        placeholder="Buscar no menu"
+        aria-label="Buscar no menu"
         className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-8 pr-3 text-body text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
       />
     </form>
@@ -391,16 +423,26 @@ function SidebarContent({
   multiOrg,
   isPlatformAdmin,
   theme,
+  logoUrl,
 }: {
   org: NavOrg;
   multiOrg: boolean;
   isPlatformAdmin: boolean;
   theme: PanelTheme;
+  logoUrl?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const vocab = orgVocab(org.niche);
   const items = navItems(org.slug, vocab);
+  const operation = operationItems(org, vocab, isPlatformAdmin);
+
+  // Busca do menu: o termo filtra as duas seções ao vivo; Enter navega.
+  const [query, setQuery] = useState("");
+  const q = normalizeLabel(query.trim());
+  const show = (label: string) => !q || normalizeLabel(label).includes(q);
+  const visibleItems = items.filter((i) => show(i.label));
+  const visibleOperation = operation.filter((i) => show(i.label));
 
   async function logout() {
     await logoutRequest();
@@ -411,13 +453,13 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Brand + org */}
       <div className="border-b border-line px-4 py-4">
-        <BrandMark />
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <span className="truncate text-small font-medium text-ink-soft">{org.name}</span>
+        <div className="flex items-center justify-between gap-2">
+          <BrandMark name={org.name} logoUrl={logoUrl} />
           {multiOrg && (
             <Link
               href="/painel"
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-caption font-medium text-brand transition-colors hover:bg-brand-soft"
+              title="Trocar organização"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-medium text-brand transition-colors hover:bg-brand-soft"
             >
               <ArrowLeftRight className="size-3.5" />
               Trocar
@@ -425,16 +467,22 @@ function SidebarContent({
           )}
         </div>
         <div className="mt-3">
-          <NavSearch orgId={org.slug} placeholder={`Buscar ${vocab.events}`} />
+          <MenuSearch
+            entries={[...items, ...operation]}
+            value={query}
+            onChange={setQuery}
+          />
         </div>
       </div>
 
       {/* Primary nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-1 text-caption font-semibold uppercase tracking-wide text-ink-faint">
-          Gestão
-        </p>
-        {items.map((item) => {
+        {visibleItems.length > 0 && (
+          <p className="px-3 pb-1 text-caption font-semibold uppercase tracking-wide text-ink-faint">
+            Gestão
+          </p>
+        )}
+        {visibleItems.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
           return (
@@ -453,42 +501,31 @@ function SidebarContent({
           );
         })}
 
-        <p className="px-3 pb-1 pt-4 text-caption font-semibold uppercase tracking-wide text-ink-faint">
-          Operação
-        </p>
-        <Link
-          href="/checkin"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-        >
-          <ScanLine className="size-5 shrink-0" strokeWidth={1.75} />
-          {vocab.checkinArea}
-        </Link>
-        {isPlatformAdmin && (
-          <Link
-            href={`/painel/${org.slug}/configuracoes`}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-          >
-            <Settings className="size-5 shrink-0" strokeWidth={1.75} />
-            Configurações
-          </Link>
+        {visibleOperation.length > 0 && (
+          <p className="px-3 pb-1 pt-4 text-caption font-semibold uppercase tracking-wide text-ink-faint">
+            Operação
+          </p>
         )}
-        {isPlatformAdmin && (
-          <Link
-            href={`/painel/${org.slug}/vitrine`}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-          >
-            <Globe className="size-5 shrink-0" strokeWidth={1.75} />
-            Minha página
-          </Link>
-        )}
-        {isPlatformAdmin && (
-          <Link
-            href="/plataforma"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium text-ink-soft transition-colors hover:bg-hover hover:text-ink"
-          >
-            <ShieldCheck className="size-5 shrink-0" strokeWidth={1.75} />
-            Plataforma
-          </Link>
+        {visibleOperation.map((item) => {
+          const active = item.match(pathname);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium transition-colors",
+                active ? "bg-brand-soft text-brand" : "text-ink-soft hover:bg-hover hover:text-ink",
+              )}
+            >
+              <Icon className="size-5 shrink-0" strokeWidth={active ? 2 : 1.75} />
+              {item.label}
+            </Link>
+          );
+        })}
+        {q && visibleItems.length === 0 && visibleOperation.length === 0 && (
+          <p className="px-3 py-2 text-small text-ink-muted">Nada no menu com “{query}”.</p>
         )}
       </nav>
 

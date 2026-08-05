@@ -33,8 +33,10 @@
   --color-brand: #2563eb;
   --color-brand-hover: #1d4ed8;
   --color-brand-active: #1e40af;
-  --color-brand-soft: #eff6ff;
-  --color-brand-border: #bfdbfe;
+  /* soft/border derivam do brand — um override de --color-brand (cor do
+     produtor, inline) re-tema tudo sem precisar sobrescrever estes dois. */
+  --color-brand-soft: color-mix(in srgb, var(--color-brand) 8%, #ffffff);
+  --color-brand-border: color-mix(in srgb, var(--color-brand) 30%, #ffffff);
   --color-brand-fg: #ffffff;
 
   /* Backgrounds ----------------------------------------------------------- */

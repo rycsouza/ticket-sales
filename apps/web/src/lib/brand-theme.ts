@@ -58,12 +58,7 @@ const INK: Rgb = { r: 17, g: 24, b: 39 }; // #111827
 
 export type BrandTokens = Partial<
   Record<
-    | "--color-brand"
-    | "--color-brand-hover"
-    | "--color-brand-active"
-    | "--color-brand-soft"
-    | "--color-brand-border"
-    | "--color-brand-fg",
+    "--color-brand" | "--color-brand-hover" | "--color-brand-active" | "--color-brand-fg",
     string
   >
 >;
@@ -105,6 +100,10 @@ export function storefrontAccentTokens(hex: string | null | undefined): Storefro
 /**
  * Overrides de tema para a cor do produtor. Entrada inválida devolve `{}` —
  * um valor ruim no banco jamais injeta CSS na página pública.
+ *
+ * soft/border NÃO são emitidos: o globals.css os deriva de --color-brand via
+ * color-mix por TEMA (claro clareia com branco; escuro usa alpha). Emiti-los
+ * inline venceria a folha de estilo e quebraria o modo escuro do painel.
  */
 export function brandTokens(hex: string | null | undefined): BrandTokens {
   if (!hex || !HEX_RE.test(hex)) return {};
@@ -117,8 +116,6 @@ export function brandTokens(hex: string | null | undefined): BrandTokens {
     "--color-brand": rgbToHex(base),
     "--color-brand-hover": rgbToHex(mix(base, BLACK, 0.12)),
     "--color-brand-active": rgbToHex(mix(base, BLACK, 0.24)),
-    "--color-brand-soft": rgbToHex(mix(base, WHITE, 0.92)),
-    "--color-brand-border": rgbToHex(mix(base, WHITE, 0.7)),
     "--color-brand-fg": fg,
   };
 }

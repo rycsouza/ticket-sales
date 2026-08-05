@@ -12,16 +12,20 @@ describe("brandTokens", () => {
     expect(brandTokens("#16a34a; background: url(x)")).toEqual({});
   });
 
-  it("derives all six brand tokens from one hex", () => {
+  it("derives the four brand tokens from one hex (soft/border stay with the stylesheet)", () => {
     const tokens = brandTokens("#2563eb");
     expect(tokens["--color-brand"]).toBe("#2563eb");
-    expect(Object.keys(tokens)).toHaveLength(6);
+    expect(Object.keys(tokens)).toHaveLength(4);
+    // soft/border are theme-dependent (globals.css color-mix) — emitting them
+    // inline would override the dark theme. Never emit them here.
+    expect(tokens).not.toHaveProperty("--color-brand-soft");
+    expect(tokens).not.toHaveProperty("--color-brand-border");
     for (const value of Object.values(tokens)) {
       expect(value).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
 
-  it("hover/active darken and soft/border lighten the base", () => {
+  it("hover/active darken the base", () => {
     const tokens = brandTokens("#16a34a");
     const channel = (hex: string) => parseInt(hex.slice(1, 3), 16);
     const base = channel("#16a34a");
@@ -29,8 +33,6 @@ describe("brandTokens", () => {
     expect(channel(tokens["--color-brand-active"]!)).toBeLessThan(
       channel(tokens["--color-brand-hover"]!),
     );
-    expect(channel(tokens["--color-brand-soft"]!)).toBeGreaterThan(base);
-    expect(channel(tokens["--color-brand-border"]!)).toBeGreaterThan(base);
   });
 
   it("picks white foreground on dark brands and ink on light brands", () => {

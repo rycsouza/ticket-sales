@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleDollarSign, Clock3, Receipt, ShoppingCart } from "lucide-react";
+import {
+  CalendarDays,
+  CircleDollarSign,
+  Clock3,
+  Receipt,
+  ShoppingCart,
+  Ticket,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
+import type { EventFinancialSummary } from "@ingressos/core";
 import { getTenantServices } from "@/lib/services";
 import { dashboardCtx, requireDashboardUser, resolveOrg } from "@/lib/dashboard";
+import { toBatchResponse } from "@/lib/serializers";
 import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Stat } from "@/components/ui";
 import { fmtBRL, fmtDateTime, ORDER_STATUS, statusMeta } from "@/lib/status";
 import { orgVocab, panelEventsBase } from "@/lib/org-vocab";
@@ -27,10 +38,37 @@ export default async function OrgDashboard({
   const ctx = dashboardCtx(org.id, userId);
   const services = await getTenantServices(org.id);
 
-  const [stats, latest] = await Promise.all([
+  const [stats, latest, events] = await Promise.all([
     services.support.getOrgDashboard(ctx, { timezone: org.timezone }).catch(() => null),
-    services.support.searchOrders(ctx, { limit: 5 }).catch(() => null),
+    services.support.searchOrders(ctx, { limit: 3 }).catch(() => null),
+    services.events.listEvents(ctx).catch(() => []),
   ]);
+
+  // KPIs consolidados (ex-aba Relatório): dobra vendas+financeiro por evento —
+  // finance é role-gated no serviço (null fora do financeiro → cards ocultos).
+  const rows = await Promise.all(
+    events.map(async (event) => {
+      const [batches, finance] = await Promise.all([
+        services.inventory
+          .listSalesBatches(ctx, event.id)
+          .then((r) => r.map(toBatchResponse))
+          .catch(() => []),
+        services.finance
+          .getEventFinancialSummary(ctx, event.id)
+          .catch((): EventFinancialSummary | null => null),
+      ]);
+      return { sold: batches.reduce((s, b) => s + b.quantitySold, 0), finance };
+    }),
+  );
+  const financeAvailable = rows.some((r) => r.finance !== null);
+  const totals = rows.reduce(
+    (acc, r) => ({
+      sold: acc.sold + r.sold,
+      gross: acc.gross + (r.finance?.grossSalesCents ?? 0),
+      payable: acc.payable + (r.finance?.producerPayableCents ?? 0),
+    }),
+    { sold: 0, gross: 0, payable: 0 },
+  );
 
   return (
     <>
@@ -46,27 +84,59 @@ export default async function OrgDashboard({
               label="Receita"
               value={fmtBRL(stats.revenueTodayCents)}
               icon={<CircleDollarSign className="size-4" />}
-              hint="hoje"
+              hint="HOJE"
             />
           )}
           <Stat
             label="Novos pedidos"
             value={stats.ordersTodayCount.toLocaleString("pt-BR")}
             icon={<ShoppingCart className="size-4" />}
-            hint="hoje"
+            hint="HOJE"
           />
           <Stat
             label="Pagos"
             value={stats.paidTotalCount.toLocaleString("pt-BR")}
             icon={<Receipt className="size-4" />}
-            hint="total"
+            hint="TOTAL"
           />
           <Stat
             label="Aguardando"
             value={stats.awaitingCount.toLocaleString("pt-BR")}
             icon={<Clock3 className="size-4" />}
-            hint="total"
+            hint="TOTAL"
           />
+        </div>
+      )}
+
+      {/* Consolidado da produtora (KPIs que viviam na ex-aba Relatório). */}
+      {events.length > 0 && (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            label={vocab.Events}
+            value={events.length.toLocaleString("pt-BR")}
+            icon={<CalendarDays className="size-4" />}
+          />
+          <Stat
+            label={vocab.soldTickets}
+            value={totals.sold.toLocaleString("pt-BR")}
+            icon={<Ticket className="size-4" />}
+            hint="TOTAL"
+          />
+          {financeAvailable && (
+            <>
+              <Stat
+                label="Receita bruta"
+                value={fmtBRL(totals.gross)}
+                icon={<TrendingUp className="size-4" />}
+                hint="TOTAL"
+              />
+              <Stat
+                label="Saldo a receber"
+                value={fmtBRL(totals.payable)}
+                icon={<Wallet className="size-4" />}
+              />
+            </>
+          )}
         </div>
       )}
 

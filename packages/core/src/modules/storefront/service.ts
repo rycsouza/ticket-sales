@@ -133,4 +133,15 @@ export class StorefrontService {
     const page = await this.deps.pages.findByOrganizationId(organizationId);
     return page?.brandColor ?? null;
   }
+
+  /**
+   * Marca da org para o SHELL DO PAINEL: cor + logo da vitrine. Mesma regra do
+   * getPublicBrandColor — ambos já são públicos na vitrine; nada além sai.
+   */
+  async getPublicBranding(
+    organizationId: string,
+  ): Promise<{ brandColor: string | null; logoUrl: string | null }> {
+    const page = await this.deps.pages.findByOrganizationId(organizationId);
+    return { brandColor: page?.brandColor ?? null, logoUrl: page?.logoUrl ?? null };
+  }
 }
