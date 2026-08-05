@@ -15,7 +15,7 @@ import {
 } from "@/lib/status";
 import { NoteForm, TicketActions } from "./console-client";
 
-export const metadata: Metadata = { title: "Pedido — Ingressos" };
+export const metadata: Metadata = { title: "Pedido" };
 
 export default async function OrderDetailPage({
   params,

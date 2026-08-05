@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { orgId: orgParam } = await params;
   const vocab = await orgVocabForParam(orgParam);
-  return { title: `${vocab.Events} — Ingressos` };
+  return { title: `${vocab.Events}` };
 }
 
 export default async function OrgEvents({

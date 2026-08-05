@@ -25,7 +25,7 @@ import { flex, orgVocab, panelEventsBase } from "@/lib/org-vocab";
 import { EventLocationForm } from "./location-form";
 import { EventDetailsForm } from "./event-details-form";
 
-export const metadata: Metadata = { title: "Visão geral — Ingressos" };
+export const metadata: Metadata = { title: "Visão geral" };
 
 export default async function EventOverview({
   params,

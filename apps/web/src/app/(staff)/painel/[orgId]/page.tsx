@@ -18,7 +18,7 @@ import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Stat } from 
 import { fmtBRL, fmtDateTime, ORDER_STATUS, statusMeta } from "@/lib/status";
 import { orgVocab, panelEventsBase } from "@/lib/org-vocab";
 
-export const metadata: Metadata = { title: "Dashboard — Ingressos" };
+export const metadata: Metadata = { title: "Dashboard" };
 
 /**
  * Org home: the landing after login. Today's numbers (in the ORG's timezone)

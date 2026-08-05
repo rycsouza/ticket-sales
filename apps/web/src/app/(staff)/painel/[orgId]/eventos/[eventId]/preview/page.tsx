@@ -13,7 +13,7 @@ export async function generateMetadata({
   const { orgId: orgParam } = await params;
   const vocab = await orgVocabForParam(orgParam);
   return {
-    title: `Prévia ${vocab.ofEvent} — Ingressos`,
+    title: `Prévia ${vocab.ofEvent}`,
     robots: { index: false, follow: false },
   };
 }

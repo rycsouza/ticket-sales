@@ -8,7 +8,7 @@ import { currentUserIsPlatformAdmin } from "@/lib/platform-admin";
 import { Badge } from "@/components/ui";
 import { NewOrgForm } from "./org-forms";
 
-export const metadata: Metadata = { title: "Painel — Ingressos" };
+export const metadata: Metadata = { title: "Painel" };
 
 /** Organization resolver: single org → straight to its workspace. */
 export default async function PainelHome() {

@@ -10,7 +10,7 @@ import { EventFilterSelect } from "../../ui";
 import { ExportBuyersDialog } from "./crm-client";
 import { BuyersClient, type BuyerRow } from "./buyers-client";
 
-export const metadata: Metadata = { title: "Clientes — Ingressos" };
+export const metadata: Metadata = { title: "Clientes" };
 
 export default async function CrmPage({
   params,

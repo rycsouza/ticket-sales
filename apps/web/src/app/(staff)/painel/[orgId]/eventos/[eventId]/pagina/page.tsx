@@ -13,7 +13,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { orgId: orgParam } = await params;
   const vocab = await orgVocabForParam(orgParam);
-  return { title: `Página ${vocab.ofEvent} — Ingressos` };
+  return { title: `Página ${vocab.ofEvent}` };
 }
 
 export default async function EventPageCustomizer({

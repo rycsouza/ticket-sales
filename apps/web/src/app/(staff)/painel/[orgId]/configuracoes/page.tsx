@@ -4,7 +4,7 @@ import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { PageHeader } from "@/components/ui";
 import { OrgSettingsForm } from "./settings-form";
 
-export const metadata: Metadata = { title: "Configurações — Ingressos" };
+export const metadata: Metadata = { title: "Configurações" };
 
 export default async function OrgSettingsPage({
   params,

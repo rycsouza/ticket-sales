@@ -11,7 +11,7 @@ import { ORDER_STATUS, fmtBRL, fmtDate, fmtDateTime, statusMeta } from "@/lib/st
 import { pluralize, whatsappUrl } from "@/lib/format";
 import { CommunicationButton } from "./detail-client";
 
-export const metadata: Metadata = { title: "Cliente — Ingressos" };
+export const metadata: Metadata = { title: "Cliente" };
 
 export default async function BuyerDetailPage({
   params,

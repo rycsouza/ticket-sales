@@ -8,7 +8,7 @@ import { Alert, Card, CardBody, CardHeader, EmptyState, Stat, buttonVariants } f
 import { fmtBRL } from "@/lib/status";
 import { toPromoterResponse } from "@/lib/serializers";
 
-export const metadata: Metadata = { title: "Financeiro — Ingressos" };
+export const metadata: Metadata = { title: "Financeiro" };
 
 export default async function FinancePage({
   params,

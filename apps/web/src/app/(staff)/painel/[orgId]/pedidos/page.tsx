@@ -6,7 +6,7 @@ import { toEventResponse } from "@/lib/serializers";
 import { PageHeader } from "@/components/ui";
 import { OrdersSearch } from "./search-client";
 
-export const metadata: Metadata = { title: "Pedidos — Ingressos" };
+export const metadata: Metadata = { title: "Pedidos" };
 
 export default async function OrdersPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId: orgParam } = await params;

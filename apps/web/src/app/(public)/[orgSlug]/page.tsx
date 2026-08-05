@@ -75,6 +75,8 @@ export async function generateMetadata({
   return {
     title,
     description,
+    // Favicon = logo da org (mesmo comportamento do painel); sem logo → padrão.
+    ...(page.logoUrl ? { icons: { icon: page.logoUrl } } : {}),
     alternates: { canonical: url },
     openGraph: {
       title,

@@ -22,7 +22,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { orgId: orgParam } = await params;
   const vocab = await orgVocabForParam(orgParam);
-  return { title: `${vocab.ticketsAndBatches} — Ingressos` };
+  return { title: `${vocab.ticketsAndBatches}` };
 }
 
 export default async function EventInventory({

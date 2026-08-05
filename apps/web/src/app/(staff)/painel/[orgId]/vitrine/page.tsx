@@ -6,7 +6,7 @@ import { parseStoredTrustItems } from "@ingressos/core";
 import { PageHeader } from "@/components/ui";
 import { StorefrontEditor } from "./storefront-editor";
 
-export const metadata: Metadata = { title: "Minha página — Ingressos" };
+export const metadata: Metadata = { title: "Minha página" };
 
 export default async function StorefrontPage({
   params,
