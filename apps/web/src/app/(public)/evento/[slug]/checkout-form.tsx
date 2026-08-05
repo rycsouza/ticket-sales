@@ -479,11 +479,26 @@ export function CheckoutForm({
             <ul className="divide-y divide-line">
               {batches.map((batch) => {
                 const quantity = quantities[batch.id] ?? 0;
+                // Convenção de viagens multi-embarque: tipo "Saída" → o lote é a
+                // CIDADE de embarque, que vira o destaque da linha.
+                const isDeparture = batch.ticketTypeName.trim().toLowerCase() === "saída";
+                const rowLabel = isDeparture
+                  ? `saída de ${batch.name}`
+                  : batch.ticketTypeName;
                 return (
                   <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
-                      <p className="text-small text-ink-muted">{batch.name}</p>
+                      {isDeparture ? (
+                        <>
+                          <p className="text-small text-ink-muted">Embarque em:</p>
+                          <p className="truncate text-h3 font-semibold text-ink">{batch.name}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
+                          <p className="text-small text-ink-muted">{batch.name}</p>
+                        </>
+                      )}
                       <p className="mt-1 text-body font-semibold text-brand">
                         {formatBRL(batch.priceCents)}
                       </p>
@@ -492,7 +507,7 @@ export function CheckoutForm({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          aria-label={`Remover ${batch.ticketTypeName}`}
+                          aria-label={`Remover ${rowLabel}`}
                           onClick={() => setQuantity(batch, quantity - 1)}
                           className="flex size-11 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors active:bg-hover disabled:opacity-30"
                           disabled={quantity === 0}
@@ -504,7 +519,7 @@ export function CheckoutForm({
                         </span>
                         <button
                           type="button"
-                          aria-label={`Adicionar ${batch.ticketTypeName}`}
+                          aria-label={`Adicionar ${rowLabel}`}
                           onClick={() => setQuantity(batch, quantity + 1)}
                           className="flex size-11 items-center justify-center rounded-full bg-brand text-brand-fg transition-colors active:bg-brand-active"
                         >
