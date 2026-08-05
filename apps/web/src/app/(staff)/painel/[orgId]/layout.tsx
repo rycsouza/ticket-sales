@@ -7,8 +7,29 @@ import { requireDashboardUser } from "@/lib/dashboard";
 import { currentUserIsPlatformAdmin } from "@/lib/platform-admin";
 import { PanelShell } from "../panel-shell";
 
-// The producer panel is private — keep it out of search indexes.
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+// The producer panel is private — keep it out of search indexes. O favicon
+// segue o logo da vitrine da org (já público na LP; lookup sem sessão, mesmo
+// racional do orgVocabForParam) — ausente/erro → favicon padrão da plataforma.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string }>;
+}): Promise<Metadata> {
+  const base: Metadata = { robots: { index: false, follow: false } };
+  try {
+    const { orgId: orgParam } = await params;
+    const platform = getPlatformServices();
+    const org =
+      (await platform.organizations.findBySlug(orgParam)) ??
+      (await platform.organizations.findById(orgParam));
+    if (!org) return base;
+    const { logoUrl } = await platform.storefront.getPublicBranding(org.id);
+    if (!logoUrl) return base;
+    return { ...base, icons: { icon: logoUrl } };
+  } catch {
+    return base;
+  }
+}
 
 /**
  * Shell for the whole producer panel: auth guard + org membership check run
