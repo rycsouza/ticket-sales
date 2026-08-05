@@ -64,7 +64,7 @@ export function NewTicketTypeForm({ orgId, eventId, vocab }: { orgId: string; ev
         open={open}
         onClose={() => setOpen(false)}
         title={vocab.newTicketType}
-        description={`O tipo define o produto vendido (ex.: ${vocab.ticket === "vaga" ? "Leito, Semi-leito" : "Pista, Camarote"}). O preço e a quantidade ficam nos lotes.`}
+        description={`No checkout, o TIPO aparece como rótulo pequeno acima do lote (ex.: ${vocab.ticket === "vaga" ? '"Embarque em:", "Criança (6 a 8 anos)"' : '"Pista", "Camarote"'}). O preço e a quantidade ficam nos lotes.`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -83,12 +83,16 @@ export function NewTicketTypeForm({ orgId, eventId, vocab }: { orgId: string; ev
             submit();
           }}
         >
-          <Field label="Nome" htmlFor="tt-name" hint={`Como aparece no checkout. Ex.: ${vocab.ticket === "vaga" ? "Leito, Semi-leito, Poltrona" : "Pista, Camarote, Mesa VIP"}.`}>
+          <Field
+            label="Nome"
+            htmlFor="tt-name"
+            hint={`É o rótulo pequeno acima de cada lote no checkout. Ex.: ${vocab.ticket === "vaga" ? '"Embarque em:" (e o lote vira a cidade), "Criança (6 a 8 anos)"' : '"Pista", "Camarote", "Mesa VIP"'}.`}
+          >
             <Input
               id="tt-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex.: Pista"
+              placeholder={vocab.ticket === "vaga" ? "Ex.: Embarque em:" : "Ex.: Pista"}
               autoFocus
             />
           </Field>
@@ -234,12 +238,16 @@ export function NewBatchForm({
             </Field>
           )}
 
-          <Field label="Nome do lote" htmlFor="b-name">
+          <Field
+            label="Nome do lote"
+            htmlFor="b-name"
+            hint="É o DESTAQUE da linha no checkout, logo abaixo do rótulo do tipo."
+          >
             <Input
               id="b-name"
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="Ex.: 1º Lote"
+              placeholder={vocab.ticket === "vaga" ? "Ex.: Três Lagoas — MS" : "Ex.: 1º Lote"}
               autoFocus
             />
           </Field>

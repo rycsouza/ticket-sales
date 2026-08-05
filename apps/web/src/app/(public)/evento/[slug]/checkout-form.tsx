@@ -479,26 +479,15 @@ export function CheckoutForm({
             <ul className="divide-y divide-line">
               {batches.map((batch) => {
                 const quantity = quantities[batch.id] ?? 0;
-                // Convenção de viagens multi-embarque: tipo "Saída" → o lote é a
-                // CIDADE de embarque, que vira o destaque da linha.
-                const isDeparture = batch.ticketTypeName.trim().toLowerCase() === "saída";
-                const rowLabel = isDeparture
-                  ? `saída de ${batch.name}`
-                  : batch.ticketTypeName;
+                // Layout padrão do seletor: o TIPO é a label pequena (o operador
+                // escreve o rótulo, ex.: "Embarque em:") e o LOTE é o destaque
+                // (ex.: a cidade de saída) — vale para qualquer nicho.
+                const rowLabel = `${batch.ticketTypeName} ${batch.name}`;
                 return (
                   <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      {isDeparture ? (
-                        <>
-                          <p className="text-small text-ink-muted">Embarque em:</p>
-                          <p className="truncate text-h3 font-semibold text-ink">{batch.name}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="truncate font-medium text-ink">{batch.ticketTypeName}</p>
-                          <p className="text-small text-ink-muted">{batch.name}</p>
-                        </>
-                      )}
+                      <p className="truncate text-small text-ink-muted">{batch.ticketTypeName}</p>
+                      <p className="truncate text-h3 font-semibold text-ink">{batch.name}</p>
                       <p className="mt-1 text-body font-semibold text-brand">
                         {formatBRL(batch.priceCents)}
                       </p>
@@ -769,8 +758,8 @@ export function CheckoutForm({
                 .map((b) => (
                   <li key={b.id} className="flex items-center justify-between py-2 text-body">
                     <span className="text-ink">
-                      {quantities[b.id]}× {b.ticketTypeName}
-                      <span className="text-ink-muted"> · {b.name}</span>
+                      {quantities[b.id]}× {b.name}
+                      <span className="text-ink-muted"> · {b.ticketTypeName}</span>
                     </span>
                     <span className="tabular-nums text-ink">
                       {formatBRL((quantities[b.id] ?? 0) * b.priceCents)}
